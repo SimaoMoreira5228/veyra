@@ -13,6 +13,7 @@ endif()
 
 add_library(veyra STATIC
  src/core/node_id_pool.cpp
+ src/core/node_tree.cpp
  src/engines.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -33,6 +34,10 @@ add_test(NAME engine_behavior COMMAND veyra_engine_test)
 add_executable(veyra_node_id_pool_test tests/node_id_pool_test.cpp)
 target_link_libraries(veyra_node_id_pool_test PRIVATE veyra)
 add_test(NAME node_id_pool_behavior COMMAND veyra_node_id_pool_test)
+
+add_executable(veyra_node_tree_test tests/node_tree_test.cpp)
+target_link_libraries(veyra_node_tree_test PRIVATE veyra)
+add_test(NAME node_tree_behavior COMMAND veyra_node_tree_test)
 
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
