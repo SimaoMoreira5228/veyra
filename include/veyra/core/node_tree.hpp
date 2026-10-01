@@ -54,6 +54,7 @@ class NodeTree {
     NodeId parent_of(NodeId id) const noexcept;
     NodeId first_child(NodeId id) const noexcept;
     NodeId next_sibling(NodeId id) const noexcept;
+    bool path_to_root(NodeId id, std::span<NodeId> path, std::size_t& length) const noexcept;
     bool mark_dirty(NodeId id, DirtyCategory category) noexcept;
     bool clear_dirty(NodeId id, DirtyCategory category) noexcept;
     bool is_dirty(NodeId id, DirtyCategory category) const noexcept;

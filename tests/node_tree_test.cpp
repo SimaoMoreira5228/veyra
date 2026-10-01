@@ -36,6 +36,23 @@ void check_hierarchy_and_lifetimes() {
         tree.next_sibling(first_child) == second_child,
         "sibling link preserves insertion order"
     );
+    std::array<veyra::NodeId, 3> path{};
+    std::size_t path_length = 0;
+    require(tree.path_to_root(grandchild, path, path_length), "hierarchy path fits caller storage");
+    require(path_length == 3, "hierarchy path includes every ancestor");
+    require(path[0] == grandchild, "hierarchy path starts at the target");
+    require(path[1] == first_child, "hierarchy path walks through the parent");
+    require(path[2] == first_root, "hierarchy path ends at the root");
+
+    std::array too_small{veyra::NodeId{90, 90}, veyra::NodeId{91, 91}};
+    require(
+        !tree.path_to_root(grandchild, too_small, path_length),
+        "short route buffer is rejected"
+    );
+    require(path_length == 3, "short route reports the required capacity");
+    require(too_small[0].index == 90, "short route leaves caller storage unchanged");
+    require(too_small[1].index == 91, "short route does not partially write results");
+
     require(
         !tree.append_child(grandchild, first_root),
         "an ancestor cannot be attached below its child"

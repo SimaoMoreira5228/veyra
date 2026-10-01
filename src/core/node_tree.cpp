@@ -216,6 +216,27 @@ NodeId NodeTree::next_sibling(NodeId id) const noexcept {
     return links_[id.index].next_sibling;
 }
 
+bool NodeTree::path_to_root(NodeId id, std::span<NodeId> path, std::size_t& length) const noexcept {
+    length = 0;
+    if (!contains(id)) {
+        return false;
+    }
+
+    for (auto current = id; !current.is_null(); current = links_[current.index].parent) {
+        ++length;
+    }
+    if (path.size() < length) {
+        return false;
+    }
+
+    auto current = id;
+    for (std::size_t index = 0; index < length; ++index) {
+        path[index] = current;
+        current = links_[current.index].parent;
+    }
+    return true;
+}
+
 bool NodeTree::mark_dirty(NodeId id, DirtyCategory category) noexcept {
     const auto mask = dirty_mask(category);
     if (!contains(id) || !is_single_dirty_category(mask)) {

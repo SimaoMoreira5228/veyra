@@ -39,6 +39,14 @@ add_executable(veyra_node_tree_test tests/node_tree_test.cpp)
 target_link_libraries(veyra_node_tree_test PRIVATE veyra)
 add_test(NAME node_tree_behavior COMMAND veyra_node_tree_test)
 
+add_executable(veyra_node_tree_replay_test tests/node_tree_replay_test.cpp)
+target_link_libraries(veyra_node_tree_replay_test PRIVATE veyra)
+add_test(NAME node_tree_replay COMMAND veyra_node_tree_replay_test)
+
+add_executable(veyra_event_dispatch_test tests/event_dispatch_test.cpp)
+target_link_libraries(veyra_event_dispatch_test PRIVATE veyra)
+add_test(NAME event_dispatch_behavior COMMAND veyra_event_dispatch_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
