@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo_root"
+
+mapfile -d '' files < <(
+    git ls-files -z --cached --others --exclude-standard \
+        | while IFS= read -r -d '' path; do
+            case "$path" in
+                *.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.hxx)
+                    [[ "$path" == third_party/* ]] || printf '%s\0' "$path"
+                    ;;
+            esac
+        done
+)
+
+if ((${#files[@]})); then
+    clang-format -i -- "${files[@]}"
+fi

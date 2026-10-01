@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+build_dir="${BUILD_DIR:-$repo_root/build}"
+
+configure() {
+    cmake -S "$repo_root" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON "$@"
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+    setup)
+        echo "Build prerequisites: CMake 3.20+, a C++20 compiler, and Ninja or Make."
+        ;;
+    configure)
+        configure "$@"
+        ;;
+    build)
+        configure
+        cmake --build "$build_dir" "$@"
+        ;;
+    test)
+        configure
+        cmake --build "$build_dir" --parallel
+        ctest --test-dir "$build_dir" --output-on-failure "$@"
+        ;;
+    cover)
+        configure -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+        cmake --build "$build_dir" --parallel
+        ctest --test-dir "$build_dir" --output-on-failure "$@"
+        ;;
+    run)
+        target="${1:-veyra_bench}"
+        if (($#)); then shift; fi
+        configure
+        cmake --build "$build_dir" --target "$target"
+        executable="$build_dir/$target"
+        if [[ ! -x "$executable" && -x "$build_dir/bench/$target" ]]; then
+            executable="$build_dir/bench/$target"
+        fi
+        exec "$executable" "$@"
+        ;;
+    format)
+        "$repo_root/fmt"
+        ;;
+    ide)
+        configure "$@"
+        echo "Compile database: $build_dir/compile_commands.json"
+        ;;
+    lines)
+        git -C "$repo_root" ls-files -z --cached --others --exclude-standard | xargs -0 wc -l
+        ;;
+    *)
+        cat << USAGE
+usage: ./dev setup|configure|build|test|cover|run [target] [args...]|format|ide|lines
+
+Set BUILD_DIR to use a different CMake build directory.
+USAGE
+        if [[ "$cmd" != help ]]; then
+            exit 2
+        fi
+        ;;
+esac
