@@ -14,6 +14,8 @@ endif()
 add_library(veyra STATIC
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
+ src/layout/flex.cpp
+ src/layout/stack.cpp
  src/engines.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -47,14 +49,29 @@ add_executable(veyra_event_dispatch_test tests/event_dispatch_test.cpp)
 target_link_libraries(veyra_event_dispatch_test PRIVATE veyra)
 add_test(NAME event_dispatch_behavior COMMAND veyra_event_dispatch_test)
 
+add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
+target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
+add_test(NAME flex_layout_behavior COMMAND veyra_flex_layout_test)
+
+add_executable(veyra_stack_layout_test tests/stack_layout_test.cpp)
+target_link_libraries(veyra_stack_layout_test PRIVATE veyra)
+add_test(NAME stack_layout_behavior COMMAND veyra_stack_layout_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
+ add_executable(veyra_flex_layout_bench bench/flex_layout.cpp)
+ target_link_libraries(veyra_flex_layout_bench PRIVATE veyra)
  set(veyra_build_config "$<CONFIG>")
  if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(veyra_build_config "unspecified")
  endif()
  target_compile_definitions(veyra_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_flex_layout_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -68,4 +85,8 @@ if(VEYRA_BUILD_BENCH)
   COMMAND veyra_bench --items 1 --frames 4294967295 --warmup 1 --updates 0
  )
  set_tests_properties(benchmark_rejects_frame_overflow PROPERTIES WILL_FAIL TRUE)
+ add_test(
+  NAME flex_layout_benchmark_smoke
+  COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10
+ )
 endif()
