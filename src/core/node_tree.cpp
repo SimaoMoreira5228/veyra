@@ -209,11 +209,44 @@ NodeId NodeTree::first_child(NodeId id) const noexcept {
     return links_[id.index].first_child;
 }
 
+NodeId NodeTree::last_child(NodeId id) const noexcept {
+    if (!contains(id)) {
+        return {};
+    }
+    return links_[id.index].last_child;
+}
+
+NodeId NodeTree::previous_sibling(NodeId id) const noexcept {
+    if (!contains(id)) {
+        return {};
+    }
+    return links_[id.index].previous_sibling;
+}
+
 NodeId NodeTree::next_sibling(NodeId id) const noexcept {
     if (!contains(id)) {
         return {};
     }
     return links_[id.index].next_sibling;
+}
+
+bool NodeTree::set_focusable(NodeId id, bool focusable) noexcept {
+    if (!contains(id)) {
+        return false;
+    }
+
+    auto& node = links_[id.index];
+    if (node.focusable == focusable) {
+        return true;
+    }
+
+    node.focusable = focusable;
+    mark_dirty_unchecked(id, DirtyCategory::semantics);
+    return true;
+}
+
+bool NodeTree::is_focusable(NodeId id) const noexcept {
+    return contains(id) && links_[id.index].focusable;
 }
 
 bool NodeTree::path_to_root(NodeId id, std::span<NodeId> path, std::size_t& length) const noexcept {

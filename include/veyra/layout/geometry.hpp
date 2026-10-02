@@ -3,6 +3,11 @@
 
 namespace veyra {
 
+struct LayoutPoint {
+    float x{};
+    float y{};
+};
+
 struct LayoutInsets {
     float top{};
     float right{};

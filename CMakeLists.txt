@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(VEYRA_BUILD_BENCH "Build benchmark harness" ON)
+option(VEYRA_WITH_TEXT "Build HarfBuzz text shaping support" OFF)
 set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
 set(valid_paradigms arena reactive ecs all)
@@ -13,8 +14,11 @@ if(NOT VEYRA_PARADIGM IN_LIST valid_paradigms)
 endif()
 
 add_library(veyra STATIC
+ src/core/focus_navigation.cpp
+ src/core/hit_test.cpp
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
+ src/core/semantics.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
@@ -27,6 +31,35 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
+enable_testing()
+
+set(veyra_build_config "$<CONFIG>")
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+ set(veyra_build_config "unspecified")
+endif()
+
+if(VEYRA_WITH_TEXT)
+ find_package(harfbuzz CONFIG REQUIRED)
+ add_library(veyra_text STATIC src/text/shaper.cpp)
+ target_include_directories(veyra_text PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ target_link_libraries(veyra_text PUBLIC harfbuzz::harfbuzz)
+ target_compile_features(veyra_text PUBLIC cxx_std_23)
+
+ add_executable(veyra_text_shaper_test tests/text_shaper_test.cpp)
+ target_link_libraries(veyra_text_shaper_test PRIVATE veyra_text)
+ add_test(NAME text_shaper_behavior COMMAND veyra_text_shaper_test)
+
+ if(VEYRA_BUILD_BENCH)
+  add_executable(veyra_text_shaper_bench bench/text_shaper.cpp)
+  target_link_libraries(veyra_text_shaper_bench PRIVATE veyra_text)
+  target_compile_definitions(veyra_text_shaper_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+ endif()
+endif()
+
 foreach(paradigm arena reactive ecs)
  if(VEYRA_PARADIGM STREQUAL "all" OR VEYRA_PARADIGM STREQUAL paradigm)
   string(TOUPPER "${paradigm}" upper)
@@ -34,7 +67,6 @@ foreach(paradigm arena reactive ecs)
  endif()
 endforeach()
 
-enable_testing()
 add_executable(veyra_engine_test tests/engine_test.cpp)
 target_link_libraries(veyra_engine_test PRIVATE veyra)
 add_test(NAME engine_behavior COMMAND veyra_engine_test)
@@ -54,6 +86,18 @@ add_test(NAME node_tree_replay COMMAND veyra_node_tree_replay_test)
 add_executable(veyra_event_dispatch_test tests/event_dispatch_test.cpp)
 target_link_libraries(veyra_event_dispatch_test PRIVATE veyra)
 add_test(NAME event_dispatch_behavior COMMAND veyra_event_dispatch_test)
+
+add_executable(veyra_hit_test_test tests/hit_test_test.cpp)
+target_link_libraries(veyra_hit_test_test PRIVATE veyra)
+add_test(NAME hit_test_behavior COMMAND veyra_hit_test_test)
+
+add_executable(veyra_focus_navigation_test tests/focus_navigation_test.cpp)
+target_link_libraries(veyra_focus_navigation_test PRIVATE veyra)
+add_test(NAME focus_navigation_behavior COMMAND veyra_focus_navigation_test)
+
+add_executable(veyra_semantics_test tests/semantics_test.cpp)
+target_link_libraries(veyra_semantics_test PRIVATE veyra)
+add_test(NAME semantics_behavior COMMAND veyra_semantics_test)
 
 add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
@@ -79,6 +123,14 @@ add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
 target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
 add_test(NAME software_renderer_behavior COMMAND veyra_software_renderer_test)
 
+add_executable(veyra_software_renderer_snapshot_test tests/software_renderer_snapshot_test.cpp)
+target_link_libraries(veyra_software_renderer_snapshot_test PRIVATE veyra)
+add_test(NAME software_renderer_snapshot COMMAND veyra_software_renderer_snapshot_test)
+
+add_executable(veyra_software_renderer_line_test tests/software_renderer_line_test.cpp)
+target_link_libraries(veyra_software_renderer_line_test PRIVATE veyra)
+add_test(NAME software_renderer_line_behavior COMMAND veyra_software_renderer_line_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
@@ -88,12 +140,12 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_grid_layout_bench PRIVATE veyra)
  add_executable(veyra_virtual_list_bench bench/virtual_list.cpp)
  target_link_libraries(veyra_virtual_list_bench PRIVATE veyra)
+ add_executable(veyra_focus_navigation_bench bench/focus_navigation.cpp)
+ target_link_libraries(veyra_focus_navigation_bench PRIVATE veyra)
+ add_executable(veyra_hit_test_bench bench/hit_test.cpp)
+ target_link_libraries(veyra_hit_test_bench PRIVATE veyra)
  add_executable(veyra_software_renderer_bench bench/software_renderer.cpp)
  target_link_libraries(veyra_software_renderer_bench PRIVATE veyra)
- set(veyra_build_config "$<CONFIG>")
- if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
-  set(veyra_build_config "unspecified")
- endif()
  target_compile_definitions(veyra_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
@@ -110,6 +162,16 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_virtual_list_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_focus_navigation_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_hit_test_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -153,11 +215,35 @@ if(VEYRA_BUILD_BENCH)
   COMMAND veyra_virtual_list_bench --items 128 --queries 100 --warmup 10
  )
  add_test(
+  NAME focus_navigation_benchmark_smoke
+  COMMAND veyra_focus_navigation_bench --items 16 --queries 100 --warmup 10
+ )
+ add_test(
+  NAME hit_test_benchmark_smoke
+  COMMAND veyra_hit_test_bench --items 16 --queries 100 --warmup 10
+ )
+ add_test(
   NAME software_renderer_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2
  )
  add_test(
   NAME software_renderer_alpha_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --translucent
+ )
+ add_test(
+  NAME software_renderer_mask_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --mask
+ )
+ add_test(
+  NAME software_renderer_image_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --image
+ )
+ add_test(
+  NAME software_renderer_border_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --border
+ )
+ add_test(
+  NAME software_renderer_line_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --line
  )
 endif()

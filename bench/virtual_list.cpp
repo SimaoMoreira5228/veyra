@@ -1,4 +1,4 @@
-#include "veyra/layout/virtual_list.hpp"
+#include "veyra/core/semantics.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -71,6 +71,12 @@ double scroll_offset(std::size_t query, double total_extent) {
     return total_extent * static_cast<double>(sample) / static_cast<double>(modulus);
 }
 
+std::size_t item_index_for_query(std::size_t query, std::size_t item_count) {
+    constexpr std::uint64_t multiplier = 48'271;
+    const auto sample = (static_cast<std::uint64_t>(query) * multiplier + 17) % item_count;
+    return static_cast<std::size_t>(sample);
+}
+
 int run(const Options& options) {
     std::vector<float> extents(options.items);
     for (std::size_t index = 0; index < extents.size(); ++index) {
@@ -86,15 +92,48 @@ int run(const Options& options) {
     const auto build_end = Clock::now();
 
     std::vector<double> timings;
+    std::vector<double> semantic_timings;
     timings.reserve(options.queries);
+    semantic_timings.reserve(options.queries);
     veyra::VirtualListRange range;
+    veyra::NodeTree tree;
+    tree.reserve(1);
+    const auto list = tree.create();
+    veyra::VirtualSemanticNode semantic_item;
+    constexpr veyra::SemanticNodeData semantic_data{
+        .role = veyra::SemanticRole::list_item,
+        .label = "Entry",
+    };
+    constexpr veyra::LayoutRect viewport{
+        .width = 640.0F,
+        .height = 720.0F,
+    };
+
     for (std::size_t query = 0; query < options.warmup; ++query) {
         if (!index.visible_range(scroll_offset(query, index.total_extent()), 720.0, 2, range)) {
             throw std::runtime_error("virtual range query failed during warmup");
         }
+
+        const auto item_index = item_index_for_query(query, options.items);
+        double item_offset = 0.0;
+        if (!index.offset_of(item_index, item_offset) ||
+            veyra::virtual_semantic_item(
+                tree,
+                list,
+                index,
+                static_cast<std::uint64_t>(item_index) + 1,
+                item_index,
+                item_offset,
+                viewport,
+                semantic_data,
+                semantic_item
+            ) != veyra::VirtualSemanticResult::complete) {
+            throw std::runtime_error("virtual semantic query failed during warmup");
+        }
     }
 
     double checksum = 0.0;
+    double semantic_checksum = 0.0;
     for (std::size_t query = 0; query < options.queries; ++query) {
         const auto scroll = scroll_offset(query + options.warmup, index.total_extent());
         const auto begin = Clock::now();
@@ -106,9 +145,38 @@ int run(const Options& options) {
 
         timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
         checksum += static_cast<double>(range.first_item + range.last_item) + range.first_offset;
+
+        const auto item_index = item_index_for_query(query + options.warmup, options.items);
+        double item_offset = 0.0;
+        if (!index.offset_of(item_index, item_offset)) {
+            throw std::runtime_error("virtual item offset query failed during measurement");
+        }
+
+        const auto semantic_begin = Clock::now();
+        const auto semantic_result = veyra::virtual_semantic_item(
+            tree,
+            list,
+            index,
+            static_cast<std::uint64_t>(item_index) + 1,
+            item_index,
+            item_offset,
+            viewport,
+            semantic_data,
+            semantic_item
+        );
+        const auto semantic_end = Clock::now();
+        if (semantic_result != veyra::VirtualSemanticResult::complete) {
+            throw std::runtime_error("virtual semantic query failed during measurement");
+        }
+
+        semantic_timings.push_back(
+            std::chrono::duration<double, std::nano>(semantic_end - semantic_begin).count()
+        );
+        semantic_checksum += static_cast<double>(semantic_item.index) + semantic_item.bounds.y;
     }
 
     std::sort(timings.begin(), timings.end());
+    std::sort(semantic_timings.begin(), semantic_timings.end());
     const auto build_ns = std::chrono::duration<double, std::nano>(build_end - build_begin).count();
     std::cout << "scenario,platform,compiler,build_config,items,warmup_queries,measured_queries,"
                  "build_ns,p50_ns,p95_ns,p99_ns,max_ns,total_extent,checksum\n"
@@ -117,7 +185,13 @@ int run(const Options& options) {
               << options.warmup << ',' << options.queries << ',' << build_ns << ','
               << percentile(timings, 50) << ',' << percentile(timings, 95) << ','
               << percentile(timings, 99) << ',' << timings.back() << ',' << index.total_extent()
-              << ',' << checksum << '\n';
+              << ',' << checksum << '\n'
+              << "virtual_item_semantics_lookup," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.items << ','
+              << options.warmup << ',' << options.queries << ',' << build_ns << ','
+              << percentile(semantic_timings, 50) << ',' << percentile(semantic_timings, 95) << ','
+              << percentile(semantic_timings, 99) << ',' << semantic_timings.back() << ','
+              << index.total_extent() << ',' << semantic_checksum << '\n';
     return 0;
 }
 

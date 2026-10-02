@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <variant>
 
 namespace veyra {
 
@@ -16,17 +17,43 @@ struct DisplayColor {
     std::uint8_t alpha{255};
 };
 
-enum class DisplayCommandType : std::uint8_t {
-    fill_rect,
-    push_clip,
-    pop_clip,
-};
-
-struct DisplayCommand {
-    DisplayCommandType type{DisplayCommandType::fill_rect};
+struct FillRect {
     LayoutRect bounds;
     DisplayColor color;
 };
+
+struct StrokeRect {
+    LayoutRect bounds;
+    float thickness{};
+    DisplayColor color;
+};
+
+struct StrokeLine {
+    LayoutPoint start;
+    LayoutPoint end;
+    float thickness{};
+    DisplayColor color;
+};
+
+struct SoftwareMask {
+    std::size_t width{};
+    std::size_t height{};
+    std::size_t stride{};
+    std::span<const std::uint8_t> coverage;
+};
+
+struct DrawMask {
+    std::int32_t x{};
+    std::int32_t y{};
+    const SoftwareMask* mask{};
+    DisplayColor color;
+};
+
+struct PushClip {
+    LayoutRect bounds;
+};
+
+struct PopClip {};
 
 struct SoftwarePixel {
     std::uint8_t red{};
@@ -34,6 +61,22 @@ struct SoftwarePixel {
     std::uint8_t blue{};
     std::uint8_t alpha{255};
 };
+
+struct SoftwareImage {
+    std::size_t width{};
+    std::size_t height{};
+    std::size_t stride{};
+    std::span<const SoftwarePixel> pixels;
+};
+
+struct DrawImage {
+    std::int32_t x{};
+    std::int32_t y{};
+    const SoftwareImage* image{};
+};
+
+using DisplayCommand =
+    std::variant<FillRect, StrokeRect, StrokeLine, DrawMask, DrawImage, PushClip, PopClip>;
 
 struct SoftwareSurface {
     std::size_t width{};

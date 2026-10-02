@@ -25,6 +25,7 @@ class NodeTree {
         NodeId previous_sibling;
         NodeId next_sibling;
         std::uint8_t dirty_flags{};
+        bool focusable{};
     };
 
     NodeIdPool ids_;
@@ -53,7 +54,11 @@ class NodeTree {
     bool contains(NodeId id) const noexcept;
     NodeId parent_of(NodeId id) const noexcept;
     NodeId first_child(NodeId id) const noexcept;
+    NodeId last_child(NodeId id) const noexcept;
+    NodeId previous_sibling(NodeId id) const noexcept;
     NodeId next_sibling(NodeId id) const noexcept;
+    bool set_focusable(NodeId id, bool focusable) noexcept;
+    bool is_focusable(NodeId id) const noexcept;
     bool path_to_root(NodeId id, std::span<NodeId> path, std::size_t& length) const noexcept;
     bool mark_dirty(NodeId id, DirtyCategory category) noexcept;
     bool clear_dirty(NodeId id, DirtyCategory category) noexcept;
