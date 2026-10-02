@@ -30,8 +30,8 @@ void check_content_sized_auto_tracks() {
     const std::array columns{veyra::GridTrack{}, veyra::GridTrack{}};
     const std::array rows{veyra::GridTrack{}};
     const std::array items{
-        veyra::GridItem{.column = 0},
-        veyra::GridItem{.column = 1},
+        veyra::GridItem{.row = 0, .column = 0},
+        veyra::GridItem{.row = 0, .column = 1},
     };
     const std::array measurements{
         veyra::IntrinsicSize{
@@ -45,18 +45,18 @@ void check_content_sized_auto_tracks() {
     };
     std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 2> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 2> output{};
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::complete, "auto tracks fit measured content");
     require(
         near(output[0].x, 3.0F) && near(output[0].width, 41.5F) && near(output[1].x, 48.5F) &&
@@ -90,18 +90,18 @@ void check_track_limits_and_spanning() {
     };
     std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 2> row_workspace{};
+    std::array<veyra::GridItemPlacement, 1> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 1> output{};
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::complete, "spanning content fits track limits");
     require(
         near(output[0].width, 80.0F) && near(output[0].height, 80.0F),
@@ -124,8 +124,8 @@ void check_tracks_shrink_to_minimum_content() {
     };
     const std::array rows{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
     const std::array items{
-        veyra::GridItem{.column = 0},
-        veyra::GridItem{.column = 1},
+        veyra::GridItem{.row = 0, .column = 0},
+        veyra::GridItem{.row = 0, .column = 1},
     };
     const std::array measurements{
         veyra::IntrinsicSize{
@@ -139,18 +139,18 @@ void check_tracks_shrink_to_minimum_content() {
     };
     std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 2> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 2> output{};
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::complete, "tracks shrink without crossing minimums");
     require(
         near(output[0].width, 30.0F) && near(output[1].width, 30.0F),
@@ -166,8 +166,8 @@ void check_maximum_content_contributions() {
     const std::array columns{veyra::GridTrack{}, veyra::GridTrack{}};
     const std::array rows{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
     const std::array items{
-        veyra::GridItem{.column = 0},
-        veyra::GridItem{.column = 1},
+        veyra::GridItem{.row = 0, .column = 0},
+        veyra::GridItem{.row = 0, .column = 1},
     };
     const std::array measurements{
         veyra::IntrinsicSize{
@@ -181,23 +181,184 @@ void check_maximum_content_contributions() {
     };
     std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 2> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 2> output{};
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::complete, "max-content tracks fit the container");
     require(
         near(output[0].width, 37.14286F) && near(output[1].width, 22.85714F),
         "max-content contributions shape track growth before the grid shrinks"
     );
+}
+
+void check_fractional_tracks() {
+    auto container = veyra::GridContainer{
+        .width = 90.0F,
+        .height = 10.0F,
+    };
+    const std::array fractional_columns{
+        veyra::GridTrack{.fraction = 1.0F},
+        veyra::GridTrack{.fraction = 2.0F},
+    };
+    const std::array rows{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
+    const std::span<const veyra::GridItem> items;
+    const std::span<const veyra::IntrinsicSize> measurements;
+    std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
+    std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    const auto fractional_workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+    };
+
+    auto result = veyra::layout_grid(
+        container,
+        fractional_columns,
+        rows,
+        items,
+        measurements,
+        fractional_workspace,
+        std::span<veyra::LayoutRect>{}
+    );
+    require(result == veyra::GridLayoutResult::complete, "fractional tracks fill free space");
+    require(
+        near(column_workspace[0].size, 30.0F) && near(column_workspace[1].size, 60.0F),
+        "fraction weights divide remaining space proportionally"
+    );
+
+    container.width = 140.0F;
+    const std::array capped_columns{
+        veyra::GridTrack{.maximum = 20.0F, .fraction = 1.0F},
+        veyra::GridTrack{.maximum = 100.0F, .fraction = 1.0F},
+        veyra::GridTrack{},
+    };
+    std::array<veyra::GridTrackWorkspace, 3> capped_workspace{};
+    const auto capped_grid_workspace = veyra::GridLayoutWorkspace{
+        .columns = capped_workspace,
+        .rows = row_workspace,
+    };
+    result = veyra::layout_grid(
+        container,
+        capped_columns,
+        rows,
+        items,
+        measurements,
+        capped_grid_workspace,
+        std::span<veyra::LayoutRect>{}
+    );
+    require(
+        result == veyra::GridLayoutResult::complete,
+        "fraction limits leave space to auto tracks"
+    );
+    require(
+        near(capped_workspace[0].size, 20.0F) && near(capped_workspace[1].size, 100.0F) &&
+            near(capped_workspace[2].size, 20.0F),
+        "fractional limits cap growth before auto tracks expand"
+    );
+}
+
+void check_automatic_placement() {
+    const auto container = veyra::GridContainer{
+        .width = 30.0F,
+        .height = 20.0F,
+    };
+    const std::array columns{
+        veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F},
+        veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F},
+        veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F},
+    };
+    const std::array rows{
+        veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F},
+        veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F},
+    };
+    const std::array items{
+        veyra::GridItem{},
+        veyra::GridItem{.row = 0, .column = 1},
+        veyra::GridItem{.row = 0},
+        veyra::GridItem{.column_span = 2},
+    };
+    const std::array measurements{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+            .height = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+            .height = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+            .height = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 20.0F, .preferred = 20.0F, .max_content = 20.0F},
+            .height = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+        },
+    };
+    std::array<veyra::GridTrackWorkspace, 3> column_workspace{};
+    std::array<veyra::GridTrackWorkspace, 2> row_workspace{};
+    std::array<veyra::GridItemPlacement, 4> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
+    std::array<veyra::LayoutRect, 4> output{};
+
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
+    require(result == veyra::GridLayoutResult::complete, "automatic placement handles mixed items");
+    require(
+        near(output[0].x, 0.0F) && near(output[0].y, 0.0F) && near(output[1].x, 10.0F) &&
+            near(output[1].y, 0.0F) && near(output[2].x, 20.0F) && near(output[2].y, 0.0F),
+        "auto items avoid explicitly placed items"
+    );
+    require(
+        near(output[3].x, 0.0F) && near(output[3].y, 10.0F) && near(output[3].width, 20.0F),
+        "auto placement finds a row for a spanning item"
+    );
+
+    const std::array one_column{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
+    const std::array one_row{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
+    const std::array crowded_items{veyra::GridItem{}, veyra::GridItem{}};
+    const std::array crowded_measurements{measurements[0], measurements[0]};
+    std::array<veyra::GridTrackWorkspace, 1> crowded_column_workspace{};
+    std::array<veyra::GridTrackWorkspace, 1> crowded_row_workspace{};
+    std::array<veyra::GridItemPlacement, 2> crowded_placements{};
+    std::array<std::uint64_t, 1> crowded_occupancy{};
+    const auto crowded_workspace = veyra::GridLayoutWorkspace{
+        .columns = crowded_column_workspace,
+        .rows = crowded_row_workspace,
+        .placements = crowded_placements,
+        .occupancy = crowded_occupancy,
+    };
+    std::array<veyra::LayoutRect, 2> crowded_output{};
+    crowded_output[0].x = 7.0F;
+
+    const auto crowded_result = veyra::layout_grid(
+        container,
+        one_column,
+        one_row,
+        crowded_items,
+        crowded_measurements,
+        crowded_workspace,
+        crowded_output
+    );
+    require(
+        crowded_result == veyra::GridLayoutResult::no_placement,
+        "grid reports when automatic items do not fit"
+    );
+    require(near(crowded_output[0].x, 7.0F), "failed placement leaves output untouched");
 }
 
 void check_overflow_and_invalid_inputs() {
@@ -219,18 +380,18 @@ void check_overflow_and_invalid_inputs() {
     };
     std::array<veyra::GridTrackWorkspace, 2> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 1> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 1> output{};
 
-    auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::overflow, "min-content wider than a span overflows");
     require(near(output[0].width, 40.0F), "overflow still returns the constrained grid area");
 
@@ -241,8 +402,7 @@ void check_overflow_and_invalid_inputs() {
         rows,
         invalid_items,
         measurements,
-        column_workspace,
-        row_workspace,
+        workspace,
         output
     );
     require(result == veyra::GridLayoutResult::invalid_input, "zero track spans are rejected");
@@ -251,17 +411,27 @@ void check_overflow_and_invalid_inputs() {
         veyra::GridTrack{.minimum = 12.0F, .maximum = 8.0F},
         veyra::GridTrack{.minimum = 20.0F, .maximum = 20.0F},
     };
+    result =
+        veyra::layout_grid(container, invalid_tracks, rows, items, measurements, workspace, output);
+    require(result == veyra::GridLayoutResult::invalid_input, "reversed track limits are rejected");
+
+    const std::array invalid_fraction_tracks{
+        veyra::GridTrack{.fraction = -1.0F},
+        veyra::GridTrack{},
+    };
     result = veyra::layout_grid(
         container,
-        invalid_tracks,
+        invalid_fraction_tracks,
         rows,
         items,
         measurements,
-        column_workspace,
-        row_workspace,
+        workspace,
         output
     );
-    require(result == veyra::GridLayoutResult::invalid_input, "reversed track limits are rejected");
+    require(
+        result == veyra::GridLayoutResult::invalid_input,
+        "negative track fractions are rejected"
+    );
 
     const std::array invalid_measurements{
         veyra::IntrinsicSize{
@@ -275,8 +445,7 @@ void check_overflow_and_invalid_inputs() {
         rows,
         items,
         invalid_measurements,
-        column_workspace,
-        row_workspace,
+        workspace,
         output
     );
     require(
@@ -301,6 +470,14 @@ void check_required_buffers() {
     };
     std::array<veyra::GridTrackWorkspace, 1> column_workspace{};
     std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 1> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::array<veyra::LayoutRect, 1> output{};
 
     auto result = veyra::layout_grid(
@@ -309,8 +486,7 @@ void check_required_buffers() {
         rows,
         items,
         std::span<const veyra::IntrinsicSize>{},
-        column_workspace,
-        row_workspace,
+        workspace,
         output
     );
     require(
@@ -324,8 +500,11 @@ void check_required_buffers() {
         rows,
         items,
         measurements,
-        std::span<veyra::GridTrackWorkspace>{},
-        row_workspace,
+        veyra::GridLayoutWorkspace{
+            .rows = row_workspace,
+            .placements = placements,
+            .occupancy = occupancy,
+        },
         output
     );
     require(
@@ -339,8 +518,43 @@ void check_required_buffers() {
         rows,
         items,
         measurements,
-        column_workspace,
-        row_workspace,
+        veyra::GridLayoutWorkspace{
+            .columns = column_workspace,
+            .rows = row_workspace,
+            .occupancy = occupancy,
+        },
+        output
+    );
+    require(
+        result == veyra::GridLayoutResult::insufficient_workspace,
+        "missing automatic placement scratch is reported"
+    );
+
+    result = veyra::layout_grid(
+        container,
+        columns,
+        rows,
+        items,
+        measurements,
+        veyra::GridLayoutWorkspace{
+            .columns = column_workspace,
+            .rows = row_workspace,
+            .placements = placements,
+        },
+        output
+    );
+    require(
+        result == veyra::GridLayoutResult::insufficient_workspace,
+        "missing occupancy scratch is reported"
+    );
+
+    result = veyra::layout_grid(
+        container,
+        columns,
+        rows,
+        items,
+        measurements,
+        workspace,
         std::span<veyra::LayoutRect>{}
     );
     require(
@@ -369,6 +583,10 @@ void check_large_grid() {
     );
     std::vector<veyra::GridTrackWorkspace> column_workspace(side);
     std::vector<veyra::GridTrackWorkspace> row_workspace(side);
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+    };
     std::vector<veyra::LayoutRect> output(item_count);
     for (std::size_t index = 0; index < item_count; ++index) {
         items[index] = {
@@ -377,16 +595,8 @@ void check_large_grid() {
         };
     }
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(result == veyra::GridLayoutResult::complete, "large fixed-placement grid completes");
     require(
         near(output.back().x, 631.96875F) && near(output.back().y, 631.96875F),
@@ -413,21 +623,21 @@ void check_many_tracks_fit_after_float_rounding() {
     );
     std::array<veyra::GridTrackWorkspace, 1> column_workspace{};
     std::vector<veyra::GridTrackWorkspace> row_workspace(row_count);
+    std::vector<veyra::GridItemPlacement> placements(row_count);
+    std::vector<std::uint64_t> occupancy((row_count + 63) / 64);
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
     std::vector<veyra::LayoutRect> output(row_count);
     for (std::size_t row = 0; row < row_count; ++row) {
         items[row].row = row;
     }
 
-    const auto result = veyra::layout_grid(
-        container,
-        columns,
-        rows,
-        items,
-        measurements,
-        column_workspace,
-        row_workspace,
-        output
-    );
+    const auto result =
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
     require(
         result == veyra::GridLayoutResult::complete,
         "float rounding does not overflow a grid that fits its container"
@@ -442,6 +652,8 @@ int main() {
         check_track_limits_and_spanning();
         check_tracks_shrink_to_minimum_content();
         check_maximum_content_contributions();
+        check_fractional_tracks();
+        check_automatic_placement();
         check_overflow_and_invalid_inputs();
         check_required_buffers();
         check_large_grid();

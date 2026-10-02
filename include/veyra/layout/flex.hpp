@@ -34,6 +34,7 @@ enum class FlexAlign : std::uint8_t {
     center,
     end,
     stretch,
+    baseline,
 };
 
 enum class FlexJustify : std::uint8_t {
@@ -73,6 +74,7 @@ struct FlexItem {
     float cross_size{};
     float min_cross{};
     float max_cross{std::numeric_limits<float>::max()};
+    std::optional<float> baseline;
 };
 
 struct FlexItemStyle {

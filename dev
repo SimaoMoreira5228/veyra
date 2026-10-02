@@ -13,7 +13,7 @@ shift || true
 
 case "$cmd" in
     setup)
-        echo "Build prerequisites: CMake 3.20+, a C++20 compiler, and Ninja or Make."
+        echo "Build prerequisites: CMake 3.20+, a C++23 compiler, and Ninja or Make."
         ;;
     configure)
         configure "$@"

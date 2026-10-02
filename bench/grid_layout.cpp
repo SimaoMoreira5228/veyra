@@ -20,6 +20,7 @@ struct Options {
     std::size_t items{1'024};
     std::size_t frames{10'000};
     std::size_t warmup{1'000};
+    bool fractional{};
 };
 
 std::size_t parse_size(const char* value) {
@@ -36,6 +37,10 @@ Options parse_options(int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument(argv[index]);
+        if (argument == "--fractional") {
+            options.fractional = true;
+            continue;
+        }
         if (index + 1 >= argc) {
             throw std::invalid_argument("missing value for " + std::string(argument));
         }
@@ -77,6 +82,11 @@ int run(const Options& options) {
 
     std::vector<veyra::GridTrack> columns(column_count);
     std::vector<veyra::GridTrack> rows(row_count);
+    if (options.fractional) {
+        for (auto& column : columns) {
+            column.fraction = 1.0F;
+        }
+    }
     std::vector<veyra::GridItem> items(options.items);
     std::vector<veyra::IntrinsicSize> measurements(options.items);
     for (std::size_t index = 0; index < options.items; ++index) {
@@ -91,6 +101,10 @@ int run(const Options& options) {
     }
     std::vector<veyra::GridTrackWorkspace> column_workspace(column_count);
     std::vector<veyra::GridTrackWorkspace> row_workspace(row_count);
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+    };
     std::vector<veyra::LayoutRect> output(options.items);
     std::vector<double> timings;
     timings.reserve(options.frames);
@@ -101,32 +115,16 @@ int run(const Options& options) {
         .gap = 2.0F,
     };
     for (std::size_t frame = 0; frame < options.warmup; ++frame) {
-        if (veyra::layout_grid(
-                container,
-                columns,
-                rows,
-                items,
-                measurements,
-                column_workspace,
-                row_workspace,
-                output
-            ) != veyra::GridLayoutResult::complete) {
+        if (veyra::layout_grid(container, columns, rows, items, measurements, workspace, output) !=
+            veyra::GridLayoutResult::complete) {
             throw std::runtime_error("grid layout failed during warmup");
         }
     }
 
     for (std::size_t frame = 0; frame < options.frames; ++frame) {
         const auto begin = Clock::now();
-        const auto result = veyra::layout_grid(
-            container,
-            columns,
-            rows,
-            items,
-            measurements,
-            column_workspace,
-            row_workspace,
-            output
-        );
+        const auto result =
+            veyra::layout_grid(container, columns, rows, items, measurements, workspace, output);
         const auto end = Clock::now();
         if (result != veyra::GridLayoutResult::complete) {
             throw std::runtime_error("grid layout failed during measurement");
@@ -142,10 +140,11 @@ int run(const Options& options) {
 
     std::cout << "scenario,platform,compiler,build_config,items,warmup_frames,measured_frames,"
                  "p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
-              << "grid_auto_tracks," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ','
-              << VEYRA_BUILD_CONFIG << ',' << options.items << ',' << options.warmup << ','
-              << options.frames << ',' << percentile(timings, 50) << ',' << percentile(timings, 95)
-              << ',' << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
+              << (options.fractional ? "grid_fractional_tracks" : "grid_auto_tracks") << ','
+              << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG
+              << ',' << options.items << ',' << options.warmup << ',' << options.frames << ','
+              << percentile(timings, 50) << ',' << percentile(timings, 95) << ','
+              << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
     return 0;
 }
 

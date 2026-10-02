@@ -1,4 +1,5 @@
 #include "veyra/layout/grid.hpp"
+#include "grid_placement.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,6 +7,10 @@
 
 namespace veyra {
 namespace {
+
+using grid_detail::has_automatic_placement;
+using grid_detail::item_placement;
+using grid_detail::resolve_placements;
 
 bool is_finite_nonnegative(float value) noexcept {
     return std::isfinite(value) && value >= 0.0F;
@@ -22,7 +27,7 @@ bool valid_container(const GridContainer& container) noexcept {
 bool valid_tracks(std::span<const GridTrack> tracks) noexcept {
     for (const auto& track : tracks) {
         if (!is_finite_nonnegative(track.minimum) || !is_finite_nonnegative(track.maximum) ||
-            track.minimum > track.maximum) {
+            !is_finite_nonnegative(track.fraction) || track.minimum > track.maximum) {
             return false;
         }
     }
@@ -35,9 +40,14 @@ bool valid_items(
     std::size_t column_count
 ) noexcept {
     for (const auto& item : items) {
-        if (item.row_span == 0 || item.column_span == 0 || item.row >= row_count ||
-            item.column >= column_count || item.row_span > row_count - item.row ||
-            item.column_span > column_count - item.column) {
+        if (item.row_span == 0 || item.column_span == 0) {
+            return false;
+        }
+        if (item.row && (*item.row >= row_count || item.row_span > row_count - *item.row)) {
+            return false;
+        }
+        if (item.column &&
+            (*item.column >= column_count || item.column_span > column_count - *item.column)) {
             return false;
         }
     }
@@ -116,6 +126,78 @@ void grow_tracks(
     }
 }
 
+double grow_fraction_tracks(
+    std::span<const GridTrack> tracks,
+    std::span<GridTrackWorkspace> workspace,
+    double amount
+) noexcept {
+    auto minimum_fraction = std::numeric_limits<double>::max();
+    for (std::size_t index = 0; index < tracks.size(); ++index) {
+        const auto capacity = static_cast<double>(tracks[index].maximum) - workspace[index].size;
+        if (tracks[index].fraction > 0.0F && capacity > 0.0) {
+            minimum_fraction =
+                std::min(minimum_fraction, static_cast<double>(tracks[index].fraction));
+        }
+    }
+    if (minimum_fraction == std::numeric_limits<double>::max()) {
+        return amount;
+    }
+
+    double lower = 0.0;
+    double upper = amount / minimum_fraction;
+    for (int iteration = 0; iteration < 24; ++iteration) {
+        const auto level = (lower + upper) / 2.0;
+        double distributed = 0.0;
+        for (std::size_t index = 0; index < tracks.size(); ++index) {
+            if (tracks[index].fraction == 0.0F) {
+                continue;
+            }
+            const auto capacity =
+                std::max(0.0, static_cast<double>(tracks[index].maximum) - workspace[index].size);
+            distributed += std::min(capacity, static_cast<double>(tracks[index].fraction) * level);
+        }
+        if (distributed < amount) {
+            lower = level;
+        } else {
+            upper = level;
+        }
+    }
+
+    double applied = 0.0;
+    for (std::size_t index = 0; index < tracks.size(); ++index) {
+        if (tracks[index].fraction == 0.0F) {
+            continue;
+        }
+        const auto capacity =
+            std::max(0.0, static_cast<double>(tracks[index].maximum) - workspace[index].size);
+        const auto growth = std::min(capacity, static_cast<double>(tracks[index].fraction) * lower);
+        const auto previous_size = workspace[index].size;
+        workspace[index].size = static_cast<float>(std::min(
+            static_cast<double>(tracks[index].maximum),
+            static_cast<double>(previous_size) + growth
+        ));
+        applied += static_cast<double>(workspace[index].size) - previous_size;
+    }
+
+    auto remainder = std::max(0.0, amount - applied);
+    for (std::size_t index = 0; index < tracks.size() && remainder > 0.0; ++index) {
+        if (tracks[index].fraction == 0.0F) {
+            continue;
+        }
+        const auto capacity =
+            std::max(0.0, static_cast<double>(tracks[index].maximum) - workspace[index].size);
+        const auto previous_size = workspace[index].size;
+        const auto growth = std::min(capacity, remainder);
+        workspace[index].size = static_cast<float>(std::min(
+            static_cast<double>(tracks[index].maximum),
+            static_cast<double>(previous_size) + growth
+        ));
+        remainder -= static_cast<double>(workspace[index].size) - previous_size;
+    }
+
+    return remainder;
+}
+
 void shrink_tracks(
     std::span<GridTrackWorkspace> workspace,
     double amount,
@@ -184,6 +266,7 @@ void size_tracks_from_minimum_content(
     std::span<const GridTrack> columns,
     std::span<const GridTrack> rows,
     std::span<const GridItem> items,
+    std::span<const GridItemPlacement> placements,
     std::span<const IntrinsicSize> measurements,
     std::span<GridTrackWorkspace> column_workspace,
     std::span<GridTrackWorkspace> row_workspace,
@@ -191,10 +274,11 @@ void size_tracks_from_minimum_content(
 ) noexcept {
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
+        const auto placement = item_placement(item, index, placements);
         size_item_span(
             columns,
             column_workspace,
-            item.column,
+            placement.column,
             item.column_span,
             measurements[index].width.min_content,
             gap
@@ -202,7 +286,7 @@ void size_tracks_from_minimum_content(
         size_item_span(
             rows,
             row_workspace,
-            item.row,
+            placement.row,
             item.row_span,
             measurements[index].height.min_content,
             gap
@@ -214,6 +298,7 @@ void size_tracks_from_preferred_content(
     std::span<const GridTrack> columns,
     std::span<const GridTrack> rows,
     std::span<const GridItem> items,
+    std::span<const GridItemPlacement> placements,
     std::span<const IntrinsicSize> measurements,
     std::span<GridTrackWorkspace> column_workspace,
     std::span<GridTrackWorkspace> row_workspace,
@@ -221,10 +306,11 @@ void size_tracks_from_preferred_content(
 ) noexcept {
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
+        const auto placement = item_placement(item, index, placements);
         size_item_span(
             columns,
             column_workspace,
-            item.column,
+            placement.column,
             item.column_span,
             measurements[index].width.preferred,
             gap
@@ -232,7 +318,7 @@ void size_tracks_from_preferred_content(
         size_item_span(
             rows,
             row_workspace,
-            item.row,
+            placement.row,
             item.row_span,
             measurements[index].height.preferred,
             gap
@@ -244,6 +330,7 @@ void size_tracks_from_maximum_content(
     std::span<const GridTrack> columns,
     std::span<const GridTrack> rows,
     std::span<const GridItem> items,
+    std::span<const GridItemPlacement> placements,
     std::span<const IntrinsicSize> measurements,
     std::span<GridTrackWorkspace> column_workspace,
     std::span<GridTrackWorkspace> row_workspace,
@@ -251,10 +338,11 @@ void size_tracks_from_maximum_content(
 ) noexcept {
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
+        const auto placement = item_placement(item, index, placements);
         size_item_span(
             columns,
             column_workspace,
-            item.column,
+            placement.column,
             item.column_span,
             measurements[index].width.max_content,
             gap
@@ -262,7 +350,7 @@ void size_tracks_from_maximum_content(
         size_item_span(
             rows,
             row_workspace,
-            item.row,
+            placement.row,
             item.row_span,
             measurements[index].height.max_content,
             gap
@@ -306,7 +394,19 @@ bool resolve_axis(
     } else if (maximum_content_extent > available) {
         shrink_tracks(workspace, maximum_content_extent - available, true);
     } else if (maximum_content_extent < available) {
-        grow_tracks(tracks, workspace, 0, tracks.size(), available - maximum_content_extent);
+        const auto free_space = available - maximum_content_extent;
+        const bool has_fraction_tracks =
+            std::any_of(tracks.begin(), tracks.end(), [](const GridTrack& track) {
+                return track.fraction > 0.0F;
+            });
+        if (has_fraction_tracks) {
+            const auto remainder = grow_fraction_tracks(tracks, workspace, free_space);
+            if (remainder > 0.0) {
+                grow_tracks(tracks, workspace, 0, tracks.size(), remainder);
+            }
+        } else {
+            grow_tracks(tracks, workspace, 0, tracks.size(), free_space);
+        }
         const auto grown_extent = total_track_extent(workspace, gap);
         if (grown_extent > available) {
             shrink_tracks(workspace, grown_extent - available, true);
@@ -342,8 +442,7 @@ GridLayoutResult layout_grid(
     std::span<const GridTrack> rows,
     std::span<const GridItem> items,
     std::span<const IntrinsicSize> intrinsic_sizes,
-    std::span<GridTrackWorkspace> column_workspace,
-    std::span<GridTrackWorkspace> row_workspace,
+    GridLayoutWorkspace workspace,
     std::span<LayoutRect> output
 ) noexcept {
     if (!valid_container(container)) {
@@ -364,9 +463,25 @@ GridLayoutResult layout_grid(
     if (output.size() < items.size()) {
         return GridLayoutResult::insufficient_output;
     }
+    auto column_workspace = workspace.columns;
+    auto row_workspace = workspace.rows;
     if (column_workspace.size() < columns.size() || row_workspace.size() < rows.size()) {
         return GridLayoutResult::insufficient_workspace;
     }
+
+    const auto placement_result = resolve_placements(
+        items,
+        rows.size(),
+        columns.size(),
+        workspace.placements,
+        workspace.occupancy
+    );
+    if (placement_result != GridLayoutResult::complete) {
+        return placement_result;
+    }
+    const auto placements = has_automatic_placement(items)
+        ? std::span<const GridItemPlacement>(workspace.placements.data(), items.size())
+        : std::span<const GridItemPlacement>{};
 
     for (std::size_t index = 0; index < columns.size(); ++index) {
         column_workspace[index] = {
@@ -385,6 +500,7 @@ GridLayoutResult layout_grid(
         columns,
         rows,
         items,
+        placements,
         intrinsic_sizes,
         column_workspace,
         row_workspace,
@@ -401,6 +517,7 @@ GridLayoutResult layout_grid(
         columns,
         rows,
         items,
+        placements,
         intrinsic_sizes,
         column_workspace,
         row_workspace,
@@ -417,6 +534,7 @@ GridLayoutResult layout_grid(
         columns,
         rows,
         items,
+        placements,
         intrinsic_sizes,
         column_workspace,
         row_workspace,
@@ -443,13 +561,14 @@ GridLayoutResult layout_grid(
     const auto maximum_coordinate = static_cast<double>(std::numeric_limits<float>::max());
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
+        const auto placement = item_placement(item, index, placements);
         const auto width =
-            cell_extent(column_workspace, item.column, item.column_span, container.gap);
-        const auto height = cell_extent(row_workspace, item.row, item.row_span, container.gap);
-        const auto x =
-            static_cast<double>(container.padding.left) + column_workspace[item.column].position;
+            cell_extent(column_workspace, placement.column, item.column_span, container.gap);
+        const auto height = cell_extent(row_workspace, placement.row, item.row_span, container.gap);
+        const auto x = static_cast<double>(container.padding.left) +
+            column_workspace[placement.column].position;
         const auto y =
-            static_cast<double>(container.padding.top) + row_workspace[item.row].position;
+            static_cast<double>(container.padding.top) + row_workspace[placement.row].position;
         if (width > maximum_coordinate || height > maximum_coordinate || x > maximum_coordinate ||
             y > maximum_coordinate) {
             return GridLayoutResult::invalid_input;
@@ -461,14 +580,15 @@ GridLayoutResult layout_grid(
 
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
+        const auto placement = item_placement(item, index, placements);
         output[index] = {
-            .x = container.padding.left + column_workspace[item.column].position,
-            .y = container.padding.top + row_workspace[item.row].position,
+            .x = container.padding.left + column_workspace[placement.column].position,
+            .y = container.padding.top + row_workspace[placement.row].position,
             .width = static_cast<float>(
-                cell_extent(column_workspace, item.column, item.column_span, container.gap)
+                cell_extent(column_workspace, placement.column, item.column_span, container.gap)
             ),
             .height = static_cast<float>(
-                cell_extent(row_workspace, item.row, item.row_span, container.gap)
+                cell_extent(row_workspace, placement.row, item.row_span, container.gap)
             ),
         };
     }

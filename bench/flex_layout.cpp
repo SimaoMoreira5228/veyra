@@ -21,6 +21,7 @@ struct Options {
     std::size_t frames{10'000};
     std::size_t warmup{1'000};
     bool wrap{};
+    bool baseline{};
 };
 
 std::size_t parse_size(const char* value) {
@@ -39,6 +40,10 @@ Options parse_options(int argc, char** argv) {
         const std::string_view argument(argv[index]);
         if (argument == "--wrap") {
             options.wrap = true;
+            continue;
+        }
+        if (argument == "--baseline") {
+            options.baseline = true;
             continue;
         }
         if (index + 1 >= argc) {
@@ -96,6 +101,9 @@ int run(const Options& options) {
                 .max_content = std::numeric_limits<float>::max(),
             },
         };
+        if (options.baseline) {
+            intrinsic[index].baseline = 5.0F + static_cast<float>(index % 7);
+        }
     }
     std::vector<veyra::FlexItem> resolved(options.items);
     std::vector<veyra::LayoutRect> output(options.items);
@@ -108,7 +116,7 @@ int run(const Options& options) {
         .gap = 2.0F,
         .direction = veyra::FlexDirection::row,
         .wrap = options.wrap ? veyra::FlexWrap::wrap : veyra::FlexWrap::no_wrap,
-        .align_items = veyra::FlexAlign::stretch,
+        .align_items = options.baseline ? veyra::FlexAlign::baseline : veyra::FlexAlign::stretch,
         .justify_content = veyra::FlexJustify::start,
     };
 
@@ -138,11 +146,13 @@ int run(const Options& options) {
 
     std::cout << "scenario,platform,compiler,build_config,items,warmup_frames,measured_frames,"
                  "p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
-              << (options.wrap ? "row_measured_wrap" : "row_measured_equal_grow") << ','
-              << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG
-              << ',' << options.items << ',' << options.warmup << ',' << options.frames << ','
-              << percentile(timings, 50) << ',' << percentile(timings, 95) << ','
-              << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
+              << (options.baseline
+                      ? (options.wrap ? "row_measured_baseline_wrap" : "row_measured_baseline")
+                      : (options.wrap ? "row_measured_wrap" : "row_measured_equal_grow"))
+              << ',' << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ','
+              << VEYRA_BUILD_CONFIG << ',' << options.items << ',' << options.warmup << ','
+              << options.frames << ',' << percentile(timings, 50) << ',' << percentile(timings, 95)
+              << ',' << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
     return 0;
 }
 

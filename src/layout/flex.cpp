@@ -52,8 +52,14 @@ bool valid_container(const FlexContainer& container) noexcept {
     case FlexAlign::center:
     case FlexAlign::end:
     case FlexAlign::stretch:
+    case FlexAlign::baseline:
         break;
     default:
+        return false;
+    }
+
+    if (container.direction == FlexDirection::column &&
+        container.align_items == FlexAlign::baseline) {
         return false;
     }
 
@@ -67,12 +73,22 @@ bool valid_container(const FlexContainer& container) noexcept {
     return false;
 }
 
+bool valid_baseline(const FlexItem& item) noexcept {
+    if (!item.baseline) {
+        return true;
+    }
+
+    const auto cross_size = std::clamp(item.cross_size, item.min_cross, item.max_cross);
+    return is_finite_nonnegative(*item.baseline) && *item.baseline <= cross_size;
+}
+
 bool valid_item(const FlexItem& item) noexcept {
     return is_finite_nonnegative(item.basis) && is_finite_nonnegative(item.min_main) &&
         is_finite_nonnegative(item.max_main) && item.min_main <= item.max_main &&
         is_finite_nonnegative(item.grow) && is_finite_nonnegative(item.shrink) &&
         is_finite_nonnegative(item.cross_size) && is_finite_nonnegative(item.min_cross) &&
-        is_finite_nonnegative(item.max_cross) && item.min_cross <= item.max_cross;
+        is_finite_nonnegative(item.max_cross) && item.min_cross <= item.max_cross &&
+        valid_baseline(item);
 }
 
 bool valid_style(const FlexItemStyle& item) noexcept {
@@ -175,11 +191,14 @@ FlexLineMetrics next_flex_line(
     std::span<const FlexItem> items,
     std::size_t begin,
     double available_main,
-    double gap
+    double gap,
+    bool align_baseline
 ) noexcept {
     auto end = begin;
     double main_size = 0.0;
     double cross_size = 0.0;
+    double baseline_ascent = 0.0;
+    double baseline_descent = 0.0;
 
     while (end < items.size()) {
         const auto& item = items[end];
@@ -200,10 +219,20 @@ FlexLineMetrics next_flex_line(
             static_cast<double>(item.max_cross)
         );
         cross_size = std::max(cross_size, item_cross_size);
+        if (align_baseline) {
+            const auto baseline =
+                static_cast<double>(item.baseline.value_or(static_cast<float>(item_cross_size)));
+            baseline_ascent = std::max(baseline_ascent, baseline);
+            baseline_descent = std::max(baseline_descent, item_cross_size - baseline);
+        }
         ++end;
     }
 
-    return {.end = end, .cross_size = cross_size};
+    cross_size = std::max(cross_size, baseline_ascent + baseline_descent);
+    return {
+        .end = end,
+        .cross_size = cross_size,
+    };
 }
 
 }
@@ -243,6 +272,21 @@ FlexLayoutResult layout_flex_line(
     const auto inner_cross =
         std::max(0.0, cross_extent(container, row) - cross_padding(container, row));
     double used_main = gaps;
+    double baseline_ascent = 0.0;
+
+    if (row && container.align_items == FlexAlign::baseline) {
+        for (const auto& item : items) {
+            const auto cross_size = std::clamp(
+                static_cast<double>(item.cross_size),
+                static_cast<double>(item.min_cross),
+                static_cast<double>(item.max_cross)
+            );
+            baseline_ascent = std::max(
+                baseline_ascent,
+                static_cast<double>(item.baseline.value_or(static_cast<float>(cross_size)))
+            );
+        }
+    }
 
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
@@ -330,14 +374,17 @@ FlexLayoutResult layout_flex_line(
                 static_cast<double>(item.max_cross)
             );
         }
-        cross_overflow = cross_overflow || cross_size > inner_cross;
-
         double cross_offset = 0.0;
         if (container.align_items == FlexAlign::center) {
             cross_offset = (inner_cross - cross_size) / 2.0;
         } else if (container.align_items == FlexAlign::end) {
             cross_offset = inner_cross - cross_size;
+        } else if (row && container.align_items == FlexAlign::baseline) {
+            const auto baseline = item.baseline.value_or(static_cast<float>(cross_size));
+            cross_offset = baseline_ascent - baseline;
         }
+        cross_overflow =
+            cross_overflow || cross_offset < 0.0 || cross_offset + cross_size > inner_cross;
 
         if (row) {
             output[index].x = static_cast<float>(main_position);
@@ -390,7 +437,13 @@ FlexLayoutResult layout_flex_impl(
     double natural_cross_size = 0.0;
     std::size_t line_count = 0;
     for (std::size_t begin = 0; begin < items.size();) {
-        const auto line = next_flex_line(items, begin, available_main, container.gap);
+        const auto line = next_flex_line(
+            items,
+            begin,
+            available_main,
+            container.gap,
+            container.align_items == FlexAlign::baseline
+        );
         natural_cross_size += line.cross_size;
         ++line_count;
         begin = line.end;
@@ -425,7 +478,13 @@ FlexLayoutResult layout_flex_impl(
 
     bool overflow = cross_overflow;
     for (std::size_t line_begin = 0; line_begin < items.size();) {
-        const auto line = next_flex_line(items, line_begin, available_main, container.gap);
+        const auto line = next_flex_line(
+            items,
+            line_begin,
+            available_main,
+            container.gap,
+            container.align_items == FlexAlign::baseline
+        );
         const auto line_end = line.end;
         const auto line_cross_size = line.cross_size + line_stretch;
         const auto line_cross_end = line_cross_position + line_cross_size;
@@ -544,6 +603,7 @@ FlexLayoutResult layout_flex_measured(
             .cross_size = row ? measured.height.preferred : measured.width.preferred,
             .min_cross = style.min_cross,
             .max_cross = style.max_cross.value_or(std::numeric_limits<float>::max()),
+            .baseline = row ? measured.baseline : std::nullopt,
         };
     }
 

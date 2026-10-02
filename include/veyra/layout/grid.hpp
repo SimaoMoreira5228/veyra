@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <span>
 
 namespace veyra {
@@ -21,13 +22,19 @@ struct GridContainer {
 struct GridTrack {
     float minimum{};
     float maximum{std::numeric_limits<float>::max()};
+    float fraction{};
 };
 
 struct GridItem {
-    std::size_t row{};
-    std::size_t column{};
+    std::optional<std::size_t> row;
+    std::optional<std::size_t> column;
     std::size_t row_span{1};
     std::size_t column_span{1};
+};
+
+struct GridItemPlacement {
+    std::size_t row{};
+    std::size_t column{};
 };
 
 struct GridTrackWorkspace {
@@ -37,9 +44,17 @@ struct GridTrackWorkspace {
     float position{};
 };
 
+struct GridLayoutWorkspace {
+    std::span<GridTrackWorkspace> columns;
+    std::span<GridTrackWorkspace> rows;
+    std::span<GridItemPlacement> placements;
+    std::span<std::uint64_t> occupancy;
+};
+
 enum class GridLayoutResult : std::uint8_t {
     complete,
     overflow,
+    no_placement,
     invalid_input,
     insufficient_output,
     insufficient_measurements,
@@ -52,8 +67,7 @@ GridLayoutResult layout_grid(
     std::span<const GridTrack> rows,
     std::span<const GridItem> items,
     std::span<const IntrinsicSize> intrinsic_sizes,
-    std::span<GridTrackWorkspace> column_workspace,
-    std::span<GridTrackWorkspace> row_workspace,
+    GridLayoutWorkspace workspace,
     std::span<LayoutRect> output
 ) noexcept;
 

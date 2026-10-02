@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(veyra VERSION 0.1.0 LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 option(VEYRA_BUILD_BENCH "Build benchmark harness" ON)
 set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
@@ -16,13 +17,15 @@ add_library(veyra STATIC
  src/core/node_tree.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
+ src/layout/grid_placement.cpp
  src/layout/measure.cpp
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
+ src/render/software_renderer.cpp
  src/engines.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_compile_features(veyra PUBLIC cxx_std_20)
+target_compile_features(veyra PUBLIC cxx_std_23)
 
 foreach(paradigm arena reactive ecs)
  if(VEYRA_PARADIGM STREQUAL "all" OR VEYRA_PARADIGM STREQUAL paradigm)
@@ -72,6 +75,10 @@ add_executable(veyra_layout_measure_test tests/layout_measure_test.cpp)
 target_link_libraries(veyra_layout_measure_test PRIVATE veyra)
 add_test(NAME layout_measure_behavior COMMAND veyra_layout_measure_test)
 
+add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
+target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
+add_test(NAME software_renderer_behavior COMMAND veyra_software_renderer_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
@@ -81,6 +88,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_grid_layout_bench PRIVATE veyra)
  add_executable(veyra_virtual_list_bench bench/virtual_list.cpp)
  target_link_libraries(veyra_virtual_list_bench PRIVATE veyra)
+ add_executable(veyra_software_renderer_bench bench/software_renderer.cpp)
+ target_link_libraries(veyra_software_renderer_bench PRIVATE veyra)
  set(veyra_build_config "$<CONFIG>")
  if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(veyra_build_config "unspecified")
@@ -105,6 +114,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
+ target_compile_definitions(veyra_software_renderer_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
  add_test(
   NAME benchmark_smoke
   COMMAND veyra_bench --items 1000 --frames 10 --warmup 2 --updates 10 --seed 99
@@ -123,11 +137,27 @@ if(VEYRA_BUILD_BENCH)
   COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10 --wrap
  )
  add_test(
+  NAME flex_layout_baseline_benchmark_smoke
+  COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10 --baseline --wrap
+ )
+ add_test(
   NAME grid_layout_benchmark_smoke
   COMMAND veyra_grid_layout_bench --items 64 --frames 100 --warmup 10
  )
  add_test(
+  NAME grid_fractional_benchmark_smoke
+  COMMAND veyra_grid_layout_bench --items 64 --frames 100 --warmup 10 --fractional
+ )
+ add_test(
   NAME virtual_list_benchmark_smoke
   COMMAND veyra_virtual_list_bench --items 128 --queries 100 --warmup 10
+ )
+ add_test(
+  NAME software_renderer_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2
+ )
+ add_test(
+  NAME software_renderer_alpha_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --translucent
  )
 endif()

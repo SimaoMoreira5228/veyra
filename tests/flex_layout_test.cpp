@@ -316,6 +316,104 @@ void check_measured_column_constraints() {
     );
 }
 
+void check_baseline_alignment() {
+    auto container = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 40.0F,
+        .align_items = veyra::FlexAlign::baseline,
+    };
+    const std::array styles{veyra::FlexItemStyle{}, veyra::FlexItemStyle{}};
+    const std::array intrinsic{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 20.0F, .preferred = 20.0F, .max_content = 20.0F},
+            .height = {.min_content = 20.0F, .preferred = 20.0F, .max_content = 20.0F},
+            .baseline = 15.0F,
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 20.0F, .preferred = 20.0F, .max_content = 20.0F},
+            .height = {.min_content = 30.0F, .preferred = 30.0F, .max_content = 30.0F},
+        },
+    };
+    std::array<veyra::FlexItem, 2> resolved{};
+    std::array<veyra::LayoutRect, 2> output{};
+
+    auto result = veyra::layout_flex_measured(container, styles, intrinsic, resolved, output);
+    require(result == veyra::FlexLayoutResult::complete, "measured baselines align in a row");
+    require(
+        near(output[0].y + resolved[0].baseline.value_or(-1.0F), output[1].y + output[1].height),
+        "items without a baseline align their bottom edge"
+    );
+    require(near(output[0].y, 15.0F) && near(output[1].y, 0.0F), "baseline offsets are applied");
+    result = veyra::layout_flex(container, resolved, output);
+    require(
+        result == veyra::FlexLayoutResult::complete,
+        "direct flex items accept valid baselines"
+    );
+
+    const std::array invalid_baseline_items{
+        veyra::FlexItem{
+            .cross_size = 10.0F,
+            .baseline = 11.0F,
+        },
+    };
+    result = veyra::layout_flex(container, invalid_baseline_items, output);
+    require(result == veyra::FlexLayoutResult::invalid_input, "baselines cannot exceed item size");
+
+    container.height = 20.0F;
+    result = veyra::layout_flex_measured(container, styles, intrinsic, resolved, output);
+    require(result == veyra::FlexLayoutResult::overflow, "baseline offset overflow is reported");
+
+    container.height = 50.0F;
+    container.gap = 5.0F;
+    container.wrap = veyra::FlexWrap::wrap;
+    container.width = 65.0F;
+    const std::array wrapped_styles{
+        veyra::FlexItemStyle{},
+        veyra::FlexItemStyle{},
+        veyra::FlexItemStyle{},
+    };
+    const std::array wrapped_intrinsic{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 30.0F, .preferred = 30.0F, .max_content = 30.0F},
+            .height = {.min_content = 20.0F, .preferred = 20.0F, .max_content = 20.0F},
+            .baseline = 15.0F,
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 30.0F, .preferred = 30.0F, .max_content = 30.0F},
+            .height = {.min_content = 30.0F, .preferred = 30.0F, .max_content = 30.0F},
+            .baseline = 10.0F,
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 30.0F, .preferred = 30.0F, .max_content = 30.0F},
+            .height = {.min_content = 10.0F, .preferred = 10.0F, .max_content = 10.0F},
+            .baseline = 5.0F,
+        },
+    };
+    std::array<veyra::FlexItem, 3> wrapped_resolved{};
+    std::array<veyra::LayoutRect, 3> wrapped_output{};
+
+    result = veyra::layout_flex_measured(
+        container,
+        wrapped_styles,
+        wrapped_intrinsic,
+        wrapped_resolved,
+        wrapped_output
+    );
+    require(result == veyra::FlexLayoutResult::complete, "wrapped rows fit baseline line metrics");
+    require(
+        near(wrapped_output[0].y, 0.0F) && near(wrapped_output[1].y, 5.0F) &&
+            near(wrapped_output[2].y, 40.0F),
+        "wrapped baseline groups size their lines before placement"
+    );
+
+    container.direction = veyra::FlexDirection::column;
+    require(
+        veyra::layout_flex(container, std::span<const veyra::FlexItem>{}, output) ==
+            veyra::FlexLayoutResult::invalid_input,
+        "baseline alignment requires a row direction"
+    );
+}
+
 void check_wrapped_flex_lines() {
     const auto container = veyra::FlexContainer{
         .width = 100.0F,
@@ -463,6 +561,7 @@ int main() {
         check_measured_layout_and_child_constraints();
         check_measured_overflow_and_capacity();
         check_measured_column_constraints();
+        check_baseline_alignment();
         check_wrapped_flex_lines();
         check_measured_flex_wrap();
     } catch (const std::exception& error) {
