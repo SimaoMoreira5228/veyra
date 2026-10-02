@@ -16,6 +16,19 @@ enum class FlexDirection : std::uint8_t {
     column,
 };
 
+enum class FlexWrap : std::uint8_t {
+    no_wrap,
+    wrap,
+};
+
+enum class FlexAlignContent : std::uint8_t {
+    start,
+    center,
+    end,
+    space_between,
+    stretch,
+};
+
 enum class FlexAlign : std::uint8_t {
     start,
     center,
@@ -45,6 +58,8 @@ struct FlexContainer {
     LayoutInsets padding;
     float gap{};
     FlexDirection direction{FlexDirection::row};
+    FlexWrap wrap{FlexWrap::no_wrap};
+    FlexAlignContent align_content{FlexAlignContent::start};
     FlexAlign align_items{FlexAlign::stretch};
     FlexJustify justify_content{FlexJustify::start};
 };

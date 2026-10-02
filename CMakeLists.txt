@@ -15,6 +15,7 @@ add_library(veyra STATIC
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
  src/layout/flex.cpp
+ src/layout/grid.cpp
  src/layout/measure.cpp
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
@@ -55,6 +56,10 @@ add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
 add_test(NAME flex_layout_behavior COMMAND veyra_flex_layout_test)
 
+add_executable(veyra_grid_layout_test tests/grid_layout_test.cpp)
+target_link_libraries(veyra_grid_layout_test PRIVATE veyra)
+add_test(NAME grid_layout_behavior COMMAND veyra_grid_layout_test)
+
 add_executable(veyra_stack_layout_test tests/stack_layout_test.cpp)
 target_link_libraries(veyra_stack_layout_test PRIVATE veyra)
 add_test(NAME stack_layout_behavior COMMAND veyra_stack_layout_test)
@@ -72,6 +77,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_bench PRIVATE veyra)
  add_executable(veyra_flex_layout_bench bench/flex_layout.cpp)
  target_link_libraries(veyra_flex_layout_bench PRIVATE veyra)
+ add_executable(veyra_grid_layout_bench bench/grid_layout.cpp)
+ target_link_libraries(veyra_grid_layout_bench PRIVATE veyra)
  add_executable(veyra_virtual_list_bench bench/virtual_list.cpp)
  target_link_libraries(veyra_virtual_list_bench PRIVATE veyra)
  set(veyra_build_config "$<CONFIG>")
@@ -84,6 +91,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_flex_layout_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_grid_layout_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -105,6 +117,14 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME flex_layout_benchmark_smoke
   COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10
+ )
+ add_test(
+  NAME flex_layout_wrap_benchmark_smoke
+  COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10 --wrap
+ )
+ add_test(
+  NAME grid_layout_benchmark_smoke
+  COMMAND veyra_grid_layout_bench --items 64 --frames 100 --warmup 10
  )
  add_test(
   NAME virtual_list_benchmark_smoke

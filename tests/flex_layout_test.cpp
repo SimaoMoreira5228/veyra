@@ -316,6 +316,143 @@ void check_measured_column_constraints() {
     );
 }
 
+void check_wrapped_flex_lines() {
+    const auto container = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 60.0F,
+        .padding = {.top = 3.0F, .left = 5.0F},
+        .gap = 10.0F,
+        .wrap = veyra::FlexWrap::wrap,
+        .align_items = veyra::FlexAlign::start,
+    };
+    const std::array items{
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 12.0F},
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 18.0F},
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 15.0F},
+    };
+    std::array<veyra::LayoutRect, 3> output{};
+
+    auto result = veyra::layout_flex(container, items, output);
+    require(result == veyra::FlexLayoutResult::complete, "wrapped row fits its lines");
+    require(
+        near(output[0].x, 5.0F) && near(output[1].x, 55.0F) && near(output[2].x, 5.0F),
+        "row wraps before the item that exceeds the available main size"
+    );
+    require(
+        near(output[0].y, 3.0F) && near(output[1].y, 3.0F) && near(output[2].y, 31.0F),
+        "row lines use their largest child cross size and the configured gap"
+    );
+
+    auto aligned_container = container;
+    aligned_container.align_content = veyra::FlexAlignContent::center;
+    result = veyra::layout_flex(aligned_container, items, output);
+    require(
+        result == veyra::FlexLayoutResult::complete && near(output[0].y, 10.0F) &&
+            near(output[2].y, 38.0F),
+        "center alignment distributes free cross-axis space around the lines"
+    );
+
+    aligned_container.align_content = veyra::FlexAlignContent::end;
+    result = veyra::layout_flex(aligned_container, items, output);
+    require(
+        result == veyra::FlexLayoutResult::complete && near(output[0].y, 17.0F) &&
+            near(output[2].y, 45.0F),
+        "end alignment places free cross-axis space before the lines"
+    );
+
+    aligned_container.align_content = veyra::FlexAlignContent::space_between;
+    result = veyra::layout_flex(aligned_container, items, output);
+    require(
+        result == veyra::FlexLayoutResult::complete && near(output[0].y, 3.0F) &&
+            near(output[2].y, 45.0F),
+        "space-between alignment distributes free space between lines"
+    );
+
+    aligned_container.align_content = veyra::FlexAlignContent::stretch;
+    aligned_container.align_items = veyra::FlexAlign::stretch;
+    result = veyra::layout_flex(aligned_container, items, output);
+    require(
+        result == veyra::FlexLayoutResult::complete && near(output[0].height, 25.0F) &&
+            near(output[2].height, 22.0F),
+        "stretch alignment expands each line into the available cross space"
+    );
+
+    const auto short_container = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 20.0F,
+        .gap = 10.0F,
+        .wrap = veyra::FlexWrap::wrap,
+        .align_items = veyra::FlexAlign::start,
+    };
+    result = veyra::layout_flex(short_container, items, output);
+    require(result == veyra::FlexLayoutResult::overflow, "wrapped cross-axis overflow is reported");
+
+    const std::array oversized_items{
+        veyra::FlexItem{
+            .basis = 120.0F,
+            .min_main = 120.0F,
+            .max_main = 120.0F,
+            .cross_size = 10.0F,
+        },
+    };
+    result = veyra::layout_flex(container, oversized_items, output);
+    require(result == veyra::FlexLayoutResult::overflow, "oversized wrapped items report overflow");
+    require(near(output[0].width, 120.0F), "wrapped overflow preserves the item's minimum size");
+
+    const auto column_container = veyra::FlexContainer{
+        .width = 60.0F,
+        .height = 100.0F,
+        .gap = 10.0F,
+        .direction = veyra::FlexDirection::column,
+        .wrap = veyra::FlexWrap::wrap,
+        .align_items = veyra::FlexAlign::start,
+    };
+    const std::array column_items{
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 12.0F},
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 18.0F},
+        veyra::FlexItem{.basis = 40.0F, .cross_size = 15.0F},
+    };
+    result = veyra::layout_flex(column_container, column_items, output);
+    require(result == veyra::FlexLayoutResult::complete, "wrapped column fits its lines");
+    require(
+        near(output[0].y, 0.0F) && near(output[1].y, 50.0F) && near(output[2].y, 0.0F),
+        "column wraps along its main axis"
+    );
+    require(
+        near(output[0].x, 0.0F) && near(output[1].x, 0.0F) && near(output[2].x, 28.0F),
+        "column lines advance along the cross axis"
+    );
+}
+
+void check_measured_flex_wrap() {
+    const auto container = veyra::FlexContainer{
+        .width = 40.0F,
+        .height = 30.0F,
+        .wrap = veyra::FlexWrap::wrap,
+        .align_items = veyra::FlexAlign::start,
+    };
+    const std::array styles{veyra::FlexItemStyle{}, veyra::FlexItemStyle{}};
+    const std::array intrinsic{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 10.0F, .preferred = 25.0F, .max_content = 30.0F},
+            .height = {.min_content = 5.0F, .preferred = 10.0F, .max_content = 12.0F},
+        },
+        veyra::IntrinsicSize{
+            .width = {.min_content = 10.0F, .preferred = 25.0F, .max_content = 30.0F},
+            .height = {.min_content = 5.0F, .preferred = 10.0F, .max_content = 12.0F},
+        },
+    };
+    std::array<veyra::FlexItem, 2> resolved{};
+    std::array<veyra::LayoutRect, 2> output{};
+
+    const auto result = veyra::layout_flex_measured(container, styles, intrinsic, resolved, output);
+    require(result == veyra::FlexLayoutResult::complete, "measured items wrap by intrinsic basis");
+    require(
+        near(output[0].y, 0.0F) && near(output[1].y, 10.0F),
+        "measured line positions use intrinsic cross sizes"
+    );
+}
+
 }
 
 int main() {
@@ -326,6 +463,8 @@ int main() {
         check_measured_layout_and_child_constraints();
         check_measured_overflow_and_capacity();
         check_measured_column_constraints();
+        check_wrapped_flex_lines();
+        check_measured_flex_wrap();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
