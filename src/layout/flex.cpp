@@ -56,6 +56,17 @@ bool valid_item(const FlexItem& item) noexcept {
         is_finite_nonnegative(item.max_cross) && item.min_cross <= item.max_cross;
 }
 
+bool valid_style(const FlexItemStyle& item) noexcept {
+    return (!item.basis || is_finite_nonnegative(*item.basis)) &&
+        is_finite_nonnegative(item.min_main) &&
+        (!item.max_main ||
+         (is_finite_nonnegative(*item.max_main) && *item.max_main >= item.min_main)) &&
+        is_finite_nonnegative(item.grow) && is_finite_nonnegative(item.shrink) &&
+        is_finite_nonnegative(item.min_cross) &&
+        (!item.max_cross ||
+         (is_finite_nonnegative(*item.max_cross) && *item.max_cross >= item.min_cross));
+}
+
 double main_size(const LayoutRect& rect, bool row) noexcept {
     return row ? rect.width : rect.height;
 }
@@ -102,12 +113,49 @@ double cross_padding(const FlexContainer& container, bool row) noexcept {
                : static_cast<double>(container.padding.left) + container.padding.right;
 }
 
+LayoutConstraints
+item_constraints(const FlexContainer& container, const FlexItemStyle& item) noexcept {
+    const bool row = container.direction == FlexDirection::row;
+    const auto available_main =
+        std::max(0.0, main_extent(container, row) - main_padding(container, row));
+    const auto available_cross =
+        std::max(0.0, cross_extent(container, row) - cross_padding(container, row));
+    const auto maximum_main = std::max(
+        static_cast<double>(item.min_main),
+        std::min(
+            available_main,
+            static_cast<double>(item.max_main.value_or(std::numeric_limits<float>::max()))
+        )
+    );
+    const auto maximum_cross = std::max(
+        static_cast<double>(item.min_cross),
+        std::min(
+            available_cross,
+            static_cast<double>(item.max_cross.value_or(std::numeric_limits<float>::max()))
+        )
+    );
+
+    if (row) {
+        return {
+            .width = {.minimum = item.min_main, .maximum = static_cast<float>(maximum_main)},
+            .height = {.minimum = item.min_cross, .maximum = static_cast<float>(maximum_cross)},
+        };
+    }
+    return {
+        .width = {.minimum = item.min_cross, .maximum = static_cast<float>(maximum_cross)},
+        .height = {.minimum = item.min_main, .maximum = static_cast<float>(maximum_main)},
+    };
 }
 
-FlexLayoutResult layout_flex(
+}
+
+namespace {
+
+FlexLayoutResult layout_flex_impl(
     const FlexContainer& container,
     std::span<const FlexItem> items,
-    std::span<LayoutRect> output
+    std::span<LayoutRect> output,
+    bool validate_items
 ) noexcept {
     if (!valid_container(container)) {
         return FlexLayoutResult::invalid_input;
@@ -115,9 +163,11 @@ FlexLayoutResult layout_flex(
     if (output.size() < items.size()) {
         return FlexLayoutResult::insufficient_output;
     }
-    for (const auto& item : items) {
-        if (!valid_item(item)) {
-            return FlexLayoutResult::invalid_input;
+    if (validate_items) {
+        for (const auto& item : items) {
+            if (!valid_item(item)) {
+                return FlexLayoutResult::invalid_input;
+            }
         }
     }
 
@@ -221,6 +271,7 @@ FlexLayoutResult layout_flex(
 
     auto main_position = main_leading_padding(container, row) + offset;
     const auto cross_origin = cross_leading_padding(container, row);
+    bool cross_overflow = false;
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
         auto cross_size = std::clamp(
@@ -235,6 +286,7 @@ FlexLayoutResult layout_flex(
                 static_cast<double>(item.max_cross)
             );
         }
+        cross_overflow = cross_overflow || cross_size > inner_cross;
 
         double cross_offset = 0.0;
         if (container.align_items == FlexAlign::center) {
@@ -256,7 +308,93 @@ FlexLayoutResult layout_flex(
         main_position += main_size(output[index], row) + distributed_gap;
     }
 
-    return free_main < 0.0 ? FlexLayoutResult::overflow : FlexLayoutResult::complete;
+    return free_main < 0.0 || cross_overflow ? FlexLayoutResult::overflow
+                                             : FlexLayoutResult::complete;
+}
+
+}
+
+FlexLayoutResult layout_flex(
+    const FlexContainer& container,
+    std::span<const FlexItem> items,
+    std::span<LayoutRect> output
+) noexcept {
+    return layout_flex_impl(container, items, output, true);
+}
+
+bool flex_item_constraints(
+    const FlexContainer& container,
+    const FlexItemStyle& item,
+    LayoutConstraints& constraints
+) noexcept {
+    if (!valid_container(container) || !valid_style(item)) {
+        return false;
+    }
+    constraints = item_constraints(container, item);
+    return true;
+}
+
+FlexLayoutResult layout_flex_measured(
+    const FlexContainer& container,
+    std::span<const FlexItemStyle> styles,
+    std::span<const IntrinsicSize> intrinsic_sizes,
+    std::span<FlexItem> resolved_items,
+    std::span<LayoutRect> output
+) noexcept {
+    if (!valid_container(container)) {
+        return FlexLayoutResult::invalid_input;
+    }
+    if (output.size() < styles.size()) {
+        return FlexLayoutResult::insufficient_output;
+    }
+    if (intrinsic_sizes.size() < styles.size()) {
+        return FlexLayoutResult::insufficient_measurements;
+    }
+    if (resolved_items.size() < styles.size()) {
+        return FlexLayoutResult::insufficient_workspace;
+    }
+
+    const bool row = container.direction == FlexDirection::row;
+    bool measurement_overflow = false;
+    for (std::size_t index = 0; index < styles.size(); ++index) {
+        const auto& style = styles[index];
+        if (!valid_style(style)) {
+            return FlexLayoutResult::invalid_input;
+        }
+
+        const auto constraints = item_constraints(container, style);
+        MeasuredSize measured;
+        const auto measure_result =
+            constrain_measurement(constraints, intrinsic_sizes[index], measured);
+        if (measure_result == MeasureResult::invalid_constraints ||
+            measure_result == MeasureResult::invalid_intrinsic_size) {
+            return FlexLayoutResult::invalid_input;
+        }
+        measurement_overflow = measurement_overflow || measure_result == MeasureResult::overflow;
+
+        resolved_items[index] = {
+            .basis =
+                style.basis.value_or(row ? measured.width.preferred : measured.height.preferred),
+            .min_main = style.min_main,
+            .max_main = style.max_main.value_or(std::numeric_limits<float>::max()),
+            .grow = style.grow,
+            .shrink = style.shrink,
+            .cross_size = row ? measured.height.preferred : measured.width.preferred,
+            .min_cross = style.min_cross,
+            .max_cross = style.max_cross.value_or(std::numeric_limits<float>::max()),
+        };
+    }
+
+    const auto result = layout_flex_impl(
+        container,
+        std::span<const FlexItem>(resolved_items.data(), styles.size()),
+        output,
+        false
+    );
+    if (result != FlexLayoutResult::complete) {
+        return result;
+    }
+    return measurement_overflow ? FlexLayoutResult::overflow : FlexLayoutResult::complete;
 }
 
 }

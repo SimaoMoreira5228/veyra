@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -72,11 +73,25 @@ int run(const Options& options) {
         throw std::invalid_argument("items exceed the representable layout width");
     }
 
-    std::vector<veyra::FlexItem> items(options.items);
-    for (auto& item : items) {
-        item.basis = 8.0F;
-        item.grow = 1.0F;
+    std::vector<veyra::FlexItemStyle> styles(options.items);
+    std::vector<veyra::IntrinsicSize> intrinsic(options.items);
+    for (std::size_t index = 0; index < options.items; ++index) {
+        styles[index].grow = 1.0F;
+        intrinsic[index] = {
+            .width =
+                {
+                    .min_content = 0.0F,
+                    .preferred = 8.0F,
+                    .max_content = std::numeric_limits<float>::max(),
+                },
+            .height = {
+                .min_content = 0.0F,
+                .preferred = 12.0F,
+                .max_content = std::numeric_limits<float>::max(),
+            },
+        };
     }
+    std::vector<veyra::FlexItem> resolved(options.items);
     std::vector<veyra::LayoutRect> output(options.items);
     std::vector<double> timings;
     timings.reserve(options.frames);
@@ -91,14 +106,16 @@ int run(const Options& options) {
     };
 
     for (std::size_t frame = 0; frame < options.warmup; ++frame) {
-        if (veyra::layout_flex(container, items, output) != veyra::FlexLayoutResult::complete) {
+        if (veyra::layout_flex_measured(container, styles, intrinsic, resolved, output) !=
+            veyra::FlexLayoutResult::complete) {
             throw std::runtime_error("flex layout failed during warmup");
         }
     }
 
     for (std::size_t frame = 0; frame < options.frames; ++frame) {
         const auto begin = Clock::now();
-        const auto result = veyra::layout_flex(container, items, output);
+        const auto result =
+            veyra::layout_flex_measured(container, styles, intrinsic, resolved, output);
         const auto end = Clock::now();
         if (result != veyra::FlexLayoutResult::complete) {
             throw std::runtime_error("flex layout failed during measurement");
@@ -114,8 +131,8 @@ int run(const Options& options) {
 
     std::cout << "scenario,platform,compiler,build_config,items,warmup_frames,measured_frames,"
                  "p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
-              << "row_equal_grow," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ','
-              << VEYRA_BUILD_CONFIG << ',' << options.items << ',' << options.warmup << ','
+              << "row_measured_equal_grow," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
+              << ',' << VEYRA_BUILD_CONFIG << ',' << options.items << ',' << options.warmup << ','
               << options.frames << ',' << percentile(timings, 50) << ',' << percentile(timings, 95)
               << ',' << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
     return 0;

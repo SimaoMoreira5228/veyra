@@ -15,7 +15,9 @@ add_library(veyra STATIC
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
  src/layout/flex.cpp
+ src/layout/measure.cpp
  src/layout/stack.cpp
+ src/layout/virtual_list.cpp
  src/engines.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -57,11 +59,21 @@ add_executable(veyra_stack_layout_test tests/stack_layout_test.cpp)
 target_link_libraries(veyra_stack_layout_test PRIVATE veyra)
 add_test(NAME stack_layout_behavior COMMAND veyra_stack_layout_test)
 
+add_executable(veyra_virtual_list_test tests/virtual_list_test.cpp)
+target_link_libraries(veyra_virtual_list_test PRIVATE veyra)
+add_test(NAME virtual_list_behavior COMMAND veyra_virtual_list_test)
+
+add_executable(veyra_layout_measure_test tests/layout_measure_test.cpp)
+target_link_libraries(veyra_layout_measure_test PRIVATE veyra)
+add_test(NAME layout_measure_behavior COMMAND veyra_layout_measure_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
  add_executable(veyra_flex_layout_bench bench/flex_layout.cpp)
  target_link_libraries(veyra_flex_layout_bench PRIVATE veyra)
+ add_executable(veyra_virtual_list_bench bench/virtual_list.cpp)
+ target_link_libraries(veyra_virtual_list_bench PRIVATE veyra)
  set(veyra_build_config "$<CONFIG>")
  if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(veyra_build_config "unspecified")
@@ -72,6 +84,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_flex_layout_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_virtual_list_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -88,5 +105,9 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME flex_layout_benchmark_smoke
   COMMAND veyra_flex_layout_bench --items 16 --frames 100 --warmup 10
+ )
+ add_test(
+  NAME virtual_list_benchmark_smoke
+  COMMAND veyra_virtual_list_bench --items 128 --queries 100 --warmup 10
  )
 endif()
