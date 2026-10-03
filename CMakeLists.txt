@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(VEYRA_BUILD_BENCH "Build benchmark harness" ON)
 option(VEYRA_WITH_TEXT "Build HarfBuzz text shaping support" OFF)
+option(VEYRA_WITH_FREETYPE "Build FreeType glyph rasterization support" OFF)
 set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
 set(valid_paradigms arena reactive ecs all)
@@ -25,6 +26,7 @@ add_library(veyra STATIC
  src/layout/measure.cpp
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
+ src/text/glyph_mask_cache.cpp
  src/render/software_renderer.cpp
  src/engines.cpp
 )
@@ -53,6 +55,31 @@ if(VEYRA_WITH_TEXT)
   add_executable(veyra_text_shaper_bench bench/text_shaper.cpp)
   target_link_libraries(veyra_text_shaper_bench PRIVATE veyra_text)
   target_compile_definitions(veyra_text_shaper_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+ endif()
+endif()
+
+if(VEYRA_WITH_FREETYPE)
+ find_package(Freetype 2.14.3 REQUIRED)
+ add_library(veyra_freetype STATIC src/text/freetype_rasterizer.cpp)
+ target_include_directories(
+  veyra_freetype
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+ )
+ target_link_libraries(veyra_freetype PUBLIC veyra Freetype::Freetype)
+ target_compile_features(veyra_freetype PUBLIC cxx_std_23)
+
+ add_executable(veyra_freetype_rasterizer_test tests/freetype_rasterizer_test.cpp)
+ target_link_libraries(veyra_freetype_rasterizer_test PRIVATE veyra_freetype)
+ add_test(NAME freetype_rasterizer_behavior COMMAND veyra_freetype_rasterizer_test)
+
+ if(VEYRA_BUILD_BENCH)
+  add_executable(veyra_freetype_rasterizer_bench bench/freetype_rasterizer.cpp)
+  target_link_libraries(veyra_freetype_rasterizer_bench PRIVATE veyra_freetype)
+  target_compile_definitions(veyra_freetype_rasterizer_bench PRIVATE
    "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
    "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -131,6 +158,10 @@ add_executable(veyra_software_renderer_line_test tests/software_renderer_line_te
 target_link_libraries(veyra_software_renderer_line_test PRIVATE veyra)
 add_test(NAME software_renderer_line_behavior COMMAND veyra_software_renderer_line_test)
 
+add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
+target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
+add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
+
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
  target_link_libraries(veyra_bench PRIVATE veyra)
@@ -146,6 +177,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_hit_test_bench PRIVATE veyra)
  add_executable(veyra_software_renderer_bench bench/software_renderer.cpp)
  target_link_libraries(veyra_software_renderer_bench PRIVATE veyra)
+ add_executable(veyra_glyph_mask_cache_bench bench/glyph_mask_cache.cpp)
+ target_link_libraries(veyra_glyph_mask_cache_bench PRIVATE veyra)
  target_compile_definitions(veyra_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
@@ -177,6 +210,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_software_renderer_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_glyph_mask_cache_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -245,5 +283,9 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME software_renderer_line_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --line
+ )
+ add_test(
+  NAME glyph_mask_cache_benchmark_smoke
+  COMMAND veyra_glyph_mask_cache_bench --glyphs 32 --queries 100 --warmup 10
  )
 endif()

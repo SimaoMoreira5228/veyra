@@ -1,0 +1,90 @@
+#ifndef VEYRA_TEXT_GLYPH_MASK_CACHE_HPP
+#define VEYRA_TEXT_GLYPH_MASK_CACHE_HPP
+
+#include "veyra/render/software_renderer.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <span>
+
+namespace veyra {
+
+enum class GlyphRasterMode : std::uint8_t {
+    grayscale,
+    monochrome,
+};
+
+struct GlyphMaskKey {
+    std::uint64_t face_id{};
+    std::uint64_t variation_id{};
+    std::uint32_t glyph_id{};
+    std::uint32_t pixel_size{};
+    std::uint32_t scale_x_16_16{65'536};
+    std::uint32_t scale_y_16_16{65'536};
+    GlyphRasterMode mode{GlyphRasterMode::grayscale};
+
+    friend constexpr bool operator==(const GlyphMaskKey&, const GlyphMaskKey&) = default;
+};
+
+struct GlyphMask {
+    SoftwareMask mask;
+    std::int32_t bearing_x{};
+    std::int32_t bearing_y{};
+};
+
+struct GlyphMaskCacheSlot {
+    GlyphMaskKey key;
+    std::size_t width{};
+    std::size_t height{};
+    std::int32_t bearing_x{};
+    std::int32_t bearing_y{};
+    std::uint8_t recency{};
+    bool occupied{};
+};
+
+enum class GlyphMaskCacheResult : std::uint8_t {
+    inserted,
+    updated,
+    invalid_workspace,
+    invalid_key,
+    invalid_mask,
+    glyph_too_large,
+};
+
+class GlyphMaskCache {
+  public:
+    GlyphMaskCache(
+        std::span<GlyphMaskCacheSlot> slots,
+        std::span<std::uint8_t> coverage_storage,
+        std::size_t maximum_width,
+        std::size_t maximum_height
+    ) noexcept;
+
+    GlyphMaskCache(const GlyphMaskCache&) = delete;
+    GlyphMaskCache& operator=(const GlyphMaskCache&) = delete;
+    GlyphMaskCache(GlyphMaskCache&&) = delete;
+    GlyphMaskCache& operator=(GlyphMaskCache&&) = delete;
+
+    bool valid() const noexcept;
+    void clear() noexcept;
+    std::optional<GlyphMask> find(const GlyphMaskKey& key) noexcept;
+    GlyphMaskCacheResult insert(const GlyphMaskKey& key, const GlyphMask& mask) noexcept;
+
+  private:
+    std::span<GlyphMaskCacheSlot> slots_;
+    std::span<std::uint8_t> coverage_storage_;
+    std::size_t maximum_width_{};
+    std::size_t maximum_height_{};
+    std::size_t slot_capacity_{};
+    std::size_t bucket_count_{};
+    bool valid_{};
+
+    std::size_t bucket_start(const GlyphMaskKey& key) const noexcept;
+    std::size_t find_slot(const GlyphMaskKey& key) const noexcept;
+    void mark_recent(std::size_t slot_index) noexcept;
+};
+
+}
+
+#endif
