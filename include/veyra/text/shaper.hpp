@@ -1,6 +1,8 @@
 #ifndef VEYRA_TEXT_SHAPER_HPP
 #define VEYRA_TEXT_SHAPER_HPP
 
+#include "veyra/text/direction.hpp"
+
 #include <hb.h>
 
 #if !HB_VERSION_ATLEAST(14, 0, 0)
@@ -14,13 +16,6 @@
 #include <string_view>
 
 namespace veyra {
-
-enum class TextDirection : std::uint8_t {
-    left_to_right,
-    right_to_left,
-    top_to_bottom,
-    bottom_to_top,
-};
 
 struct TextRunProperties {
     TextDirection direction{TextDirection::left_to_right};
