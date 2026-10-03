@@ -13,6 +13,12 @@ struct VirtualListRange {
     double total_extent{};
 };
 
+struct VirtualListAnchor {
+    std::size_t item_index{};
+    double item_offset{};
+    bool pinned_to_end{};
+};
+
 class VirtualListIndex {
     std::span<float> extents_;
     std::span<double> fenwick_;
@@ -25,6 +31,16 @@ class VirtualListIndex {
     bool reset(std::span<float> extents, std::span<double> fenwick) noexcept;
     bool set_extent(std::size_t index, float extent, double& delta) noexcept;
     bool offset_of(std::size_t item_index, double& offset) const noexcept;
+    bool capture_anchor(
+        double scroll_offset,
+        double viewport_extent,
+        VirtualListAnchor& anchor
+    ) const noexcept;
+    bool restore_anchor(
+        const VirtualListAnchor& anchor,
+        double viewport_extent,
+        double& scroll_offset
+    ) const noexcept;
     bool visible_range(
         double scroll_offset,
         double viewport_extent,

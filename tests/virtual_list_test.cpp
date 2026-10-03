@@ -81,6 +81,88 @@ void check_measurement_updates_and_failures() {
     require(range.first_item == 7, "failed query leaves range unchanged");
 }
 
+void check_scroll_anchor_after_measurement_changes() {
+    std::array extents{10.0F, 20.0F, 0.0F, 15.0F, 5.0F};
+    std::array<double, 6> fenwick{};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "anchor extents initialize the index");
+
+    veyra::VirtualListAnchor anchor;
+    require(index.capture_anchor(35.0, 0.0, anchor), "visible row anchor is captured");
+    require(
+        anchor.item_index == 3 && near(anchor.item_offset, 5.0),
+        "anchor stores the first visible row and its local offset"
+    );
+
+    veyra::VirtualListAnchor boundary_anchor;
+    require(
+        index.capture_anchor(30.0, 0.0, boundary_anchor),
+        "anchor captures exact row boundaries"
+    );
+    require(
+        boundary_anchor.item_index == 3 && near(boundary_anchor.item_offset, 0.0),
+        "zero-height rows at a boundary are skipped"
+    );
+
+    const auto previous_anchor = anchor;
+    require(
+        !index.capture_anchor(index.total_extent() + 1.0, 0.0, anchor),
+        "scroll offsets past the list are rejected"
+    );
+    require(
+        anchor.item_index == previous_anchor.item_index &&
+            near(anchor.item_offset, previous_anchor.item_offset) &&
+            anchor.pinned_to_end == previous_anchor.pinned_to_end,
+        "failed anchor capture leaves output unchanged"
+    );
+
+    double delta = 0.0;
+    require(index.set_extent(0, 14.0F, delta), "row before anchor can be remeasured");
+    require(index.set_extent(3, 8.0F, delta), "anchored row can be remeasured");
+    double restored_offset = -1.0;
+    require(
+        index.restore_anchor(anchor, 0.0, restored_offset),
+        "anchor restores after measurements"
+    );
+    require(
+        near(restored_offset, 39.0),
+        "restore keeps the same row offset after earlier rows change"
+    );
+
+    require(index.set_extent(3, 2.0F, delta), "anchored row can shrink below its old offset");
+    require(index.restore_anchor(anchor, 0.0, restored_offset), "shrunk anchor still restores");
+    require(near(restored_offset, 36.0), "local offset clamps to the remeasured row extent");
+
+    veyra::VirtualListAnchor pinned_anchor;
+    const auto bottom_scroll_offset = index.total_extent() - 10.0;
+    require(
+        index.capture_anchor(bottom_scroll_offset, 10.0, pinned_anchor),
+        "bottom-pinned scroll position can be captured"
+    );
+    require(pinned_anchor.pinned_to_end, "anchor records the pinned-to-end state");
+
+    std::array appended_extents{14.0F, 20.0F, 0.0F, 2.0F, 5.0F, 9.0F};
+    std::array<double, 7> appended_fenwick{};
+    require(index.reset(appended_extents, appended_fenwick), "appended rows rebuild the index");
+    require(index.restore_anchor(pinned_anchor, 10.0, restored_offset), "bottom anchor restores");
+    require(
+        near(restored_offset, index.total_extent() - 10.0),
+        "appending a row keeps a bottom-pinned list at the end"
+    );
+
+    auto invalid_anchor = anchor;
+    invalid_anchor.item_index = index.size() + 1;
+    const auto previous_offset = restored_offset;
+    require(
+        !index.restore_anchor(invalid_anchor, 10.0, restored_offset),
+        "past-end anchors are rejected"
+    );
+    require(
+        near(restored_offset, previous_offset),
+        "failed anchor restore leaves output unchanged"
+    );
+}
+
 void check_reset_rejects_invalid_storage_and_extents() {
     veyra::VirtualListIndex index;
     std::array extents{5.0F, 10.0F};
@@ -182,6 +264,7 @@ int main() {
     try {
         check_variable_extent_queries();
         check_measurement_updates_and_failures();
+        check_scroll_anchor_after_measurement_changes();
         check_reset_rejects_invalid_storage_and_extents();
         check_ranges_match_linear_reference();
     } catch (const std::exception& error) {

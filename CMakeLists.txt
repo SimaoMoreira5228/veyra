@@ -42,9 +42,9 @@ endif()
 
 if(VEYRA_WITH_TEXT)
  find_package(harfbuzz CONFIG REQUIRED)
- add_library(veyra_text STATIC src/text/shaper.cpp)
+ add_library(veyra_text STATIC src/text/shaper.cpp src/text/glyph_run.cpp)
  target_include_directories(veyra_text PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
- target_link_libraries(veyra_text PUBLIC harfbuzz::harfbuzz)
+ target_link_libraries(veyra_text PUBLIC veyra harfbuzz::harfbuzz)
  target_compile_features(veyra_text PUBLIC cxx_std_23)
 
  add_executable(veyra_text_shaper_test tests/text_shaper_test.cpp)

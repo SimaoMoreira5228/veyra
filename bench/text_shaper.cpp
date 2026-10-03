@@ -1,3 +1,4 @@
+#include "veyra/text/glyph_run.hpp"
 #include "veyra/text/shaper.hpp"
 
 #include <hb-ot.h>
@@ -11,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -145,6 +147,92 @@ int run(const Options& options) {
               << options.warmup << ',' << options.frames << ',' << percentile(timings, 50) << ','
               << percentile(timings, 95) << ',' << percentile(timings, 99) << ',' << timings.back()
               << ',' << checksum << '\n';
+
+    constexpr auto mask_width = std::size_t{1};
+    constexpr auto mask_height = std::size_t{1};
+    const auto slot_count = std::max(std::size_t{4}, glyph_count * 128);
+    std::vector<veyra::GlyphMaskCacheSlot> slots(slot_count);
+    std::vector<std::uint8_t> coverage_storage(slot_count * mask_width * mask_height);
+    const std::array<std::uint8_t, 1> coverage{255};
+    const auto mask = veyra::GlyphMask{
+        .mask = {
+            .width = mask_width,
+            .height = mask_height,
+            .stride = mask_width,
+            .coverage = coverage,
+        },
+    };
+    veyra::GlyphMaskCache cache(slots, coverage_storage, mask_width, mask_height);
+    if (!cache.valid()) {
+        throw std::runtime_error("glyph draw cache setup failed");
+    }
+
+    auto key = veyra::GlyphMaskKey{
+        .face_id = 1,
+        .pixel_size = 16,
+    };
+    for (std::size_t index = 0; index < glyph_count; ++index) {
+        key.glyph_id = glyphs[index].id;
+        const auto insert_result = cache.insert(key, mask);
+        if (insert_result != veyra::GlyphMaskCacheResult::inserted &&
+            insert_result != veyra::GlyphMaskCacheResult::updated) {
+            throw std::runtime_error("glyph draw cache population failed");
+        }
+    }
+
+    int font_x_scale = 0;
+    int font_y_scale = 0;
+    hb_font_get_scale(font.get(), &font_x_scale, &font_y_scale);
+    std::array<veyra::SoftwareMask, 64> mask_views{};
+    std::array<veyra::DisplayCommand, 64> commands{};
+    std::size_t command_count = 0;
+    const auto build_draws = [&] {
+        return veyra::build_glyph_draw_commands(
+            std::span<const veyra::ShapedGlyph>(glyphs).first(glyph_count),
+            cache,
+            key,
+            {.x = 0.0F, .y = 20.0F},
+            static_cast<double>(font_x_scale),
+            static_cast<double>(font_y_scale),
+            {.red = 20, .green = 30, .blue = 40},
+            mask_views,
+            commands,
+            command_count
+        );
+    };
+
+    for (std::size_t frame = 0; frame < options.warmup; ++frame) {
+        if (build_draws() != veyra::GlyphRunResult::complete) {
+            throw std::runtime_error("glyph draw list failed during warmup");
+        }
+    }
+
+    std::vector<double> draw_timings;
+    draw_timings.reserve(options.frames);
+    for (std::size_t frame = 0; frame < options.frames; ++frame) {
+        const auto begin = Clock::now();
+        const auto result = build_draws();
+        const auto end = Clock::now();
+        if (result != veyra::GlyphRunResult::complete) {
+            throw std::runtime_error("glyph draw list failed during measurement");
+        }
+        draw_timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
+    }
+
+    std::sort(draw_timings.begin(), draw_timings.end());
+    for (std::size_t index = 0; index < command_count; ++index) {
+        const auto* draw = std::get_if<veyra::DrawMask>(&commands[index]);
+        if (draw == nullptr) {
+            throw std::runtime_error("glyph draw list emitted an unexpected command");
+        }
+        checksum += static_cast<std::uint32_t>(draw->x) + static_cast<std::uint32_t>(draw->y);
+    }
+
+    std::cout << "shaped_glyph_draw_list," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
+              << ',' << VEYRA_BUILD_CONFIG << ',' << text.size() << ',' << glyph_count << ','
+              << options.warmup << ',' << options.frames << ',' << percentile(draw_timings, 50)
+              << ',' << percentile(draw_timings, 95) << ',' << percentile(draw_timings, 99) << ','
+              << draw_timings.back() << ',' << checksum << '\n';
     return 0;
 }
 

@@ -67,6 +67,58 @@ bool VirtualListIndex::offset_of(std::size_t item_index, double& offset) const n
     return true;
 }
 
+bool VirtualListIndex::capture_anchor(
+    double scroll_offset,
+    double viewport_extent,
+    VirtualListAnchor& anchor
+) const noexcept {
+    if (!std::isfinite(scroll_offset) || scroll_offset < 0.0 || scroll_offset > total_extent_ ||
+        !std::isfinite(viewport_extent) || viewport_extent < 0.0) {
+        return false;
+    }
+
+    const auto item_index = count_ends(scroll_offset, true);
+    const auto item_offset = item_index == extents_.size()
+        ? 0.0
+        : std::clamp(
+              scroll_offset - prefix_extent(item_index),
+              0.0,
+              static_cast<double>(extents_[item_index])
+          );
+    anchor = {
+        .item_index = item_index,
+        .item_offset = item_offset,
+        .pinned_to_end = viewport_extent >= total_extent_ - scroll_offset,
+    };
+    return true;
+}
+
+bool VirtualListIndex::restore_anchor(
+    const VirtualListAnchor& anchor,
+    double viewport_extent,
+    double& scroll_offset
+) const noexcept {
+    if (!std::isfinite(anchor.item_offset) || anchor.item_offset < 0.0 ||
+        !std::isfinite(viewport_extent) || viewport_extent < 0.0) {
+        return false;
+    }
+
+    if (anchor.pinned_to_end) {
+        scroll_offset = std::max(0.0, total_extent_ - viewport_extent);
+        return true;
+    }
+    if (anchor.item_index > extents_.size() ||
+        (anchor.item_index == extents_.size() && anchor.item_offset != 0.0)) {
+        return false;
+    }
+
+    const auto item_offset = anchor.item_index == extents_.size()
+        ? 0.0
+        : std::min(anchor.item_offset, static_cast<double>(extents_[anchor.item_index]));
+    scroll_offset = prefix_extent(anchor.item_index) + item_offset;
+    return true;
+}
+
 bool VirtualListIndex::visible_range(
     double scroll_offset,
     double viewport_extent,

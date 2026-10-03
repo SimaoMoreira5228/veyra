@@ -93,9 +93,13 @@ int run(const Options& options) {
 
     std::vector<double> timings;
     std::vector<double> semantic_timings;
+    std::vector<double> anchor_timings;
     timings.reserve(options.queries);
     semantic_timings.reserve(options.queries);
+    anchor_timings.reserve(options.queries);
     veyra::VirtualListRange range;
+    veyra::VirtualListAnchor anchor;
+    double restored_scroll_offset = 0.0;
     veyra::NodeTree tree;
     tree.reserve(1);
     const auto list = tree.create();
@@ -110,8 +114,13 @@ int run(const Options& options) {
     };
 
     for (std::size_t query = 0; query < options.warmup; ++query) {
-        if (!index.visible_range(scroll_offset(query, index.total_extent()), 720.0, 2, range)) {
+        const auto scroll = scroll_offset(query, index.total_extent());
+        if (!index.visible_range(scroll, 720.0, 2, range)) {
             throw std::runtime_error("virtual range query failed during warmup");
+        }
+        if (!index.capture_anchor(scroll, 720.0, anchor) ||
+            !index.restore_anchor(anchor, 720.0, restored_scroll_offset)) {
+            throw std::runtime_error("virtual scroll anchor failed during warmup");
         }
 
         const auto item_index = item_index_for_query(query, options.items);
@@ -134,6 +143,7 @@ int run(const Options& options) {
 
     double checksum = 0.0;
     double semantic_checksum = 0.0;
+    double anchor_checksum = 0.0;
     for (std::size_t query = 0; query < options.queries; ++query) {
         const auto scroll = scroll_offset(query + options.warmup, index.total_extent());
         const auto begin = Clock::now();
@@ -145,6 +155,21 @@ int run(const Options& options) {
 
         timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
         checksum += static_cast<double>(range.first_item + range.last_item) + range.first_offset;
+
+        const auto anchor_begin = Clock::now();
+        const auto anchor_captured = index.capture_anchor(scroll, 720.0, anchor);
+        const auto anchor_restored =
+            anchor_captured && index.restore_anchor(anchor, 720.0, restored_scroll_offset);
+        const auto anchor_end = Clock::now();
+        if (!anchor_restored) {
+            throw std::runtime_error("virtual scroll anchor failed during measurement");
+        }
+
+        anchor_timings.push_back(
+            std::chrono::duration<double, std::nano>(anchor_end - anchor_begin).count()
+        );
+        anchor_checksum += static_cast<double>(anchor.item_index) + anchor.item_offset +
+            restored_scroll_offset + static_cast<double>(anchor.pinned_to_end);
 
         const auto item_index = item_index_for_query(query + options.warmup, options.items);
         double item_offset = 0.0;
@@ -177,6 +202,7 @@ int run(const Options& options) {
 
     std::sort(timings.begin(), timings.end());
     std::sort(semantic_timings.begin(), semantic_timings.end());
+    std::sort(anchor_timings.begin(), anchor_timings.end());
     const auto build_ns = std::chrono::duration<double, std::nano>(build_end - build_begin).count();
     std::cout << "scenario,platform,compiler,build_config,items,warmup_queries,measured_queries,"
                  "build_ns,p50_ns,p95_ns,p99_ns,max_ns,total_extent,checksum\n"
@@ -191,7 +217,13 @@ int run(const Options& options) {
               << options.warmup << ',' << options.queries << ',' << build_ns << ','
               << percentile(semantic_timings, 50) << ',' << percentile(semantic_timings, 95) << ','
               << percentile(semantic_timings, 99) << ',' << semantic_timings.back() << ','
-              << index.total_extent() << ',' << semantic_checksum << '\n';
+              << index.total_extent() << ',' << semantic_checksum << '\n'
+              << "virtual_scroll_anchor_capture_restore," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.items << ','
+              << options.warmup << ',' << options.queries << ',' << build_ns << ','
+              << percentile(anchor_timings, 50) << ',' << percentile(anchor_timings, 95) << ','
+              << percentile(anchor_timings, 99) << ',' << anchor_timings.back() << ','
+              << index.total_extent() << ',' << anchor_checksum << '\n';
     return 0;
 }
 
