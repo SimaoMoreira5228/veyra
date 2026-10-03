@@ -359,6 +359,7 @@ FlexLayoutResult layout_flex_line(
 
     auto main_position = main_leading_padding(container, row) + offset;
     const auto cross_origin = cross_leading_padding(container, row);
+    const auto coordinate_limit = static_cast<double>(std::numeric_limits<float>::max());
     bool cross_overflow = false;
     for (std::size_t index = 0; index < items.size(); ++index) {
         const auto& item = items[index];
@@ -383,15 +384,23 @@ FlexLayoutResult layout_flex_line(
             const auto baseline = item.baseline.value_or(static_cast<float>(cross_size));
             cross_offset = baseline_ascent - baseline;
         }
+
+        const auto cross_position = cross_origin + cross_offset;
+        if (!std::isfinite(main_position) || !std::isfinite(cross_position) ||
+            main_position < -coordinate_limit || main_position > coordinate_limit ||
+            cross_position < -coordinate_limit || cross_position > coordinate_limit) {
+            return FlexLayoutResult::invalid_input;
+        }
+
         cross_overflow =
             cross_overflow || cross_offset < 0.0 || cross_offset + cross_size > inner_cross;
 
         if (row) {
             output[index].x = static_cast<float>(main_position);
-            output[index].y = static_cast<float>(cross_origin + cross_offset);
+            output[index].y = static_cast<float>(cross_position);
             output[index].height = static_cast<float>(cross_size);
         } else {
-            output[index].x = static_cast<float>(cross_origin + cross_offset);
+            output[index].x = static_cast<float>(cross_position);
             output[index].y = static_cast<float>(main_position);
             output[index].width = static_cast<float>(cross_size);
         }

@@ -1,0 +1,53 @@
+name: SDL3
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sdl3:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-2025
+          - macos-26
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Install SDL3
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install sdl3'
+
+      - name: Install SDL3
+        if: runner.os != 'Windows'
+        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install sdl3"
+
+      - name: Configure
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVEYRA_WITH_SDL3=ON
+          -DVEYRA_BUILD_BENCH=OFF
+
+      - name: Configure
+        if: runner.os != 'Windows'
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVEYRA_WITH_SDL3=ON
+          -DVEYRA_BUILD_BENCH=OFF
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure

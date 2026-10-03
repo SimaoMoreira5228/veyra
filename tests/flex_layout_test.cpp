@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -17,6 +18,43 @@ void require(bool condition, std::string_view message) {
 
 bool near(float actual, float expected) {
     return std::abs(actual - expected) < 0.001F;
+}
+
+void check_unrepresentable_coordinates() {
+    const auto maximum = std::numeric_limits<float>::max();
+    const auto container = veyra::FlexContainer{
+        .width = maximum,
+        .height = maximum,
+        .padding = {.top = maximum},
+        .align_items = veyra::FlexAlign::baseline,
+    };
+    const std::array items{
+        veyra::FlexItem{
+            .baseline = 0.0F,
+        },
+        veyra::FlexItem{
+            .cross_size = maximum,
+            .baseline = maximum,
+        },
+    };
+    std::array<veyra::LayoutRect, 2> output{
+        veyra::LayoutRect{.x = 3.0F, .y = 4.0F},
+        veyra::LayoutRect{.x = 5.0F, .y = 6.0F},
+    };
+
+    const auto result = veyra::layout_flex(container, items, output);
+    require(
+        result == veyra::FlexLayoutResult::invalid_input,
+        "unrepresentable coordinates are rejected"
+    );
+    require(
+        near(output[0].x, 3.0F) && near(output[0].y, 4.0F),
+        "invalid first item leaves output unchanged"
+    );
+    require(
+        near(output[1].x, 5.0F) && near(output[1].y, 6.0F),
+        "invalid layout leaves later output unchanged"
+    );
 }
 
 void check_growth_shrink_and_justification() {
@@ -555,6 +593,7 @@ void check_measured_flex_wrap() {
 
 int main() {
     try {
+        check_unrepresentable_coordinates();
         check_growth_shrink_and_justification();
         check_padding_column_and_space_between();
         check_overflow_and_invalid_inputs();

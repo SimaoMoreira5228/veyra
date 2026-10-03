@@ -163,6 +163,28 @@ void check_scroll_anchor_after_measurement_changes() {
     );
 }
 
+void check_restore_anchor_clamps_after_content_shrinks() {
+    std::array extents{10.0F, 20.0F, 30.0F, 40.0F};
+    std::array<double, 5> fenwick{};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "scroll range extents initialize the index");
+
+    veyra::VirtualListAnchor anchor;
+    require(index.capture_anchor(45.0, 20.0, anchor), "anchor within the list is captured");
+    require(!anchor.pinned_to_end, "anchor away from the end remains unpinned");
+
+    std::array shorter_extents{10.0F, 20.0F, 25.0F};
+    std::array<double, 4> shorter_fenwick{};
+    require(index.reset(shorter_extents, shorter_fenwick), "shorter list rebuilds the index");
+
+    double restored_offset = -1.0;
+    require(index.restore_anchor(anchor, 20.0, restored_offset), "anchor restores after removal");
+    require(
+        near(restored_offset, 35.0),
+        "restored offset stays within the shorter list's scrollable range"
+    );
+}
+
 void check_reset_rejects_invalid_storage_and_extents() {
     veyra::VirtualListIndex index;
     std::array extents{5.0F, 10.0F};
@@ -265,6 +287,7 @@ int main() {
         check_variable_extent_queries();
         check_measurement_updates_and_failures();
         check_scroll_anchor_after_measurement_changes();
+        check_restore_anchor_clamps_after_content_shrinks();
         check_reset_rejects_invalid_storage_and_extents();
         check_ranges_match_linear_reference();
     } catch (const std::exception& error) {

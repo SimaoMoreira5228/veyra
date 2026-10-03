@@ -6,6 +6,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(VEYRA_BUILD_BENCH "Build benchmark harness" ON)
 option(VEYRA_WITH_TEXT "Build HarfBuzz text shaping support" OFF)
 option(VEYRA_WITH_FREETYPE "Build FreeType glyph rasterization support" OFF)
+option(VEYRA_WITH_SDL3 "Build the SDL3 software window backend" OFF)
 set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
 set(valid_paradigms arena reactive ecs all)
@@ -85,6 +86,22 @@ if(VEYRA_WITH_FREETYPE)
    "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
   )
  endif()
+endif()
+
+if(VEYRA_WITH_SDL3)
+ find_package(SDL3 3.2 CONFIG REQUIRED COMPONENTS SDL3)
+ add_library(veyra_sdl3 STATIC src/platform/sdl3_window.cpp)
+ target_include_directories(
+  veyra_sdl3
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+ )
+ target_link_libraries(veyra_sdl3 PUBLIC veyra SDL3::SDL3)
+ target_compile_features(veyra_sdl3 PUBLIC cxx_std_23)
+
+ add_executable(veyra_sdl3_window_test tests/sdl3_window_test.cpp)
+ target_link_libraries(veyra_sdl3_window_test PRIVATE veyra_sdl3)
+ add_test(NAME sdl3_window_behavior COMMAND veyra_sdl3_window_test)
+ set_tests_properties(sdl3_window_behavior PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 endif()
 
 foreach(paradigm arena reactive ecs)

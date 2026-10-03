@@ -115,7 +115,9 @@ bool VirtualListIndex::restore_anchor(
     const auto item_offset = anchor.item_index == extents_.size()
         ? 0.0
         : std::min(anchor.item_offset, static_cast<double>(extents_[anchor.item_index]));
-    scroll_offset = prefix_extent(anchor.item_index) + item_offset;
+    const auto restored_offset = prefix_extent(anchor.item_index) + item_offset;
+    const auto maximum_scroll_offset = std::max(0.0, total_extent_ - viewport_extent);
+    scroll_offset = std::min(restored_offset, maximum_scroll_offset);
     return true;
 }
 
