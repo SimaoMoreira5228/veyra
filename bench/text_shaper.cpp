@@ -233,6 +233,89 @@ int run(const Options& options) {
               << options.warmup << ',' << options.frames << ',' << percentile(draw_timings, 50)
               << ',' << percentile(draw_timings, 95) << ',' << percentile(draw_timings, 99) << ','
               << draw_timings.back() << ',' << checksum << '\n';
+
+    constexpr auto image_width = std::size_t{1};
+    constexpr auto image_height = std::size_t{1};
+    const auto image_slot_count = std::max(std::size_t{4}, glyph_count * 128);
+    std::vector<veyra::GlyphImageCacheSlot> image_slots(image_slot_count);
+    std::vector<veyra::SoftwarePixel> image_storage(image_slot_count * image_width * image_height);
+    const std::array<veyra::SoftwarePixel, 1> pixel{
+        veyra::SoftwarePixel{.red = 220, .green = 180, .blue = 40, .alpha = 255},
+    };
+    const auto image = veyra::GlyphImage{
+        .image = {
+            .width = image_width,
+            .height = image_height,
+            .stride = image_width,
+            .pixels = pixel,
+        },
+    };
+    veyra::GlyphImageCache image_cache(image_slots, image_storage, image_width, image_height);
+    if (!image_cache.valid()) {
+        throw std::runtime_error("color glyph draw cache setup failed");
+    }
+
+    auto image_key = veyra::GlyphImageKey{
+        .face_id = 1,
+        .pixel_size = 16,
+    };
+    for (std::size_t index = 0; index < glyph_count; ++index) {
+        image_key.glyph_id = glyphs[index].id;
+        const auto insert_result = image_cache.insert(image_key, image);
+        if (insert_result != veyra::GlyphImageCacheResult::inserted &&
+            insert_result != veyra::GlyphImageCacheResult::updated) {
+            throw std::runtime_error("color glyph draw cache population failed");
+        }
+    }
+
+    std::array<veyra::SoftwareImage, 64> image_views{};
+    const auto build_color_draws = [&] {
+        return veyra::build_color_glyph_draw_commands(
+            std::span<const veyra::ShapedGlyph>(glyphs).first(glyph_count),
+            image_cache,
+            image_key,
+            {.x = 0.0F, .y = 20.0F},
+            static_cast<double>(font_x_scale),
+            static_cast<double>(font_y_scale),
+            image_views,
+            commands,
+            command_count
+        );
+    };
+
+    for (std::size_t frame = 0; frame < options.warmup; ++frame) {
+        if (build_color_draws() != veyra::GlyphRunResult::complete) {
+            throw std::runtime_error("color glyph draw list failed during warmup");
+        }
+    }
+
+    std::vector<double> color_draw_timings;
+    color_draw_timings.reserve(options.frames);
+    for (std::size_t frame = 0; frame < options.frames; ++frame) {
+        const auto begin = Clock::now();
+        const auto result = build_color_draws();
+        const auto end = Clock::now();
+        if (result != veyra::GlyphRunResult::complete) {
+            throw std::runtime_error("color glyph draw list failed during measurement");
+        }
+        color_draw_timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
+    }
+
+    std::sort(color_draw_timings.begin(), color_draw_timings.end());
+    for (std::size_t index = 0; index < command_count; ++index) {
+        const auto* draw = std::get_if<veyra::DrawImage>(&commands[index]);
+        if (draw == nullptr) {
+            throw std::runtime_error("color glyph draw list emitted an unexpected command");
+        }
+        checksum += static_cast<std::uint32_t>(draw->x) + static_cast<std::uint32_t>(draw->y);
+    }
+
+    std::cout << "shaped_color_glyph_draw_list," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << text.size() << ','
+              << glyph_count << ',' << options.warmup << ',' << options.frames << ','
+              << percentile(color_draw_timings, 50) << ',' << percentile(color_draw_timings, 95)
+              << ',' << percentile(color_draw_timings, 99) << ',' << color_draw_timings.back()
+              << ',' << checksum << '\n';
     return 0;
 }
 

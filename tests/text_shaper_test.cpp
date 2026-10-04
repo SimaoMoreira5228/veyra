@@ -334,6 +334,185 @@ void check_glyph_draw_list() {
     require(command_count == 0, "a cache miss reports an empty command prefix");
 }
 
+void check_color_glyph_draw_list() {
+    std::array<veyra::GlyphMaskCacheSlot, 4> mask_slots{};
+    std::array<std::uint8_t, 16> mask_storage{};
+    veyra::GlyphMaskCache mask_cache(mask_slots, mask_storage, 2, 2);
+    const std::array<std::uint8_t, 1> coverage{255};
+    auto mask_key = veyra::GlyphMaskKey{
+        .face_id = 1,
+        .glyph_id = 7,
+        .pixel_size = 16,
+    };
+    require(
+        mask_cache.insert(
+            mask_key,
+            {{.width = 1, .height = 1, .stride = 1, .coverage = coverage}, 0, 0}
+        ) == veyra::GlyphMaskCacheResult::inserted,
+        "monochrome glyph enters the mask cache"
+    );
+
+    std::array<veyra::GlyphImageCacheSlot, 4> slots{};
+    std::array<veyra::SoftwarePixel, 16> storage{};
+    veyra::GlyphImageCache cache(slots, storage, 2, 2);
+    const std::array<veyra::SoftwarePixel, 1> first_pixel{
+        veyra::SoftwarePixel{.red = 220, .alpha = 255},
+    };
+    const std::array<veyra::SoftwarePixel, 1> second_pixel{
+        veyra::SoftwarePixel{.green = 180, .alpha = 255},
+    };
+    auto key = veyra::GlyphImageKey{
+        .face_id = 1,
+        .glyph_id = 7,
+        .pixel_size = 16,
+    };
+    require(
+        cache.insert(key, {{.width = 1, .height = 1, .stride = 1, .pixels = first_pixel}, -1, 2}) ==
+            veyra::GlyphImageCacheResult::inserted,
+        "first color glyph enters the cache"
+    );
+    key.glyph_id = 8;
+    require(
+        cache.insert(key, {{.width = 1, .height = 1, .stride = 1, .pixels = second_pixel}, 2, 1}) ==
+            veyra::GlyphImageCacheResult::inserted,
+        "second color glyph enters the cache"
+    );
+
+    const std::array glyphs{
+        veyra::ShapedGlyph{
+            .id = 7,
+            .x_advance = 96,
+            .y_advance = 64,
+            .x_offset = 32,
+            .y_offset = 64,
+        },
+        veyra::ShapedGlyph{
+            .id = 8,
+            .x_offset = -32,
+        },
+    };
+    std::array<veyra::SoftwareImage, 2> images{};
+    std::array<veyra::DisplayCommand, 2> commands{};
+    std::size_t command_count = 0;
+    key.glyph_id = 0;
+
+    const auto result = veyra::build_color_glyph_draw_commands(
+        glyphs,
+        cache,
+        key,
+        {.x = 10.0F, .y = 20.0F},
+        64.0,
+        32.0,
+        images,
+        commands,
+        command_count
+    );
+    require(result == veyra::GlyphRunResult::complete, "cached color glyphs build a draw list");
+    require(command_count == 2, "one image draw is emitted for each shaped glyph");
+    const auto* first = std::get_if<veyra::DrawImage>(&commands[0]);
+    const auto* second = std::get_if<veyra::DrawImage>(&commands[1]);
+    require(
+        first != nullptr && first->x == 10 && first->y == 16,
+        "first color glyph is positioned"
+    );
+    require(
+        second != nullptr && second->x == 13 && second->y == 17,
+        "next color glyph follows run"
+    );
+    require(
+        first->image == &images[0] && second->image == &images[1],
+        "image draws reference caller-owned image views"
+    );
+
+    constexpr auto surface_size = std::size_t{24};
+    std::array<veyra::SoftwarePixel, surface_size * surface_size> pixels{};
+    const auto surface = veyra::SoftwareSurface{
+        .width = surface_size,
+        .height = surface_size,
+        .stride = surface_size,
+        .pixels = pixels,
+    };
+    require(
+        veyra::render_software(
+            std::span<const veyra::DisplayCommand>(commands).first(command_count),
+            surface,
+            {}
+        ) == veyra::SoftwareRenderResult::complete,
+        "built color glyph draws render through the software renderer"
+    );
+    require(pixels[16 * surface_size + 10].red == 220, "first color glyph reaches the surface");
+    require(
+        pixels[17 * surface_size + 13].green == 180,
+        "following color glyph reaches the surface"
+    );
+
+    const std::array draw_kinds{
+        veyra::GlyphDrawKind::mask,
+        veyra::GlyphDrawKind::color_image,
+    };
+    std::array<veyra::SoftwareMask, 2> mask_views{};
+    const auto mixed_result = veyra::build_mixed_glyph_draw_commands(
+        glyphs,
+        draw_kinds,
+        mask_cache,
+        mask_key,
+        cache,
+        key,
+        {.x = 10.0F, .y = 20.0F},
+        64.0,
+        32.0,
+        {.red = 30, .green = 40, .blue = 50},
+        mask_views,
+        images,
+        commands,
+        command_count
+    );
+    require(
+        mixed_result == veyra::GlyphRunResult::complete,
+        "mixed glyph run builds draw commands"
+    );
+    require(command_count == 2, "mixed run emits one command per glyph");
+    const auto* mask_draw = std::get_if<veyra::DrawMask>(&commands[0]);
+    const auto* image_draw = std::get_if<veyra::DrawImage>(&commands[1]);
+    require(
+        mask_draw != nullptr && mask_draw->x == 11 && mask_draw->y == 18,
+        "mask glyph keeps its shaped position"
+    );
+    require(
+        image_draw != nullptr && image_draw->x == 13 && image_draw->y == 17,
+        "color glyph advances from the preceding mask glyph"
+    );
+
+    pixels.fill({});
+    require(
+        veyra::render_software(
+            std::span<const veyra::DisplayCommand>(commands).first(command_count),
+            surface,
+            {}
+        ) == veyra::SoftwareRenderResult::complete,
+        "mixed glyph draws render through the software renderer"
+    );
+    require(pixels[18 * surface_size + 11].red == 30, "mask glyph reaches the surface");
+    require(pixels[17 * surface_size + 13].green == 180, "color glyph reaches the surface");
+
+    const std::array missing_glyph{
+        veyra::ShapedGlyph{.id = 99},
+    };
+    const auto missing = veyra::build_color_glyph_draw_commands(
+        missing_glyph,
+        cache,
+        {.face_id = 1, .glyph_id = 99, .pixel_size = 16},
+        {.x = 0.0F, .y = 0.0F},
+        64.0,
+        64.0,
+        images,
+        commands,
+        command_count
+    );
+    require(missing == veyra::GlyphRunResult::glyph_not_cached, "uncached color glyph is reported");
+    require(command_count == 0, "color cache miss reports an empty command prefix");
+}
+
 }
 
 int main() {
@@ -342,6 +521,7 @@ int main() {
         check_output_capacity_and_input_limit();
         check_invalid_inputs_and_empty_text();
         check_glyph_draw_list();
+        check_color_glyph_draw_list();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

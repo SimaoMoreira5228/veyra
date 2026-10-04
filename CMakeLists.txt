@@ -17,6 +17,8 @@ if(NOT VEYRA_PARADIGM IN_LIST valid_paradigms)
 endif()
 
 add_library(veyra STATIC
+ src/media/animation_frame_cache.cpp
+ src/media/animation_timeline.cpp
  src/core/focus_navigation.cpp
  src/core/hit_test.cpp
  src/core/node_id_pool.cpp
@@ -29,6 +31,7 @@ add_library(veyra STATIC
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
  src/text/glyph_mask_cache.cpp
+ src/text/glyph_image_cache.cpp
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
  src/engines.cpp
@@ -291,9 +294,21 @@ add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
 
+add_executable(veyra_glyph_image_cache_test tests/glyph_image_cache_test.cpp)
+target_link_libraries(veyra_glyph_image_cache_test PRIVATE veyra)
+add_test(NAME glyph_image_cache_behavior COMMAND veyra_glyph_image_cache_test)
+
 add_executable(veyra_text_editor_buffer_test tests/text_editor_buffer_test.cpp)
 target_link_libraries(veyra_text_editor_buffer_test PRIVATE veyra)
 add_test(NAME text_editor_buffer_behavior COMMAND veyra_text_editor_buffer_test)
+
+add_executable(veyra_animation_timeline_test tests/animation_timeline_test.cpp)
+target_link_libraries(veyra_animation_timeline_test PRIVATE veyra)
+add_test(NAME animation_timeline_behavior COMMAND veyra_animation_timeline_test)
+
+add_executable(veyra_animation_frame_cache_test tests/animation_frame_cache_test.cpp)
+target_link_libraries(veyra_animation_frame_cache_test PRIVATE veyra)
+add_test(NAME animation_frame_cache_behavior COMMAND veyra_animation_frame_cache_test)
 
 if(VEYRA_BUILD_BENCH)
  add_executable(veyra_bench bench/main.cpp)
@@ -312,8 +327,12 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_software_renderer_bench PRIVATE veyra)
  add_executable(veyra_glyph_mask_cache_bench bench/glyph_mask_cache.cpp)
  target_link_libraries(veyra_glyph_mask_cache_bench PRIVATE veyra)
+ add_executable(veyra_glyph_image_cache_bench bench/glyph_image_cache.cpp)
+ target_link_libraries(veyra_glyph_image_cache_bench PRIVATE veyra)
  add_executable(veyra_text_editor_buffer_bench bench/text_editor_buffer.cpp)
  target_link_libraries(veyra_text_editor_buffer_bench PRIVATE veyra)
+ add_executable(veyra_animation_timeline_bench bench/animation_timeline.cpp)
+ target_link_libraries(veyra_animation_timeline_bench PRIVATE veyra)
  target_compile_definitions(veyra_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
@@ -354,7 +373,17 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
+ target_compile_definitions(veyra_glyph_image_cache_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
  target_compile_definitions(veyra_text_editor_buffer_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_animation_timeline_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -427,6 +456,14 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME glyph_mask_cache_benchmark_smoke
   COMMAND veyra_glyph_mask_cache_bench --glyphs 32 --queries 100 --warmup 10
+ )
+ add_test(
+  NAME glyph_image_cache_benchmark_smoke
+  COMMAND veyra_glyph_image_cache_bench
+ )
+ add_test(
+  NAME animation_timeline_benchmark_smoke
+  COMMAND veyra_animation_timeline_bench
  )
  add_test(
   NAME text_editor_buffer_benchmark_smoke

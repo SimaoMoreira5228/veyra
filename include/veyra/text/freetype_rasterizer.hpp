@@ -1,6 +1,7 @@
 #ifndef VEYRA_TEXT_FREETYPE_RASTERIZER_HPP
 #define VEYRA_TEXT_FREETYPE_RASTERIZER_HPP
 
+#include "veyra/text/glyph_image_cache.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 
 #include <ft2build.h>
@@ -21,11 +22,7 @@ enum class GlyphRasterizeResult : std::uint8_t {
     glyph_too_large,
 };
 
-struct GlyphColorImage {
-    SoftwareImage image;
-    std::int32_t bearing_x{};
-    std::int32_t bearing_y{};
-};
+using GlyphColorImage = GlyphImage;
 
 GlyphRasterizeResult copy_freetype_bitmap(
     const FT_Bitmap& bitmap,
