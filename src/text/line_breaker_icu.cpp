@@ -1,57 +1,11 @@
 #include "veyra/text/line_breaker.hpp"
 
+#include "utf8.hpp"
+
 #include <cstdint>
 #include <limits>
 
 namespace veyra {
-namespace {
-
-bool valid_utf8(std::string_view text) noexcept {
-    const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
-    for (std::size_t offset = 0; offset < text.size();) {
-        const auto first = bytes[offset];
-        if (first <= 0x7fU) {
-            ++offset;
-            continue;
-        }
-
-        std::size_t sequence_length = 0;
-        std::uint32_t code_point = 0;
-        if (first >= 0xc2U && first <= 0xdfU) {
-            sequence_length = 2;
-            code_point = first & 0x1fU;
-        } else if (first >= 0xe0U && first <= 0xefU) {
-            sequence_length = 3;
-            code_point = first & 0x0fU;
-        } else if (first >= 0xf0U && first <= 0xf4U) {
-            sequence_length = 4;
-            code_point = first & 0x07U;
-        } else {
-            return false;
-        }
-        if (sequence_length > text.size() - offset) {
-            return false;
-        }
-
-        for (std::size_t continuation = 1; continuation < sequence_length; ++continuation) {
-            const auto byte = bytes[offset + continuation];
-            if ((byte & 0xc0U) != 0x80U) {
-                return false;
-            }
-            code_point = (code_point << 6U) | (byte & 0x3fU);
-        }
-        if ((sequence_length == 2 && code_point < 0x80U) ||
-            (sequence_length == 3 && code_point < 0x800U) ||
-            (sequence_length == 4 && code_point < 0x10000U) || code_point > 0x10ffffU ||
-            (code_point >= 0xd800U && code_point <= 0xdfffU)) {
-            return false;
-        }
-        offset += sequence_length;
-    }
-    return true;
-}
-
-}
 
 void TextLineBreaker::BreakIteratorDeleter::operator()(UBreakIterator* iterator) const noexcept {
     if (iterator != nullptr) {
@@ -83,7 +37,7 @@ LineBreakResult TextLineBreaker::find_breaks(
     }
 
     const auto length = static_cast<std::int32_t>(utf8.size());
-    if (!valid_utf8(utf8)) {
+    if (!detail::valid_utf8(utf8)) {
         return LineBreakResult::invalid_utf8;
     }
 
@@ -97,13 +51,9 @@ LineBreakResult TextLineBreaker::find_breaks(
     }
 
     const auto detach_text = [this]() noexcept {
-        UText empty_text = UTEXT_INITIALIZER;
+        static constexpr UChar empty_text[] = {0};
         UErrorCode empty_status = U_ZERO_ERROR;
-        auto* empty = utext_openUTF8(&empty_text, "", 0, &empty_status);
-        if (U_SUCCESS(empty_status) && empty != nullptr) {
-            ubrk_setUText(iterator_.get(), empty, &empty_status);
-        }
-        utext_close(&empty_text);
+        ubrk_setText(iterator_.get(), empty_text, 0, &empty_status);
     };
 
     ubrk_setUText(iterator_.get(), input, &status);

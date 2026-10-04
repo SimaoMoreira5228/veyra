@@ -21,6 +21,12 @@ enum class GlyphRasterizeResult : std::uint8_t {
     glyph_too_large,
 };
 
+struct GlyphColorImage {
+    SoftwareImage image;
+    std::int32_t bearing_x{};
+    std::int32_t bearing_y{};
+};
+
 GlyphRasterizeResult copy_freetype_bitmap(
     const FT_Bitmap& bitmap,
     std::int32_t bearing_x,
@@ -31,6 +37,15 @@ GlyphRasterizeResult copy_freetype_bitmap(
     GlyphMask& glyph
 ) noexcept;
 
+GlyphRasterizeResult copy_freetype_color_bitmap(
+    const FT_Bitmap& bitmap,
+    std::int32_t bearing_x,
+    std::int32_t bearing_y,
+    std::span<SoftwarePixel> output,
+    std::size_t output_stride,
+    GlyphColorImage& glyph
+) noexcept;
+
 GlyphRasterizeResult rasterize_freetype_glyph(
     FT_Face face,
     std::uint32_t glyph_id,
@@ -38,6 +53,14 @@ GlyphRasterizeResult rasterize_freetype_glyph(
     std::span<std::uint8_t> output,
     std::size_t output_stride,
     GlyphMask& glyph
+) noexcept;
+
+GlyphRasterizeResult rasterize_freetype_color_glyph(
+    FT_Face face,
+    std::uint32_t glyph_id,
+    std::span<SoftwarePixel> output,
+    std::size_t output_stride,
+    GlyphColorImage& glyph
 ) noexcept;
 
 }

@@ -1,5 +1,7 @@
 #include "veyra/text/bidi_resolver.hpp"
 
+#include "utf8.hpp"
+
 #include <algorithm>
 #include <limits>
 #include <new>
@@ -7,53 +9,6 @@
 
 namespace veyra {
 namespace {
-
-bool decode_code_point(
-    std::string_view text,
-    std::size_t& offset,
-    std::uint32_t& code_point
-) noexcept {
-    const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
-    const auto first = bytes[offset];
-    if (first <= 0x7fU) {
-        code_point = first;
-        ++offset;
-        return true;
-    }
-
-    std::size_t sequence_length = 0;
-    if (first >= 0xc2U && first <= 0xdfU) {
-        sequence_length = 2;
-        code_point = first & 0x1fU;
-    } else if (first >= 0xe0U && first <= 0xefU) {
-        sequence_length = 3;
-        code_point = first & 0x0fU;
-    } else if (first >= 0xf0U && first <= 0xf4U) {
-        sequence_length = 4;
-        code_point = first & 0x07U;
-    } else {
-        return false;
-    }
-    if (sequence_length > text.size() - offset) {
-        return false;
-    }
-
-    for (std::size_t index = 1; index < sequence_length; ++index) {
-        const auto byte = bytes[offset + index];
-        if ((byte & 0xc0U) != 0x80U) {
-            return false;
-        }
-        code_point = (code_point << 6U) | (byte & 0x3fU);
-    }
-    if ((sequence_length == 2 && code_point < 0x80U) ||
-        (sequence_length == 3 && code_point < 0x800U) ||
-        (sequence_length == 4 && code_point < 0x10000U) || code_point > 0x10ffffU ||
-        (code_point >= 0xd800U && code_point <= 0xdfffU)) {
-        return false;
-    }
-    offset += sequence_length;
-    return true;
-}
 
 bool to_icu_paragraph_level(TextBidiParagraphDirection direction, UBiDiLevel& level) noexcept {
     switch (direction) {
@@ -147,7 +102,7 @@ TextBidiResult TextBidiResolver::set_paragraph(
     while (byte_offset < utf8.size()) {
         const auto code_point_byte_offset = byte_offset;
         std::uint32_t code_point = 0;
-        if (!decode_code_point(utf8, byte_offset, code_point)) {
+        if (!detail::next_utf8_code_point(utf8, byte_offset, code_point)) {
             return TextBidiResult::invalid_utf8;
         }
         if (code_point <= 0xffffU) {

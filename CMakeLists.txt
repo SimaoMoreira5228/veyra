@@ -45,7 +45,11 @@ endif()
 
 if(VEYRA_WITH_TEXT)
  find_package(harfbuzz CONFIG REQUIRED)
- add_library(veyra_text STATIC src/text/shaper.cpp src/text/glyph_run.cpp)
+ add_library(veyra_text STATIC
+  src/text/glyph_run.cpp
+  src/text/shaped_run_cache.cpp
+  src/text/shaper.cpp
+ )
  target_include_directories(veyra_text PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_text PUBLIC veyra harfbuzz::harfbuzz)
  target_compile_features(veyra_text PUBLIC cxx_std_23)
@@ -53,6 +57,10 @@ if(VEYRA_WITH_TEXT)
  add_executable(veyra_text_shaper_test tests/text_shaper_test.cpp)
  target_link_libraries(veyra_text_shaper_test PRIVATE veyra_text)
  add_test(NAME text_shaper_behavior COMMAND veyra_text_shaper_test)
+
+ add_executable(veyra_shaped_run_cache_test tests/shaped_run_cache_test.cpp)
+ target_link_libraries(veyra_shaped_run_cache_test PRIVATE veyra_text)
+ add_test(NAME shaped_run_cache_behavior COMMAND veyra_shaped_run_cache_test)
 
  if(VEYRA_BUILD_BENCH)
   add_executable(veyra_text_shaper_bench bench/text_shaper.cpp)
@@ -62,6 +70,15 @@ if(VEYRA_WITH_TEXT)
    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
    "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
   )
+
+  add_executable(veyra_shaped_run_cache_bench bench/shaped_run_cache.cpp)
+  target_link_libraries(veyra_shaped_run_cache_bench PRIVATE veyra_text)
+  target_compile_definitions(veyra_shaped_run_cache_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+  add_test(NAME shaped_run_cache_benchmark_smoke COMMAND veyra_shaped_run_cache_bench)
  endif()
 endif()
 
@@ -71,6 +88,7 @@ if(VEYRA_WITH_UNICODE)
   src/text/bidi_resolver_icu.cpp
   src/text/grapheme_icu.cpp
   src/text/line_breaker_icu.cpp
+  src/text/utf8.cpp
  )
  target_include_directories(veyra_unicode PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_unicode PUBLIC veyra ICU::i18n ICU::uc)
@@ -87,6 +105,31 @@ if(VEYRA_WITH_UNICODE)
  add_executable(veyra_bidi_resolver_test tests/bidi_resolver_test.cpp)
  target_link_libraries(veyra_bidi_resolver_test PRIVATE veyra_unicode)
  add_test(NAME text_bidi_resolver_behavior COMMAND veyra_bidi_resolver_test)
+
+ if(VEYRA_WITH_TEXT)
+  add_library(veyra_font_fallback STATIC src/text/font_fallback_icu.cpp)
+  target_include_directories(
+   veyra_font_fallback
+   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+  target_link_libraries(veyra_font_fallback PUBLIC veyra_text veyra_unicode)
+  target_compile_features(veyra_font_fallback PUBLIC cxx_std_23)
+
+  add_executable(veyra_font_fallback_test tests/font_fallback_test.cpp)
+  target_link_libraries(veyra_font_fallback_test PRIVATE veyra_font_fallback)
+  add_test(NAME text_font_fallback_behavior COMMAND veyra_font_fallback_test)
+
+  if(VEYRA_BUILD_BENCH)
+   add_executable(veyra_font_fallback_bench bench/font_fallback.cpp)
+   target_link_libraries(veyra_font_fallback_bench PRIVATE veyra_font_fallback)
+   target_compile_definitions(veyra_font_fallback_bench PRIVATE
+    "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+    "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+   )
+   add_test(NAME text_font_fallback_benchmark_smoke COMMAND veyra_font_fallback_bench)
+  endif()
+ endif()
 
  if(VEYRA_BUILD_BENCH)
   add_executable(veyra_bidi_resolver_bench bench/bidi_resolver.cpp)
@@ -135,6 +178,18 @@ if(VEYRA_WITH_FREETYPE)
  add_test(NAME freetype_rasterizer_behavior COMMAND veyra_freetype_rasterizer_test)
 
  if(VEYRA_BUILD_BENCH)
+  add_executable(veyra_freetype_color_bitmap_bench bench/freetype_color_bitmap.cpp)
+  target_link_libraries(veyra_freetype_color_bitmap_bench PRIVATE veyra_freetype)
+  target_compile_definitions(veyra_freetype_color_bitmap_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+  add_test(
+   NAME freetype_color_bitmap_benchmark_smoke
+   COMMAND veyra_freetype_color_bitmap_bench
+  )
+
   add_executable(veyra_freetype_rasterizer_bench bench/freetype_rasterizer.cpp)
   target_link_libraries(veyra_freetype_rasterizer_bench PRIVATE veyra_freetype)
   target_compile_definitions(veyra_freetype_rasterizer_bench PRIVATE

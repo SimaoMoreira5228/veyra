@@ -180,6 +180,121 @@ void check_rejections_leave_outputs_unchanged() {
     );
 }
 
+void check_color_bitmap_conversion_and_rendering() {
+    std::array<FT_Byte, 12> source{
+        0,
+        0,
+        128,
+        128,
+        0,
+        255,
+        0,
+        255,
+        255,
+        255,
+        255,
+        0,
+    };
+    const FT_Bitmap bitmap{
+        .rows = 1,
+        .width = 3,
+        .pitch = 12,
+        .buffer = source.data(),
+        .pixel_mode = FT_PIXEL_MODE_BGRA,
+    };
+    const auto sentinel = veyra::SoftwarePixel{.red = 7, .green = 8, .blue = 9, .alpha = 10};
+    std::array<veyra::SoftwarePixel, 4> output;
+    output.fill(sentinel);
+    veyra::GlyphColorImage glyph;
+
+    const auto result = veyra::copy_freetype_color_bitmap(bitmap, -1, 12, output, 4, glyph);
+    require(result == veyra::GlyphRasterizeResult::complete, "color bitmap copies");
+    require(
+        glyph.image.width == 3 && glyph.image.height == 1 && glyph.image.stride == 4,
+        "color image dimensions and stride are retained"
+    );
+    require(glyph.bearing_x == -1 && glyph.bearing_y == 12, "color image bearings are retained");
+    require(
+        output[0].red == 255 && output[0].alpha == 128,
+        "premultiplied half-alpha red becomes straight RGBA"
+    );
+    require(output[1].green == 255 && output[1].alpha == 255, "BGRA channel order is converted");
+    require(
+        output[2].red == 0 && output[2].green == 0 && output[2].blue == 0 && output[2].alpha == 0,
+        "fully transparent color pixels discard premultiplied channels"
+    );
+    require(output[3].red == sentinel.red, "output row padding remains untouched");
+
+    std::array<veyra::SoftwarePixel, 3> surface_pixels{};
+    surface_pixels.fill({.alpha = 0});
+    const veyra::SoftwareSurface surface{
+        .width = 3,
+        .height = 1,
+        .stride = 3,
+        .pixels = surface_pixels,
+    };
+    const std::array<veyra::DisplayCommand, 1> commands{
+        veyra::DrawImage{.image = &glyph.image},
+    };
+    require(
+        veyra::render_software(commands, surface, {}) == veyra::SoftwareRenderResult::complete,
+        "converted color glyph draws through the software renderer"
+    );
+    require(
+        surface_pixels[0].red == 255 && surface_pixels[0].alpha == 128,
+        "the rendered color glyph keeps its transparency"
+    );
+    require(surface_pixels[2].alpha == 0, "transparent color pixels leave the surface clear");
+
+    const auto unchanged = glyph;
+    std::array<veyra::SoftwarePixel, 1> short_output{sentinel};
+    require(
+        veyra::copy_freetype_color_bitmap(bitmap, 0, 0, short_output, 2, glyph) ==
+            veyra::GlyphRasterizeResult::glyph_too_large,
+        "short color output is rejected"
+    );
+    require(glyph.bearing_x == unchanged.bearing_x, "rejected copy leaves metadata unchanged");
+    require(short_output[0].red == sentinel.red, "rejected copy leaves pixels unchanged");
+
+    auto grayscale = bitmap;
+    grayscale.pixel_mode = FT_PIXEL_MODE_GRAY;
+    require(
+        veyra::copy_freetype_color_bitmap(grayscale, 0, 0, output, 4, glyph) ==
+            veyra::GlyphRasterizeResult::unsupported_bitmap,
+        "non-color bitmaps are rejected"
+    );
+    require(
+        veyra::rasterize_freetype_color_glyph(nullptr, 1, output, 4, glyph) ==
+            veyra::GlyphRasterizeResult::invalid_input,
+        "null color glyph faces are rejected"
+    );
+
+    std::array<FT_Byte, 8> reversed_rows{0, 0, 255, 255, 255, 0, 0, 255};
+    const FT_Bitmap negative_pitch_bitmap{
+        .rows = 2,
+        .width = 1,
+        .pitch = -4,
+        .buffer = reversed_rows.data() + 4,
+        .pixel_mode = FT_PIXEL_MODE_BGRA,
+    };
+    std::array<veyra::SoftwarePixel, 2> negative_pitch_output{};
+    require(
+        veyra::copy_freetype_color_bitmap(
+            negative_pitch_bitmap,
+            0,
+            0,
+            negative_pitch_output,
+            1,
+            glyph
+        ) == veyra::GlyphRasterizeResult::complete,
+        "negative-pitch color bitmap copies"
+    );
+    require(
+        negative_pitch_output[0].blue == 255 && negative_pitch_output[1].red == 255,
+        "negative-pitch color rows are copied in their FreeType order"
+    );
+}
+
 void check_bitmap_cache_render_path() {
     std::array<FT_Byte, 4> source{0, 255, 128, 255};
     const FT_Bitmap bitmap{
@@ -258,6 +373,7 @@ int main() {
         check_grayscale_rows_and_bearings();
         check_monochrome_negative_pitch();
         check_rejections_leave_outputs_unchanged();
+        check_color_bitmap_conversion_and_rendering();
         check_bitmap_cache_render_path();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

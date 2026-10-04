@@ -117,6 +117,92 @@ GlyphRasterizeResult copy_freetype_bitmap(
     return GlyphRasterizeResult::complete;
 }
 
+GlyphRasterizeResult copy_freetype_color_bitmap(
+    const FT_Bitmap& bitmap,
+    std::int32_t bearing_x,
+    std::int32_t bearing_y,
+    std::span<SoftwarePixel> output,
+    std::size_t output_stride,
+    GlyphColorImage& glyph
+) noexcept {
+    const auto width = static_cast<std::size_t>(bitmap.width);
+    const auto height = static_cast<std::size_t>(bitmap.rows);
+    if (bitmap.pixel_mode != FT_PIXEL_MODE_BGRA) {
+        return GlyphRasterizeResult::unsupported_bitmap;
+    }
+    if (width > output_stride || width > std::numeric_limits<std::size_t>::max() / 4 ||
+        (height != 0 && output_stride > std::numeric_limits<std::size_t>::max() / height)) {
+        return GlyphRasterizeResult::glyph_too_large;
+    }
+
+    const auto output_size = height * output_stride;
+    const auto source_row_bytes = width * 4;
+    if (output_size > output.size()) {
+        return GlyphRasterizeResult::glyph_too_large;
+    }
+
+    const auto pitch = static_cast<std::int64_t>(bitmap.pitch);
+    const auto absolute_pitch = static_cast<std::size_t>(pitch < 0 ? -pitch : pitch);
+    if (absolute_pitch < source_row_bytes ||
+        (height != 0 && absolute_pitch != 0 &&
+         height - 1 > static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max()) /
+                 absolute_pitch)) {
+        return GlyphRasterizeResult::unsupported_bitmap;
+    }
+    if (width != 0 && height != 0 && bitmap.buffer == nullptr) {
+        return GlyphRasterizeResult::unsupported_bitmap;
+    }
+
+    if (width != 0 && height != 0) {
+        for (std::size_t row_index = 0; row_index < height; ++row_index) {
+            const auto row_offset = static_cast<std::ptrdiff_t>(row_index) * bitmap.pitch;
+            const auto* source = bitmap.buffer + row_offset;
+            auto* destination = output.data() + row_index * output_stride;
+            for (std::size_t x = 0; x < width; ++x) {
+                const auto* pixel = source + x * 4;
+                const auto alpha = static_cast<std::uint32_t>(pixel[3]);
+                if (alpha == 255U) {
+                    destination[x] = {
+                        .red = pixel[2],
+                        .green = pixel[1],
+                        .blue = pixel[0],
+                        .alpha = 255,
+                    };
+                    continue;
+                }
+                if (alpha == 0U) {
+                    destination[x] = {.red = 0, .green = 0, .blue = 0, .alpha = 0};
+                    continue;
+                }
+                const auto unpremultiply = [alpha](std::uint8_t channel) {
+                    const auto straight =
+                        (static_cast<std::uint32_t>(channel) * 255U + alpha / 2U) / alpha;
+                    return static_cast<std::uint8_t>(std::min(straight, 255U));
+                };
+                destination[x] = {
+                    .red = unpremultiply(pixel[2]),
+                    .green = unpremultiply(pixel[1]),
+                    .blue = unpremultiply(pixel[0]),
+                    .alpha = static_cast<std::uint8_t>(alpha),
+                };
+            }
+        }
+    }
+
+    glyph = {
+        .image =
+            {
+                .width = width,
+                .height = height,
+                .stride = output_stride,
+                .pixels = output.first(output_size),
+            },
+        .bearing_x = bearing_x,
+        .bearing_y = bearing_y,
+    };
+    return GlyphRasterizeResult::complete;
+}
+
 GlyphRasterizeResult rasterize_freetype_glyph(
     FT_Face face,
     std::uint32_t glyph_id,
@@ -156,6 +242,44 @@ GlyphRasterizeResult rasterize_freetype_glyph(
         static_cast<std::int32_t>(face->glyph->bitmap_left),
         static_cast<std::int32_t>(face->glyph->bitmap_top),
         mode,
+        output,
+        output_stride,
+        glyph
+    );
+}
+
+GlyphRasterizeResult rasterize_freetype_color_glyph(
+    FT_Face face,
+    std::uint32_t glyph_id,
+    std::span<SoftwarePixel> output,
+    std::size_t output_stride,
+    GlyphColorImage& glyph
+) noexcept {
+    if (face == nullptr || face->glyph == nullptr) {
+        return GlyphRasterizeResult::invalid_input;
+    }
+
+    FT_Matrix transform{};
+    FT_Vector delta{};
+    FT_Get_Transform(face, &transform, &delta);
+    if (transform.xx != 0x10000L || transform.xy != 0 || transform.yx != 0 ||
+        transform.yy != 0x10000L || delta.x != 0 || delta.y != 0) {
+        return GlyphRasterizeResult::unsupported_transform;
+    }
+
+    const auto load_flags = static_cast<FT_Int32>(FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_NO_SVG);
+    if (FT_Load_Glyph(face, static_cast<FT_UInt>(glyph_id), load_flags) != 0) {
+        return GlyphRasterizeResult::raster_failure;
+    }
+    if (face->glyph->format != FT_GLYPH_FORMAT_BITMAP &&
+        FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
+        return GlyphRasterizeResult::raster_failure;
+    }
+
+    return copy_freetype_color_bitmap(
+        face->glyph->bitmap,
+        static_cast<std::int32_t>(face->glyph->bitmap_left),
+        static_cast<std::int32_t>(face->glyph->bitmap_top),
         output,
         output_stride,
         glyph
