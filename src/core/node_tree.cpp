@@ -1,5 +1,6 @@
 #include "veyra/core/node_tree.hpp"
 
+#include <algorithm>
 #include <utility>
 
 namespace veyra {
@@ -11,7 +12,8 @@ constexpr std::uint8_t dirty_mask(DirtyCategory category) noexcept {
 
 constexpr std::uint8_t all_dirty_categories = dirty_mask(DirtyCategory::structure) |
     dirty_mask(DirtyCategory::layout) | dirty_mask(DirtyCategory::paint) |
-    dirty_mask(DirtyCategory::semantics);
+    dirty_mask(DirtyCategory::semantics) | dirty_mask(DirtyCategory::text) |
+    dirty_mask(DirtyCategory::image);
 
 bool is_single_dirty_category(std::uint8_t mask) noexcept {
     return mask != 0 && (mask & all_dirty_categories) == mask && (mask & (mask - 1U)) == 0;
@@ -21,8 +23,10 @@ bool is_single_dirty_category(std::uint8_t mask) noexcept {
 
 NodeTree::NodeTree(NodeTree&& other) noexcept :
     ids_(std::move(other.ids_)), links_(std::move(other.links_)),
+    dirty_nodes_(std::move(other.dirty_nodes_)),
     dirty_node_count_(std::exchange(other.dirty_node_count_, 0)) {
     other.links_.clear();
+    other.dirty_nodes_.clear();
 }
 
 NodeTree& NodeTree::operator=(NodeTree&& other) noexcept {
@@ -32,17 +36,30 @@ NodeTree& NodeTree::operator=(NodeTree&& other) noexcept {
 
     ids_ = std::move(other.ids_);
     links_ = std::move(other.links_);
+    dirty_nodes_ = std::move(other.dirty_nodes_);
     dirty_node_count_ = std::exchange(other.dirty_node_count_, 0);
     other.links_.clear();
+    other.dirty_nodes_.clear();
     return *this;
 }
 
 void NodeTree::reserve(std::size_t count) {
     ids_.reserve(count);
     links_.reserve(count);
+    dirty_nodes_.reserve(count);
 }
 
 NodeId NodeTree::create() {
+    const auto required_dirty_capacity = ids_.size() + 1;
+    if (dirty_nodes_.capacity() < required_dirty_capacity) {
+        const auto current_capacity = dirty_nodes_.capacity();
+        const auto grown_capacity =
+            current_capacity == 0 || current_capacity > dirty_nodes_.max_size() / 2
+            ? required_dirty_capacity
+            : std::max(required_dirty_capacity, current_capacity * 2);
+        dirty_nodes_.reserve(grown_capacity);
+    }
+
     const auto id = ids_.allocate();
     if (id.is_null()) {
         return id;
@@ -295,6 +312,7 @@ bool NodeTree::clear_dirty(NodeId id, DirtyCategory category) noexcept {
     flags = static_cast<std::uint8_t>(flags & ~mask);
     if (flags == 0) {
         --dirty_node_count_;
+        remove_dirty_node_unchecked(id);
     }
     return true;
 }
@@ -316,6 +334,10 @@ std::size_t NodeTree::dirty_node_count() const noexcept {
     return dirty_node_count_;
 }
 
+std::span<const NodeId> NodeTree::dirty_nodes() const noexcept {
+    return dirty_nodes_;
+}
+
 void NodeTree::mark_dirty_unchecked(NodeId id, DirtyCategory category) noexcept {
     auto& flags = links_[id.index].dirty_flags;
     const auto mask = dirty_mask(category);
@@ -325,6 +347,9 @@ void NodeTree::mark_dirty_unchecked(NodeId id, DirtyCategory category) noexcept 
 
     if (flags == 0) {
         ++dirty_node_count_;
+        auto& node = links_[id.index];
+        node.dirty_index = static_cast<std::uint32_t>(dirty_nodes_.size());
+        dirty_nodes_.push_back(id);
     }
     flags = static_cast<std::uint8_t>(flags | mask);
 }
@@ -334,7 +359,17 @@ void NodeTree::clear_all_dirty_unchecked(NodeId id) noexcept {
     if (flags != 0) {
         --dirty_node_count_;
         flags = 0;
+        remove_dirty_node_unchecked(id);
     }
+}
+
+void NodeTree::remove_dirty_node_unchecked(NodeId id) noexcept {
+    const auto index = static_cast<std::size_t>(links_[id.index].dirty_index);
+    const auto moved_id = dirty_nodes_.back();
+    dirty_nodes_[index] = moved_id;
+    links_[moved_id.index].dirty_index = static_cast<std::uint32_t>(index);
+    dirty_nodes_.pop_back();
+    links_[id.index].dirty_index = NodeId::invalid_index;
 }
 
 }

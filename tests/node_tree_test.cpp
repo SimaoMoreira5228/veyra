@@ -95,6 +95,7 @@ void check_dirty_tracking_and_moves() {
     const auto grandchild = tree.create();
 
     require(tree.dirty_node_count() == 3, "created nodes start dirty");
+    require(tree.dirty_nodes().size() == 3, "dirty nodes can be enumerated directly");
     require(tree.append_child(root, child), "child attaches for dirty tracking");
     require(tree.append_child(child, grandchild), "grandchild attaches for dirty tracking");
     require(
@@ -118,6 +119,7 @@ void check_dirty_tracking_and_moves() {
 
     require(tree.destroy_subtree(child), "dirty subtree can be destroyed");
     require(tree.dirty_node_count() == 1, "destroyed nodes leave the dirty count");
+    require(tree.dirty_nodes().size() == 1, "destroyed nodes leave the dirty index");
     require(
         tree.is_dirty(root, veyra::DirtyCategory::paint),
         "parent paint dirtiness is preserved"
@@ -125,6 +127,10 @@ void check_dirty_tracking_and_moves() {
 
     veyra::NodeTree moved_tree(std::move(tree));
     require(moved_tree.dirty_node_count() == 1, "move preserves dirty node count");
+    require(
+        moved_tree.dirty_nodes().size() == 1 && moved_tree.dirty_nodes()[0] == root,
+        "move preserves dirty node identities"
+    );
     require(
         moved_tree.clear_dirty(root, veyra::DirtyCategory::paint),
         "moved tree can clear dirty state"
@@ -136,6 +142,7 @@ void check_dirty_tracking_and_moves() {
     );
     require(moved_tree.clear_dirty(root, veyra::DirtyCategory::layout), "layout can be cleared");
     require(moved_tree.dirty_node_count() == 0, "clearing the last category resets dirty count");
+    require(moved_tree.dirty_nodes().empty(), "clearing the last category removes the node");
 
     veyra::NodeTree assigned_tree;
     assigned_tree.create();
@@ -150,6 +157,49 @@ void check_dirty_tracking_and_moves() {
         !assigned_tree.mark_dirty(invalid, veyra::DirtyCategory::paint),
         "invalid id is rejected"
     );
+}
+
+void check_independent_text_and_image_invalidation() {
+    veyra::NodeTree tree;
+    const auto node = tree.create();
+    const auto peer = tree.create();
+    require(
+        tree.clear_dirty(node, veyra::DirtyCategory::structure),
+        "new node structure is cleared"
+    );
+    require(tree.clear_dirty(peer, veyra::DirtyCategory::structure), "peer structure is cleared");
+
+    require(tree.mark_dirty(node, veyra::DirtyCategory::text), "text work can be marked dirty");
+    require(tree.mark_dirty(node, veyra::DirtyCategory::image), "image work can be marked dirty");
+    require(tree.is_dirty(node, veyra::DirtyCategory::text), "text dirtiness is queryable");
+    require(tree.is_dirty(node, veyra::DirtyCategory::image), "image dirtiness is queryable");
+    require(
+        !tree.is_dirty(node, veyra::DirtyCategory::paint),
+        "content dirtiness stays separate from paint"
+    );
+    require(tree.dirty_node_count() == 1, "multiple dirty categories count one node");
+    require(
+        tree.dirty_nodes().size() == 1 && tree.dirty_nodes()[0] == node,
+        "dirty-node index contains one entry per node"
+    );
+    require(!tree.mark_dirty(node, veyra::DirtyCategory::text), "repeated text work coalesces");
+
+    require(tree.clear_dirty(node, veyra::DirtyCategory::text), "text work can be cleared alone");
+    require(!tree.is_dirty(node, veyra::DirtyCategory::text), "cleared text work is clean");
+    require(tree.is_dirty(node, veyra::DirtyCategory::image), "clearing text preserves image work");
+    require(
+        tree.mark_dirty(peer, veyra::DirtyCategory::paint),
+        "peer can be dirtied independently"
+    );
+    require(tree.clear_dirty(node, veyra::DirtyCategory::image), "image work can be cleared alone");
+    require(tree.dirty_node_count() == 1, "clean node leaves its peer dirty");
+    require(
+        tree.dirty_nodes().size() == 1 && tree.dirty_nodes()[0] == peer,
+        "removing one node preserves the swapped dirty-node index"
+    );
+    require(tree.clear_dirty(peer, veyra::DirtyCategory::paint), "peer paint clears");
+    require(tree.dirty_node_count() == 0, "clearing the last category resets the node count");
+    require(tree.dirty_nodes().empty(), "clean nodes leave the dirty-node index");
 }
 
 void check_atomic_child_batches() {
@@ -199,6 +249,7 @@ int main() {
     try {
         check_hierarchy_and_lifetimes();
         check_dirty_tracking_and_moves();
+        check_independent_text_and_image_invalidation();
         check_atomic_child_batches();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

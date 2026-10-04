@@ -14,6 +14,8 @@ enum class EventType : std::uint8_t {
     append_child,
     detach,
     destroy_subtree,
+    text_changed,
+    image_changed,
 };
 
 struct Event {
@@ -39,6 +41,10 @@ bool apply(veyra::NodeTree& tree, const Event& event) {
         return tree.detach(event.node);
     case EventType::destroy_subtree:
         return tree.destroy_subtree(event.node);
+    case EventType::text_changed:
+        return tree.mark_dirty(event.node, veyra::DirtyCategory::text);
+    case EventType::image_changed:
+        return tree.mark_dirty(event.node, veyra::DirtyCategory::image);
     }
 
     return false;
@@ -62,6 +68,8 @@ std::uint64_t replay() {
         Event{9, EventType::create, reused, {}},
         Event{10, EventType::append_child, reused, root},
         Event{11, EventType::detach, branch, {}},
+        Event{12, EventType::text_changed, child, {}},
+        Event{13, EventType::image_changed, reused, {}},
     };
     constexpr std::array nodes{root, branch, child, removed, reused};
 
@@ -107,6 +115,10 @@ std::uint64_t replay() {
             static_cast<std::uint64_t>(tree.is_dirty(node, veyra::DirtyCategory::paint));
         checksum = checksum * 1099511628211ULL +
             static_cast<std::uint64_t>(tree.is_dirty(node, veyra::DirtyCategory::semantics));
+        checksum = checksum * 1099511628211ULL +
+            static_cast<std::uint64_t>(tree.is_dirty(node, veyra::DirtyCategory::text));
+        checksum = checksum * 1099511628211ULL +
+            static_cast<std::uint64_t>(tree.is_dirty(node, veyra::DirtyCategory::image));
     }
     return checksum;
 }

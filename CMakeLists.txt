@@ -30,6 +30,7 @@ add_library(veyra STATIC
  src/layout/measure.cpp
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
+ src/render/damage_tracker.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/text_editor_buffer.cpp
@@ -290,6 +291,10 @@ add_executable(veyra_software_renderer_line_test tests/software_renderer_line_te
 target_link_libraries(veyra_software_renderer_line_test PRIVATE veyra)
 add_test(NAME software_renderer_line_behavior COMMAND veyra_software_renderer_line_test)
 
+add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
+target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
+add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
+
 add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
@@ -321,10 +326,14 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_virtual_list_bench PRIVATE veyra)
  add_executable(veyra_focus_navigation_bench bench/focus_navigation.cpp)
  target_link_libraries(veyra_focus_navigation_bench PRIVATE veyra)
+ add_executable(veyra_node_tree_dirty_nodes_bench bench/node_tree_dirty_nodes.cpp)
+ target_link_libraries(veyra_node_tree_dirty_nodes_bench PRIVATE veyra)
  add_executable(veyra_hit_test_bench bench/hit_test.cpp)
  target_link_libraries(veyra_hit_test_bench PRIVATE veyra)
  add_executable(veyra_software_renderer_bench bench/software_renderer.cpp)
  target_link_libraries(veyra_software_renderer_bench PRIVATE veyra)
+ add_executable(veyra_damage_tracker_bench bench/damage_tracker.cpp)
+ target_link_libraries(veyra_damage_tracker_bench PRIVATE veyra)
  add_executable(veyra_glyph_mask_cache_bench bench/glyph_mask_cache.cpp)
  target_link_libraries(veyra_glyph_mask_cache_bench PRIVATE veyra)
  add_executable(veyra_glyph_image_cache_bench bench/glyph_image_cache.cpp)
@@ -358,12 +367,22 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
+ target_compile_definitions(veyra_node_tree_dirty_nodes_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
  target_compile_definitions(veyra_hit_test_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_software_renderer_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_damage_tracker_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -425,6 +444,7 @@ if(VEYRA_BUILD_BENCH)
   NAME focus_navigation_benchmark_smoke
   COMMAND veyra_focus_navigation_bench --items 16 --queries 100 --warmup 10
  )
+ add_test(NAME node_tree_dirty_nodes_benchmark_smoke COMMAND veyra_node_tree_dirty_nodes_bench)
  add_test(
   NAME hit_test_benchmark_smoke
   COMMAND veyra_hit_test_bench --items 16 --queries 100 --warmup 10
@@ -453,6 +473,7 @@ if(VEYRA_BUILD_BENCH)
   NAME software_renderer_line_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --line
  )
+ add_test(NAME damage_tracker_benchmark_smoke COMMAND veyra_damage_tracker_bench)
  add_test(
   NAME glyph_mask_cache_benchmark_smoke
   COMMAND veyra_glyph_mask_cache_bench --glyphs 32 --queries 100 --warmup 10

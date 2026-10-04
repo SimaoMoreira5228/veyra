@@ -15,6 +15,8 @@ enum class DirtyCategory : std::uint8_t {
     layout = 1U << 1U,
     paint = 1U << 2U,
     semantics = 1U << 3U,
+    text = 1U << 4U,
+    image = 1U << 5U,
 };
 
 class NodeTree {
@@ -25,17 +27,20 @@ class NodeTree {
         NodeId previous_sibling;
         NodeId next_sibling;
         std::uint8_t dirty_flags{};
+        std::uint32_t dirty_index{NodeId::invalid_index};
         bool focusable{};
     };
 
     NodeIdPool ids_;
     std::vector<Links> links_;
+    std::vector<NodeId> dirty_nodes_;
     std::size_t dirty_node_count_{};
 
     bool can_append_child(NodeId parent, NodeId child) const noexcept;
     void append_child_unchecked(NodeId parent, NodeId child) noexcept;
     void detach_unchecked(NodeId id) noexcept;
     void mark_dirty_unchecked(NodeId id, DirtyCategory category) noexcept;
+    void remove_dirty_node_unchecked(NodeId id) noexcept;
     void clear_all_dirty_unchecked(NodeId id) noexcept;
 
   public:
@@ -65,6 +70,7 @@ class NodeTree {
     bool is_dirty(NodeId id, DirtyCategory category) const noexcept;
     std::size_t size() const noexcept;
     std::size_t dirty_node_count() const noexcept;
+    std::span<const NodeId> dirty_nodes() const noexcept;
 };
 
 }
