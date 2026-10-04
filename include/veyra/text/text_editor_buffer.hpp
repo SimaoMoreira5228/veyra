@@ -32,6 +32,11 @@ struct TextSelection {
     std::size_t length{};
 };
 
+struct TextCaretStop {
+    std::size_t byte_offset{};
+    float x{};
+};
+
 struct TextComposition {
     std::string_view text;
     TextSelection replacement;
@@ -69,6 +74,14 @@ class TextEditorBuffer {
     TextEditResult set_cursor(std::size_t byte_offset, bool extend_selection = false) noexcept;
     TextEditResult
     move_cursor(TextCursorDirection direction, bool extend_selection = false) noexcept;
+    TextEditResult move_cursor_to_line_start(bool extend_selection = false) noexcept;
+    TextEditResult move_cursor_to_line_end(bool extend_selection = false) noexcept;
+    TextEditResult move_cursor_to_visual_line(
+        std::span<const TextCaretStop> caret_stops,
+        float preferred_x,
+        std::size_t& selected_stop,
+        bool extend_selection = false
+    ) noexcept;
     void select_all() noexcept;
     TextEditResult insert(std::string_view text) noexcept;
     TextEditResult erase_backward() noexcept;
@@ -115,6 +128,9 @@ class TextEditorBuffer {
     char byte_at(std::size_t byte_offset) const noexcept;
     bool is_boundary(std::size_t byte_offset) const noexcept;
     void move_gap(std::size_t byte_offset) noexcept;
+    std::size_t line_break_length_at(std::size_t byte_offset) const noexcept;
+    std::size_t line_start_at_cursor() const noexcept;
+    std::size_t line_end_at_cursor() const noexcept;
     TextEditResult replace_selection(std::string_view text) noexcept;
     void replace_range(std::size_t start, std::size_t end, std::string_view text) noexcept;
     void clear_composition() noexcept;

@@ -198,6 +198,37 @@ SdlWindowResult Sdl3Window::clear_text_input_area() noexcept {
                                                            : SdlWindowResult::text_input_failed;
 }
 
+SdlWindowResult Sdl3Window::set_clipboard_text(const char* text) noexcept {
+    if (text == nullptr) {
+        return SdlWindowResult::invalid_input;
+    }
+    if (creation_result_ != SdlWindowResult::ready) {
+        return creation_result_;
+    }
+    return SDL_SetClipboardText(text) ? SdlWindowResult::ready : SdlWindowResult::clipboard_failed;
+}
+
+SdlWindowResult
+Sdl3Window::get_clipboard_text(std::span<char> output, std::size_t& length) noexcept {
+    if (creation_result_ != SdlWindowResult::ready) {
+        return creation_result_;
+    }
+
+    std::unique_ptr<char, decltype(&SDL_free)> clipboard_text(SDL_GetClipboardText(), SDL_free);
+    if (!clipboard_text) {
+        return SdlWindowResult::clipboard_failed;
+    }
+
+    const auto clipboard_length = std::char_traits<char>::length(clipboard_text.get());
+    length = clipboard_length;
+    if (clipboard_length > output.size()) {
+        return SdlWindowResult::insufficient_capacity;
+    }
+
+    std::copy_n(clipboard_text.get(), clipboard_length, output.begin());
+    return SdlWindowResult::ready;
+}
+
 bool Sdl3Window::poll_event(SDL_Event& event) noexcept {
     if (creation_result_ != SdlWindowResult::ready) {
         return false;

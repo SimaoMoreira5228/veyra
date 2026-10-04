@@ -1,6 +1,7 @@
 #include "veyra/text/text_editor_buffer.hpp"
 #include "text_edit_history.hpp"
 
+#include <cmath>
 #include <cstring>
 #include <functional>
 
@@ -280,6 +281,55 @@ TextEditorBuffer::move_cursor(TextCursorDirection direction, bool extend_selecti
     return TextEditResult::complete;
 }
 
+TextEditResult TextEditorBuffer::move_cursor_to_line_start(bool extend_selection) noexcept {
+    return set_cursor(line_start_at_cursor(), extend_selection);
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_line_end(bool extend_selection) noexcept {
+    return set_cursor(line_end_at_cursor(), extend_selection);
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_visual_line(
+    std::span<const TextCaretStop> caret_stops,
+    float preferred_x,
+    std::size_t& selected_stop,
+    bool extend_selection
+) noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        return initialization_result_;
+    }
+    if (caret_stops.empty() || !std::isfinite(preferred_x)) {
+        return TextEditResult::invalid_state;
+    }
+
+    auto closest_stop_index = std::size_t{0};
+    auto closest_distance = 0.0;
+    for (std::size_t index = 0; index < caret_stops.size(); ++index) {
+        const auto& stop = caret_stops[index];
+        if (!std::isfinite(stop.x)) {
+            return TextEditResult::invalid_state;
+        }
+        if (stop.byte_offset > size() || !is_boundary(stop.byte_offset)) {
+            return TextEditResult::invalid_cursor;
+        }
+
+        const auto distance =
+            std::abs(static_cast<double>(stop.x) - static_cast<double>(preferred_x));
+        if (index == 0 || distance < closest_distance) {
+            closest_stop_index = index;
+            closest_distance = distance;
+        }
+    }
+
+    const auto result = set_cursor(caret_stops[closest_stop_index].byte_offset, extend_selection);
+    if (result != TextEditResult::complete) {
+        return result;
+    }
+
+    selected_stop = closest_stop_index;
+    return TextEditResult::complete;
+}
+
 void TextEditorBuffer::select_all() noexcept {
     if (initialization_result_ != TextEditResult::complete) {
         return;
@@ -489,6 +539,89 @@ bool TextEditorBuffer::is_boundary(std::size_t byte_offset) const noexcept {
     return byte_offset <= size() &&
         (byte_offset == size() ||
          (static_cast<unsigned char>(byte_at(byte_offset)) & 0xc0U) != 0x80U);
+}
+
+std::size_t TextEditorBuffer::line_break_length_at(std::size_t byte_offset) const noexcept {
+    if (byte_offset >= size()) {
+        return 0;
+    }
+
+    const auto first = static_cast<unsigned char>(byte_at(byte_offset));
+    if (first == '\r' || first == '\n') {
+        return 1;
+    }
+    if (first == 0xc2U && size() - byte_offset >= 2 &&
+        static_cast<unsigned char>(byte_at(byte_offset + 1)) == 0x85U) {
+        return 2;
+    }
+    if (first == 0xe2U && size() - byte_offset >= 3 &&
+        static_cast<unsigned char>(byte_at(byte_offset + 1)) == 0x80U) {
+        const auto third = static_cast<unsigned char>(byte_at(byte_offset + 2));
+        if (third == 0xa8U || third == 0xa9U) {
+            return 3;
+        }
+    }
+    return 0;
+}
+
+std::size_t TextEditorBuffer::line_start_at_cursor() const noexcept {
+    auto line_start = gap_start_;
+    while (line_start > 0) {
+        auto previous = line_start - 1;
+        const auto previous_byte = static_cast<unsigned char>(byte_at(previous));
+        if (previous_byte == '\n') {
+            return line_start;
+        }
+        if (previous_byte == '\r') {
+            if (line_start < size() && byte_at(line_start) == '\n') {
+                line_start = previous;
+                continue;
+            }
+            return line_start;
+        }
+        if (previous_byte <= 0x7fU) {
+            line_start = previous;
+            continue;
+        }
+
+        while (previous > 0 && (static_cast<unsigned char>(byte_at(previous)) & 0xc0U) == 0x80U) {
+            --previous;
+        }
+
+        if (previous + line_break_length_at(previous) == line_start) {
+            return line_start;
+        }
+        line_start = previous;
+    }
+    return line_start;
+}
+
+std::size_t TextEditorBuffer::line_end_at_cursor() const noexcept {
+    auto line_end = gap_start_;
+    while (line_end < size()) {
+        const auto first = static_cast<unsigned char>(byte_at(line_end));
+        if (first == '\r') {
+            return line_end;
+        }
+        if (first == '\n') {
+            if (line_end > 0 && byte_at(line_end - 1) == '\r') {
+                return line_end - 1;
+            }
+            return line_end;
+        }
+        if (first <= 0x7fU) {
+            ++line_end;
+            continue;
+        }
+
+        const auto break_length = line_break_length_at(line_end);
+        if (break_length != 0) {
+            return line_end;
+        }
+
+        line_end += first <= 0xdfU ? 2 : first <= 0xefU ? 3 : 4;
+    }
+    return line_end;
 }
 
 void TextEditorBuffer::move_gap(std::size_t byte_offset) noexcept {

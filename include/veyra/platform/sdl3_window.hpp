@@ -22,6 +22,8 @@ enum class SdlWindowResult : std::uint8_t {
     unsupported_size,
     invalid_state,
     text_input_failed,
+    clipboard_failed,
+    insufficient_capacity,
     presentation_failed,
 };
 
@@ -42,6 +44,8 @@ class Sdl3Window {
     SdlWindowResult stop_text_input() noexcept;
     SdlWindowResult set_text_input_area(const SDL_Rect& area, int cursor) noexcept;
     SdlWindowResult clear_text_input_area() noexcept;
+    SdlWindowResult set_clipboard_text(const char* text) noexcept;
+    SdlWindowResult get_clipboard_text(std::span<char> output, std::size_t& length) noexcept;
     bool poll_event(SDL_Event& event) noexcept;
     bool wait_event(SDL_Event& event) noexcept;
     bool wait_event_until(SDL_Event& event, FrameScheduler::Deadline deadline) noexcept;

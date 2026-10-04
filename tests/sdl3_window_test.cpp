@@ -162,12 +162,54 @@ void check_software_frame_lifecycle() {
     );
 }
 
+void check_clipboard() {
+    veyra::Sdl3Window window("Veyra clipboard test", 160, 120);
+    require(
+        window.creation_result() == veyra::SdlWindowResult::ready,
+        "SDL creates a window for clipboard access"
+    );
+    SDL_HideWindow(window.native_window());
+
+    require(
+        window.set_clipboard_text("clipboard text") == veyra::SdlWindowResult::ready,
+        "clipboard accepts NUL-terminated UTF-8 text"
+    );
+
+    std::array<char, 32> output{};
+    std::size_t length = 0;
+    require(
+        window.get_clipboard_text(output, length) == veyra::SdlWindowResult::ready,
+        "clipboard text copies into caller storage"
+    );
+    require(
+        std::string_view(output.data(), length) == "clipboard text",
+        "clipboard text is returned without a terminator"
+    );
+
+    std::array<char, 4> short_output{'x', 'x', 'x', 'x'};
+    require(
+        window.get_clipboard_text(short_output, length) ==
+            veyra::SdlWindowResult::insufficient_capacity,
+        "short clipboard output reports insufficient capacity"
+    );
+    require(length == 14, "short clipboard output reports the required length");
+    require(
+        short_output == std::array<char, 4>{'x', 'x', 'x', 'x'},
+        "short output stays unchanged"
+    );
+    require(
+        window.set_clipboard_text(nullptr) == veyra::SdlWindowResult::invalid_input,
+        "clipboard rejects a null input"
+    );
+}
+
 }
 
 int main() {
     try {
         check_invalid_construction();
         check_software_frame_lifecycle();
+        check_clipboard();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

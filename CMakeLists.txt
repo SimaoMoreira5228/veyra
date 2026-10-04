@@ -313,6 +313,10 @@ add_executable(veyra_text_editor_buffer_test tests/text_editor_buffer_test.cpp)
 target_link_libraries(veyra_text_editor_buffer_test PRIVATE veyra)
 add_test(NAME text_editor_buffer_behavior COMMAND veyra_text_editor_buffer_test)
 
+add_executable(veyra_text_editor_navigation_test tests/text_editor_navigation_test.cpp)
+target_link_libraries(veyra_text_editor_navigation_test PRIVATE veyra)
+add_test(NAME text_editor_navigation_behavior COMMAND veyra_text_editor_navigation_test)
+
 add_executable(veyra_animation_timeline_test tests/animation_timeline_test.cpp)
 target_link_libraries(veyra_animation_timeline_test PRIVATE veyra)
 add_test(NAME animation_timeline_behavior COMMAND veyra_animation_timeline_test)
