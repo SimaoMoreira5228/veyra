@@ -1,5 +1,7 @@
 #include "veyra/platform/sdl3_window.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <type_traits>
@@ -201,6 +203,34 @@ bool Sdl3Window::poll_event(SDL_Event& event) noexcept {
         return false;
     }
     return SDL_PollEvent(&event);
+}
+
+bool Sdl3Window::wait_event(SDL_Event& event) noexcept {
+    if (creation_result_ != SdlWindowResult::ready) {
+        return false;
+    }
+
+    return SDL_WaitEvent(&event);
+}
+
+bool Sdl3Window::wait_event_until(SDL_Event& event, FrameScheduler::Deadline deadline) noexcept {
+    if (creation_result_ != SdlWindowResult::ready) {
+        return false;
+    }
+
+    while (true) {
+        const auto now = FrameScheduler::Clock::now();
+        if (deadline <= now) {
+            return SDL_PollEvent(&event);
+        }
+
+        const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(deadline - now);
+        const auto maximum_timeout = std::chrono::milliseconds{std::numeric_limits<Sint32>::max()};
+        const auto timeout = static_cast<Sint32>(std::min(remaining, maximum_timeout).count());
+        if (SDL_WaitEventTimeout(&event, timeout)) {
+            return true;
+        }
+    }
 }
 
 SDL_Window* Sdl3Window::native_window() const noexcept {

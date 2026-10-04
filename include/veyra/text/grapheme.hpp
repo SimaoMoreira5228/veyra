@@ -5,8 +5,11 @@
 
 namespace veyra {
 
-TextEditResult
-move_cursor_by_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction) noexcept;
+TextEditResult move_cursor_by_grapheme(
+    TextEditorBuffer& buffer,
+    TextCursorDirection direction,
+    bool extend_selection = false
+) noexcept;
 
 TextEditResult erase_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction) noexcept;
 

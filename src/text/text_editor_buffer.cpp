@@ -1,4 +1,5 @@
 #include "veyra/text/text_editor_buffer.hpp"
+#include "text_edit_history.hpp"
 
 #include <cstring>
 #include <functional>
@@ -107,8 +108,15 @@ TextEditResult utf8_byte_offset(
     return TextEditResult::complete;
 }
 
-TextEditorBuffer::TextEditorBuffer(std::span<char> storage, std::string_view initial_text) noexcept
-    : storage_(storage), gap_end_(storage.size()) {
+TextEditorBuffer::TextEditorBuffer(
+    std::span<char> storage,
+    std::string_view initial_text,
+    std::span<char> history_storage
+) noexcept : storage_(storage), history_storage_(history_storage), gap_end_(storage.size()) {
+    if (overlaps(storage_, history_storage.data(), history_storage.size())) {
+        initialization_result_ = TextEditResult::invalid_state;
+        return;
+    }
     if (!valid_utf8(initial_text)) {
         initialization_result_ = TextEditResult::invalid_utf8;
         return;
@@ -170,6 +178,9 @@ TextEditorBuffer::copy_text(std::span<char> output, std::size_t& length) const n
     if (overlaps(storage_, output.data(), length)) {
         return TextEditResult::overlapping_output;
     }
+    if (overlaps(history_storage_, output.data(), length)) {
+        return TextEditResult::overlapping_output;
+    }
 
     const auto after_length = storage_.size() - gap_end_;
     if (gap_start_ > 0) {
@@ -178,6 +189,35 @@ TextEditorBuffer::copy_text(std::span<char> output, std::size_t& length) const n
     if (after_length > 0) {
         std::memcpy(output.data() + gap_start_, storage_.data() + gap_end_, after_length);
     }
+    return TextEditResult::complete;
+}
+
+TextEditResult
+TextEditorBuffer::copy_selection(std::span<char> output, std::size_t& length) const noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        length = 0;
+        return initialization_result_;
+    }
+
+    const auto selected = selection();
+    length = selected.length;
+    if (output.size() < length) {
+        return TextEditResult::insufficient_capacity;
+    }
+    if (overlaps(storage_, output.data(), length)) {
+        return TextEditResult::overlapping_output;
+    }
+    if (overlaps(history_storage_, output.data(), length)) {
+        return TextEditResult::overlapping_output;
+    }
+    if (length == 0) {
+        return TextEditResult::complete;
+    }
+
+    const auto gap_size = gap_end_ - gap_start_;
+    const auto source_start =
+        selected.start < gap_start_ ? selected.start : selected.start + gap_size;
+    std::memcpy(output.data(), storage_.data() + source_start, length);
     return TextEditResult::complete;
 }
 
@@ -256,7 +296,8 @@ TextEditResult TextEditorBuffer::insert(std::string_view text) noexcept {
     if (!valid_utf8(text)) {
         return TextEditResult::invalid_utf8;
     }
-    if (overlaps(storage_, text.data(), text.size())) {
+    if (overlaps(storage_, text.data(), text.size()) ||
+        overlaps(history_storage_, text.data(), text.size())) {
         return TextEditResult::overlapping_input;
     }
     const auto current_selection = selection();
@@ -265,7 +306,6 @@ TextEditResult TextEditorBuffer::insert(std::string_view text) noexcept {
     if (text.size() > available_capacity) {
         return TextEditResult::insufficient_capacity;
     }
-    cancel_composition();
     return replace_selection(text);
 }
 
@@ -273,13 +313,15 @@ TextEditResult TextEditorBuffer::erase_backward() noexcept {
     if (initialization_result_ != TextEditResult::complete) {
         return initialization_result_;
     }
-    cancel_composition();
     const auto current_selection = selection();
     if (current_selection.length > 0) {
-        erase_range(current_selection.start, current_selection.start + current_selection.length);
-        return TextEditResult::complete;
+        return erase_range(
+            current_selection.start,
+            current_selection.start + current_selection.length
+        );
     }
     if (gap_start_ == 0) {
+        cancel_composition();
         return TextEditResult::complete;
     }
 
@@ -287,21 +329,22 @@ TextEditResult TextEditorBuffer::erase_backward() noexcept {
     while (start > 0 && (static_cast<unsigned char>(byte_at(start)) & 0xc0U) == 0x80U) {
         --start;
     }
-    erase_range(start, gap_start_);
-    return TextEditResult::complete;
+    return erase_range(start, gap_start_);
 }
 
 TextEditResult TextEditorBuffer::erase_forward() noexcept {
     if (initialization_result_ != TextEditResult::complete) {
         return initialization_result_;
     }
-    cancel_composition();
     const auto current_selection = selection();
     if (current_selection.length > 0) {
-        erase_range(current_selection.start, current_selection.start + current_selection.length);
-        return TextEditResult::complete;
+        return erase_range(
+            current_selection.start,
+            current_selection.start + current_selection.length
+        );
     }
     if (gap_end_ == storage_.size()) {
+        cancel_composition();
         return TextEditResult::complete;
     }
 
@@ -309,8 +352,23 @@ TextEditResult TextEditorBuffer::erase_forward() noexcept {
     while (end < size() && (static_cast<unsigned char>(byte_at(end)) & 0xc0U) == 0x80U) {
         ++end;
     }
-    erase_range(gap_start_, end);
-    return TextEditResult::complete;
+    return erase_range(gap_start_, end);
+}
+
+bool TextEditorBuffer::can_undo() const noexcept {
+    return history_undo_count_ > 0;
+}
+
+bool TextEditorBuffer::can_redo() const noexcept {
+    return history_undo_count_ < history_record_count_;
+}
+
+TextEditResult TextEditorBuffer::undo() noexcept {
+    return TextEditorHistory::undo(*this);
+}
+
+TextEditResult TextEditorBuffer::redo() noexcept {
+    return TextEditorHistory::redo(*this);
 }
 
 TextEditResult TextEditorBuffer::update_composition(
@@ -335,7 +393,9 @@ TextEditResult TextEditorBuffer::update_composition(
         return TextEditResult::insufficient_capacity;
     }
     if (overlaps(storage_, text.data(), text.size()) ||
+        overlaps(history_storage_, text.data(), text.size()) ||
         overlaps(storage_, storage.data(), storage.size()) ||
+        overlaps(history_storage_, storage.data(), storage.size()) ||
         overlaps(storage, text.data(), text.size())) {
         return TextEditResult::overlapping_input;
     }
@@ -394,6 +454,16 @@ TextEditResult TextEditorBuffer::commit_composition() noexcept {
     const std::string_view text(composition_storage_.data(), composition_length_);
     const auto start = composition_replacement_.start;
     const auto end = start + composition_replacement_.length;
+    if (start == end && text.empty()) {
+        clear_composition();
+        return TextEditResult::complete;
+    }
+
+    const auto history_result = TextEditorHistory::record(*this, start, end, text);
+    if (history_result != TextEditResult::complete) {
+        return history_result;
+    }
+
     replace_range(start, end, text);
     clear_composition();
     return TextEditResult::complete;
@@ -448,7 +518,22 @@ TextEditResult TextEditorBuffer::replace_selection(std::string_view text) noexce
     if (text.size() > available_capacity) {
         return TextEditResult::insufficient_capacity;
     }
+    if (current_selection.length == 0 && text.empty()) {
+        cancel_composition();
+        return TextEditResult::complete;
+    }
 
+    const auto history_result = TextEditorHistory::record(
+        *this,
+        current_selection.start,
+        current_selection.start + current_selection.length,
+        text
+    );
+    if (history_result != TextEditResult::complete) {
+        return history_result;
+    }
+
+    cancel_composition();
     replace_range(
         current_selection.start,
         current_selection.start + current_selection.length,
@@ -483,10 +568,17 @@ void TextEditorBuffer::clear_composition() noexcept {
     composition_active_ = false;
 }
 
-void TextEditorBuffer::erase_range(std::size_t start, std::size_t end) noexcept {
+TextEditResult TextEditorBuffer::erase_range(std::size_t start, std::size_t end) noexcept {
+    const auto history_result = TextEditorHistory::record(*this, start, end, {});
+    if (history_result != TextEditResult::complete) {
+        return history_result;
+    }
+
+    cancel_composition();
     move_gap(start);
     gap_end_ += end - start;
     selection_anchor_ = gap_start_;
+    return TextEditResult::complete;
 }
 
 }

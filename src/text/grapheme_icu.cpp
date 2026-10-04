@@ -219,8 +219,11 @@ bool is_grapheme_boundary(const TextSegments& text, std::size_t cursor) noexcept
 
 }
 
-TextEditResult
-move_cursor_by_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction) noexcept {
+TextEditResult move_cursor_by_grapheme(
+    TextEditorBuffer& buffer,
+    TextCursorDirection direction,
+    bool extend_selection
+) noexcept {
     const auto initialization_result = buffer.initialization_result();
     if (initialization_result != TextEditResult::complete) {
         return initialization_result;
@@ -230,7 +233,7 @@ move_cursor_by_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction)
     }
 
     const auto selection = buffer.selection();
-    if (selection.length > 0) {
+    if (selection.length > 0 && !extend_selection) {
         const auto destination = direction == TextCursorDirection::backward
             ? selection.start
             : selection.start + selection.length;
@@ -238,17 +241,20 @@ move_cursor_by_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction)
     }
 
     if (direction == TextCursorDirection::backward && buffer.cursor() == 0) {
-        return TextEditResult::complete;
+        return buffer.set_cursor(buffer.cursor(), extend_selection);
     }
     if (direction == TextCursorDirection::forward && buffer.cursor() == buffer.size()) {
-        return TextEditResult::complete;
+        return buffer.set_cursor(buffer.cursor(), extend_selection);
     }
 
     const TextSegments text(buffer.text_before_cursor(), buffer.text_after_cursor());
     if (direction == TextCursorDirection::backward) {
-        return buffer.set_cursor(previous_grapheme_boundary(text, buffer.cursor()));
+        return buffer.set_cursor(
+            previous_grapheme_boundary(text, buffer.cursor()),
+            extend_selection
+        );
     }
-    return buffer.set_cursor(next_grapheme_boundary(text, buffer.cursor()));
+    return buffer.set_cursor(next_grapheme_boundary(text, buffer.cursor()), extend_selection);
 }
 
 TextEditResult erase_grapheme(TextEditorBuffer& buffer, TextCursorDirection direction) noexcept {

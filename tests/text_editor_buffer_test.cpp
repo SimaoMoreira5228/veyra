@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -135,6 +136,259 @@ void check_selection_replacement_and_capacity() {
     require(buffer.size() == 0, "erasing selection clears the buffer");
 }
 
+void check_selection_copy() {
+    constexpr std::string_view selected_text = "\xc2\xa2\xe2\x82\xac";
+    std::array<char, 16> storage{};
+    veyra::TextEditorBuffer buffer(storage, "A\xc2\xa2\xe2\x82\xacZ");
+    std::array<char, 8> output{};
+    std::size_t length = 0;
+
+    require(
+        buffer.set_cursor(1) == veyra::TextEditResult::complete,
+        "selection-copy cursor moves to the prefix"
+    );
+    require(
+        buffer.set_cursor(6, true) == veyra::TextEditResult::complete,
+        "selection-copy cursor extends forward"
+    );
+    require(
+        buffer.copy_selection(output, length) == veyra::TextEditResult::complete,
+        "forward selection copies into caller storage"
+    );
+    require(length == selected_text.size(), "selection copy reports its byte length");
+    require(
+        std::string_view(output.data(), length) == selected_text,
+        "selection copy preserves multibyte UTF-8"
+    );
+
+    require(
+        buffer.set_cursor(6) == veyra::TextEditResult::complete,
+        "selection-copy cursor returns to the suffix"
+    );
+    require(
+        buffer.set_cursor(1, true) == veyra::TextEditResult::complete,
+        "selection-copy cursor extends backward"
+    );
+    require(
+        buffer.copy_selection(output, length) == veyra::TextEditResult::complete,
+        "backward selection copies into caller storage"
+    );
+    require(
+        std::string_view(output.data(), length) == selected_text,
+        "backward selection copies in document order"
+    );
+
+    std::array<char, 4> short_output{'x', 'x', 'x', 'x'};
+    require(
+        buffer.copy_selection(short_output, length) == veyra::TextEditResult::insufficient_capacity,
+        "short selection output is rejected"
+    );
+    require(length == selected_text.size(), "short selection output reports required capacity");
+    require(short_output[0] == 'x', "short selection output stays unchanged");
+    require(
+        buffer.copy_selection(storage, length) == veyra::TextEditResult::overlapping_output,
+        "selection copy rejects the editor's own storage"
+    );
+    require(length == selected_text.size(), "overlapping selection copy reports its length");
+
+    require(
+        buffer.set_cursor(1) == veyra::TextEditResult::complete,
+        "selection-copy cursor can clear its selection"
+    );
+    require(
+        buffer.copy_selection(output, length) == veyra::TextEditResult::complete,
+        "empty selection copies successfully"
+    );
+    require(length == 0, "empty selection reports zero bytes");
+}
+
+void check_undo_redo() {
+    std::array<char, 32> storage{};
+    std::array<char, 256> history{};
+    veyra::TextEditorBuffer buffer(storage, "ab", history);
+    require(!buffer.can_undo(), "new editor has no undo records");
+    require(!buffer.can_redo(), "new editor has no redo records");
+    require(
+        buffer.undo() == veyra::TextEditResult::invalid_state,
+        "undo without history is rejected"
+    );
+    require(buffer.insert("") == veyra::TextEditResult::complete, "empty insert is a no-op");
+    require(!buffer.can_undo(), "empty insert does not add an undo record");
+
+    require(buffer.insert("c") == veyra::TextEditResult::complete, "insert enters history");
+    require(copied_text(buffer) == "abc", "insert updates the document");
+    require(buffer.can_undo(), "insert can be undone");
+    require(buffer.undo() == veyra::TextEditResult::complete, "insert can be undone");
+    require(copied_text(buffer) == "ab", "undo restores deleted text");
+    require(buffer.cursor() == 2, "undo restores the original cursor");
+    require(buffer.can_redo(), "undone insert can be redone");
+    require(buffer.redo() == veyra::TextEditResult::complete, "insert can be redone");
+    require(copied_text(buffer) == "abc", "redo restores inserted text");
+    require(buffer.cursor() == 3, "redo restores the edited cursor");
+
+    require(buffer.undo() == veyra::TextEditResult::complete, "insert can be undone again");
+    require(buffer.insert("X") == veyra::TextEditResult::complete, "new edit branches history");
+    require(copied_text(buffer) == "abX", "branched edit replaces the redo path");
+    require(!buffer.can_redo(), "new edit clears the redo path");
+    require(buffer.undo() == veyra::TextEditResult::complete, "branched edit can be undone");
+    require(copied_text(buffer) == "ab", "branch undo restores the prior document");
+
+    require(buffer.set_cursor(1) == veyra::TextEditResult::complete, "delete cursor moves");
+    require(buffer.erase_forward() == veyra::TextEditResult::complete, "delete enters history");
+    require(copied_text(buffer) == "a", "delete removes the next character");
+    require(buffer.undo() == veyra::TextEditResult::complete, "delete can be undone");
+    require(copied_text(buffer) == "ab", "delete undo restores removed text");
+    require(buffer.cursor() == 1, "delete undo restores the cursor");
+    require(buffer.redo() == veyra::TextEditResult::complete, "delete can be redone");
+    require(copied_text(buffer) == "a", "delete redo removes restored text");
+}
+
+void check_undo_restores_selection_and_composition() {
+    std::array<char, 32> storage{};
+    std::array<char, 256> history{};
+    veyra::TextEditorBuffer buffer(storage, "A\xc2\xa2Z", history);
+    require(
+        buffer.set_cursor(1) == veyra::TextEditResult::complete,
+        "selection starts before cent"
+    );
+    require(
+        buffer.set_cursor(3, true) == veyra::TextEditResult::complete,
+        "selection covers the multibyte character"
+    );
+    require(
+        buffer.insert("\xe2\x82\xac") == veyra::TextEditResult::complete,
+        "selection is replaced"
+    );
+    require(copied_text(buffer) == "A\xe2\x82\xacZ", "replacement keeps UTF-8 valid");
+    require(buffer.undo() == veyra::TextEditResult::complete, "replacement can be undone");
+    require(copied_text(buffer) == "A\xc2\xa2Z", "undo restores replaced UTF-8");
+    require(buffer.cursor() == 3, "undo restores the active selection endpoint");
+    require(
+        buffer.selection().start == 1 && buffer.selection().length == 2,
+        "undo restores the original selection"
+    );
+    require(buffer.redo() == veyra::TextEditResult::complete, "replacement can be redone");
+    require(copied_text(buffer) == "A\xe2\x82\xacZ", "redo restores replacement text");
+
+    require(
+        buffer.set_cursor(4) == veyra::TextEditResult::complete,
+        "reverse selection cursor moves"
+    );
+    require(
+        buffer.set_cursor(1, true) == veyra::TextEditResult::complete,
+        "reverse selection extends to the prefix"
+    );
+    require(buffer.insert("!") == veyra::TextEditResult::complete, "reverse selection is replaced");
+    require(buffer.undo() == veyra::TextEditResult::complete, "reverse replacement can be undone");
+    require(copied_text(buffer) == "A\xe2\x82\xacZ", "reverse undo restores replaced text");
+    require(buffer.cursor() == 1, "reverse undo restores its active endpoint");
+    require(
+        buffer.selection().start == 1 && buffer.selection().length == 3,
+        "reverse undo restores the original selection range"
+    );
+
+    std::array<char, 16> composition_text_storage{};
+    std::array<char, 256> composition_history{};
+    std::array<char, 8> composition_storage{};
+    veyra::TextEditorBuffer composing(composition_text_storage, "A", composition_history);
+    require(
+        composing.update_composition(composition_storage, "日", 3, {}) ==
+            veyra::TextEditResult::complete,
+        "composition starts"
+    );
+    require(
+        composing.commit_composition() == veyra::TextEditResult::complete,
+        "composition commit enters history"
+    );
+    require(copied_text(composing) == "A日", "composition commits its UTF-8 text");
+    require(
+        composing.undo() == veyra::TextEditResult::complete,
+        "composition commit can be undone"
+    );
+    require(copied_text(composing) == "A", "composition undo restores committed text");
+}
+
+void check_undo_capacity_and_eviction() {
+    std::array<char, 16> storage{};
+    std::array<char, 16> short_history{};
+    veyra::TextEditorBuffer limited(storage, "a", short_history);
+    require(
+        limited.insert("b") == veyra::TextEditResult::insufficient_history_capacity,
+        "edit fails when its undo record does not fit"
+    );
+    require(copied_text(limited) == "a", "history capacity failure leaves text unchanged");
+    require(!limited.can_undo(), "failed edit does not create a history record");
+    std::size_t copied_length = 0;
+    require(
+        limited.copy_text(short_history, copied_length) ==
+            veyra::TextEditResult::overlapping_output,
+        "copying into history storage is rejected"
+    );
+
+    std::array<char, 16> composition_text_storage{};
+    std::array<char, 16> composition_history{};
+    std::array<char, 8> composition_storage{};
+    veyra::TextEditorBuffer composing(composition_text_storage, "a", composition_history);
+    require(
+        composing.update_composition(composition_storage, "b", 1, {}) ==
+            veyra::TextEditResult::complete,
+        "composition starts with limited history"
+    );
+    require(
+        composing.commit_composition() == veyra::TextEditResult::insufficient_history_capacity,
+        "composition commit reports an undersized history buffer"
+    );
+    require(composing.composition().text == "b", "failed history commit keeps composition active");
+    require(copied_text(composing) == "a", "failed history commit leaves text unchanged");
+
+    std::array<char, 16> overlap_storage{};
+    veyra::TextEditorBuffer overlapping(
+        overlap_storage,
+        "a",
+        std::span<char>(overlap_storage).subspan(8)
+    );
+    require(
+        overlapping.initialization_result() == veyra::TextEditResult::invalid_state,
+        "document and history storage cannot overlap"
+    );
+
+    std::array<char, 8> text_storage{};
+    std::array<char, 100> bounded_history{};
+    veyra::TextEditorBuffer bounded(text_storage, "", bounded_history);
+    require(bounded.insert("A") == veyra::TextEditResult::complete, "first bounded edit fits");
+    require(bounded.insert("B") == veyra::TextEditResult::complete, "second bounded edit fits");
+    require(bounded.insert("C") == veyra::TextEditResult::complete, "oldest record is evicted");
+    require(copied_text(bounded) == "ABC", "bounded history keeps all current text");
+    require(bounded.undo() == veyra::TextEditResult::complete, "newest record remains undoable");
+    require(
+        bounded.undo() == veyra::TextEditResult::complete,
+        "second newest record remains undoable"
+    );
+    require(copied_text(bounded) == "A", "eviction retains the newest history records");
+    require(
+        bounded.undo() == veyra::TextEditResult::invalid_state,
+        "evicted record is no longer undoable"
+    );
+    require(bounded.redo() == veyra::TextEditResult::complete, "wrapped record can be redone");
+    require(bounded.redo() == veyra::TextEditResult::complete, "wrapped payload can be redone");
+    require(copied_text(bounded) == "ABC", "redo restores wrapped history text");
+    require(
+        bounded.undo() == veyra::TextEditResult::complete,
+        "wrapped record can be undone again"
+    );
+    require(
+        bounded.insert("D") == veyra::TextEditResult::complete,
+        "wrapped redo path can be replaced"
+    );
+    require(copied_text(bounded) == "ABD", "new edit replaces the wrapped redo path");
+    require(bounded.undo() == veyra::TextEditResult::complete, "wrapped branch can be undone");
+    require(
+        bounded.undo() == veyra::TextEditResult::complete,
+        "older bounded edit remains undoable"
+    );
+    require(copied_text(bounded) == "A", "wrapped branch preserves the older record");
+}
+
 void check_invalid_utf8_and_aliasing() {
     std::array<char, 8> storage{};
     veyra::TextEditorBuffer buffer(storage, "safe");
@@ -146,7 +400,7 @@ void check_invalid_utf8_and_aliasing() {
     );
     require(copied_text(buffer) == "safe", "invalid input leaves text unchanged");
 
-    const std::string_view alias(buffer.text_before_cursor().data(), 1);
+    const auto alias = buffer.text_before_cursor().substr(0, 1);
     require(
         buffer.insert(alias) == veyra::TextEditResult::overlapping_input,
         "insertion rejects a source that aliases its backing storage"
@@ -341,6 +595,10 @@ int main() {
     try {
         check_utf8_cursor_and_deletion();
         check_selection_replacement_and_capacity();
+        check_selection_copy();
+        check_undo_redo();
+        check_undo_restores_selection_and_composition();
+        check_undo_capacity_and_eviction();
         check_invalid_utf8_and_aliasing();
         check_composition_commit_and_cancel();
         check_composition_capacity_failure();

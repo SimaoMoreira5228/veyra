@@ -139,6 +139,22 @@ void check_boundary_cases() {
     );
     require(empty.cursor() == 0, "empty text keeps its cursor at the start");
 
+    std::array<char, 8> composition_text_storage{};
+    std::array<char, 8> composition_storage{};
+    veyra::TextEditorBuffer composing(composition_text_storage, "x");
+    require(composing.set_cursor(0) == veyra::TextEditResult::complete, "cursor moves to start");
+    require(
+        composing.update_composition(composition_storage, "preedit", 7, {}) ==
+            veyra::TextEditResult::complete,
+        "composition starts at the document boundary"
+    );
+    require(
+        veyra::move_cursor_by_grapheme(composing, veyra::TextCursorDirection::backward) ==
+            veyra::TextEditResult::complete,
+        "backward movement at the boundary succeeds during composition"
+    );
+    require(composing.composition().text.empty(), "boundary movement cancels composition");
+
     std::array<char, 4> invalid_storage{};
     veyra::TextEditorBuffer invalid(invalid_storage, "\xff");
     require(
@@ -237,6 +253,42 @@ void check_grapheme_deletion() {
     require(composing.text_before_cursor() == "e\xcc\x81", "deletion edits committed text");
 }
 
+void check_grapheme_selection_extension() {
+    std::array<char, 16> forward_storage{};
+    veyra::TextEditorBuffer forward(forward_storage, "e\xcc\x81x");
+    require(forward.set_cursor(0) == veyra::TextEditResult::complete, "forward selection starts");
+    require(
+        veyra::move_cursor_by_grapheme(forward, veyra::TextCursorDirection::forward, true) ==
+            veyra::TextEditResult::complete,
+        "forward grapheme movement extends the selection"
+    );
+    require(forward.cursor() == 3, "forward selection ends after the combining grapheme");
+    require(
+        forward.selection().start == 0 && forward.selection().length == 3,
+        "forward selection covers a complete combining grapheme"
+    );
+
+    std::array<char, 16> backward_storage{};
+    veyra::TextEditorBuffer backward(backward_storage, "e\xcc\x81x");
+    require(backward.set_cursor(4) == veyra::TextEditResult::complete, "reverse selection starts");
+    require(
+        veyra::move_cursor_by_grapheme(backward, veyra::TextCursorDirection::backward, true) ==
+            veyra::TextEditResult::complete,
+        "backward grapheme movement extends the selection"
+    );
+    require(backward.cursor() == 3, "backward selection reaches the combining grapheme");
+    require(
+        veyra::move_cursor_by_grapheme(backward, veyra::TextCursorDirection::backward, true) ==
+            veyra::TextEditResult::complete,
+        "backward grapheme movement continues extending the selection"
+    );
+    require(backward.cursor() == 0, "backward selection reaches the start");
+    require(
+        backward.selection().start == 0 && backward.selection().length == 4,
+        "backward selection keeps its original anchor"
+    );
+}
+
 }
 
 int main() {
@@ -246,6 +298,7 @@ int main() {
         check_indic_conjunct_and_selection();
         check_boundary_cases();
         check_grapheme_deletion();
+        check_grapheme_selection_extension();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -8,6 +8,8 @@
 
 namespace veyra {
 
+class TextEditorHistory;
+
 enum class TextEditResult : std::uint8_t {
     complete,
     invalid_utf8,
@@ -15,6 +17,7 @@ enum class TextEditResult : std::uint8_t {
     invalid_direction,
     invalid_state,
     insufficient_capacity,
+    insufficient_history_capacity,
     overlapping_input,
     overlapping_output,
 };
@@ -44,7 +47,11 @@ TextEditResult utf8_byte_offset(
 
 class TextEditorBuffer {
   public:
-    TextEditorBuffer(std::span<char> storage, std::string_view initial_text) noexcept;
+    TextEditorBuffer(
+        std::span<char> storage,
+        std::string_view initial_text,
+        std::span<char> history_storage = {}
+    ) noexcept;
     TextEditorBuffer(const TextEditorBuffer&) = delete;
     TextEditorBuffer& operator=(const TextEditorBuffer&) = delete;
     TextEditorBuffer(TextEditorBuffer&&) = delete;
@@ -58,6 +65,7 @@ class TextEditorBuffer {
     TextSelection selection() const noexcept;
 
     TextEditResult copy_text(std::span<char> output, std::size_t& length) const noexcept;
+    TextEditResult copy_selection(std::span<char> output, std::size_t& length) const noexcept;
     TextEditResult set_cursor(std::size_t byte_offset, bool extend_selection = false) noexcept;
     TextEditResult
     move_cursor(TextCursorDirection direction, bool extend_selection = false) noexcept;
@@ -65,6 +73,10 @@ class TextEditorBuffer {
     TextEditResult insert(std::string_view text) noexcept;
     TextEditResult erase_backward() noexcept;
     TextEditResult erase_forward() noexcept;
+    bool can_undo() const noexcept;
+    bool can_redo() const noexcept;
+    TextEditResult undo() noexcept;
+    TextEditResult redo() noexcept;
     TextEditResult update_composition(
         std::span<char> storage,
         std::string_view text,
@@ -76,10 +88,19 @@ class TextEditorBuffer {
     void cancel_composition() noexcept;
 
   private:
+    friend class TextEditorHistory;
+
     std::span<char> storage_;
+    std::span<char> history_storage_;
     std::size_t gap_start_{};
     std::size_t gap_end_{};
     std::size_t selection_anchor_{};
+    std::size_t history_start_{};
+    std::size_t history_cursor_{};
+    std::size_t history_end_{};
+    std::size_t history_used_{};
+    std::size_t history_record_count_{};
+    std::size_t history_undo_count_{};
     std::span<char> composition_storage_;
     std::size_t composition_length_{};
     std::size_t composition_cursor_{};
@@ -97,7 +118,7 @@ class TextEditorBuffer {
     TextEditResult replace_selection(std::string_view text) noexcept;
     void replace_range(std::size_t start, std::size_t end, std::string_view text) noexcept;
     void clear_composition() noexcept;
-    void erase_range(std::size_t start, std::size_t end) noexcept;
+    TextEditResult erase_range(std::size_t start, std::size_t end) noexcept;
 };
 
 }

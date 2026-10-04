@@ -1,6 +1,7 @@
 #include "veyra/platform/sdl3_window.hpp"
 
 #include <array>
+#include <chrono>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -15,12 +16,18 @@ void require(bool condition, std::string_view message) {
 }
 
 void check_invalid_construction() {
-    const veyra::Sdl3Window window(nullptr, 320, 240);
+    veyra::Sdl3Window window(nullptr, 320, 240);
     require(
         window.creation_result() == veyra::SdlWindowResult::invalid_input,
         "window creation rejects a null title"
     );
     require(window.native_window() == nullptr, "invalid construction owns no window");
+    SDL_Event event{};
+    require(!window.wait_event(event), "invalid window doesn't block for events");
+    require(
+        !window.wait_event_until(event, veyra::FrameScheduler::Clock::now()),
+        "invalid window doesn't wait for a deadline"
+    );
 }
 
 void check_software_frame_lifecycle() {
@@ -126,6 +133,33 @@ void check_software_frame_lifecycle() {
         found_quit = found_quit || event.type == SDL_EVENT_QUIT;
     }
     require(found_quit, "window exposes SDL events to the application");
+
+    expected_event = {};
+    expected_event.type = SDL_EVENT_QUIT;
+    require(SDL_PushEvent(&expected_event), "test can queue an event before waiting");
+    require(window.wait_event(event), "blocking wait returns a queued event");
+    require(event.type == SDL_EVENT_QUIT, "blocking wait returns the queued event");
+
+    require(SDL_PushEvent(&expected_event), "test can queue an event before a deadline wait");
+    require(
+        window.wait_event_until(
+            event,
+            veyra::FrameScheduler::Clock::now() + std::chrono::milliseconds{100}
+        ),
+        "deadline wait returns when an event arrives"
+    );
+    require(event.type == SDL_EVENT_QUIT, "deadline wait preserves the queued event");
+
+    const auto wait_started = veyra::FrameScheduler::Clock::now();
+    const auto deadline = wait_started + std::chrono::milliseconds{5};
+    require(
+        !window.wait_event_until(event, deadline),
+        "deadline wait returns false when the queue stays empty"
+    );
+    require(
+        veyra::FrameScheduler::Clock::now() >= deadline,
+        "deadline wait does not return before the requested deadline"
+    );
 }
 
 }

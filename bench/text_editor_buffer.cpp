@@ -62,21 +62,13 @@ double percentile(const std::vector<double>& sorted_times, std::size_t percent) 
     return sorted_times[index];
 }
 
-int run(const Options& options) {
-    std::vector<char> initial_text(options.bytes, 'a');
-    std::vector<char> storage(options.bytes + 1);
-    std::vector<double> timings;
-    timings.reserve(options.queries);
-
-    veyra::TextEditorBuffer editor(
-        storage,
-        std::string_view(initial_text.data(), initial_text.size())
-    );
-    if (editor.initialization_result() != veyra::TextEditResult::complete ||
-        editor.set_cursor(options.bytes / 2) != veyra::TextEditResult::complete) {
-        throw std::runtime_error("text buffer setup failed");
-    }
-
+void run_scenario(
+    std::string_view name,
+    veyra::TextEditorBuffer& editor,
+    const Options& options,
+    std::vector<double>& timings
+) {
+    timings.clear();
     const auto edit = [&editor]() {
         if (editor.insert("x") != veyra::TextEditResult::complete ||
             editor.erase_backward() != veyra::TextEditResult::complete) {
@@ -97,13 +89,45 @@ int run(const Options& options) {
     }
 
     std::sort(timings.begin(), timings.end());
+    std::cout << name << ',' << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ','
+              << VEYRA_BUILD_CONFIG << ',' << options.bytes << ',' << options.warmup << ','
+              << options.queries << ',' << percentile(timings, 50) << ',' << percentile(timings, 95)
+              << ',' << percentile(timings, 99) << ',' << timings.back() << ',' << checksum << '\n';
+}
+
+int run(const Options& options) {
+    std::vector<char> initial_text(options.bytes, 'a');
+    std::vector<char> storage(options.bytes + 1);
+    std::vector<char> history_storage(256);
+    std::vector<double> timings;
+    timings.reserve(options.queries);
+
     std::cout << "scenario,platform,compiler,build_config,document_bytes,warmup_queries,"
-                 "measured_queries,p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
-              << "gap_buffer_local_insert_delete," << VEYRA_BUILD_PLATFORM << ','
-              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.bytes << ','
-              << options.warmup << ',' << options.queries << ',' << percentile(timings, 50) << ','
-              << percentile(timings, 95) << ',' << percentile(timings, 99) << ',' << timings.back()
-              << ',' << checksum << '\n';
+                 "measured_queries,p50_ns,p95_ns,p99_ns,max_ns,checksum\n";
+    {
+        veyra::TextEditorBuffer editor(
+            storage,
+            std::string_view(initial_text.data(), initial_text.size())
+        );
+        if (editor.initialization_result() != veyra::TextEditResult::complete ||
+            editor.set_cursor(options.bytes / 2) != veyra::TextEditResult::complete) {
+            throw std::runtime_error("text buffer setup failed");
+        }
+        run_scenario("gap_buffer_local_insert_delete", editor, options, timings);
+    }
+
+    {
+        veyra::TextEditorBuffer editor(
+            storage,
+            std::string_view(initial_text.data(), initial_text.size()),
+            history_storage
+        );
+        if (editor.initialization_result() != veyra::TextEditResult::complete ||
+            editor.set_cursor(options.bytes / 2) != veyra::TextEditResult::complete) {
+            throw std::runtime_error("history buffer setup failed");
+        }
+        run_scenario("gap_buffer_local_insert_delete_with_history", editor, options, timings);
+    }
     return 0;
 }
 

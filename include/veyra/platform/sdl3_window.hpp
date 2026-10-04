@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_SDL3_WINDOW_HPP
 #define VEYRA_PLATFORM_SDL3_WINDOW_HPP
 
+#include "veyra/core/frame_scheduler.hpp"
 #include "veyra/render/software_renderer.hpp"
 
 #include <SDL3/SDL.h>
@@ -42,6 +43,8 @@ class Sdl3Window {
     SdlWindowResult set_text_input_area(const SDL_Rect& area, int cursor) noexcept;
     SdlWindowResult clear_text_input_area() noexcept;
     bool poll_event(SDL_Event& event) noexcept;
+    bool wait_event(SDL_Event& event) noexcept;
+    bool wait_event_until(SDL_Event& event, FrameScheduler::Deadline deadline) noexcept;
     SDL_Window* native_window() const noexcept;
 
   private:

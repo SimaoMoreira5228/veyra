@@ -20,6 +20,7 @@ add_library(veyra STATIC
  src/media/animation_frame_cache.cpp
  src/media/animation_timeline.cpp
  src/core/focus_navigation.cpp
+ src/core/frame_scheduler.cpp
  src/core/hit_test.cpp
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
@@ -33,6 +34,7 @@ add_library(veyra STATIC
  src/render/damage_tracker.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
+ src/text/text_edit_history.cpp
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
  src/engines.cpp
@@ -254,6 +256,10 @@ add_test(NAME hit_test_behavior COMMAND veyra_hit_test_test)
 add_executable(veyra_focus_navigation_test tests/focus_navigation_test.cpp)
 target_link_libraries(veyra_focus_navigation_test PRIVATE veyra)
 add_test(NAME focus_navigation_behavior COMMAND veyra_focus_navigation_test)
+
+add_executable(veyra_frame_scheduler_test tests/frame_scheduler_test.cpp)
+target_link_libraries(veyra_frame_scheduler_test PRIVATE veyra)
+add_test(NAME frame_scheduler_behavior COMMAND veyra_frame_scheduler_test)
 
 add_executable(veyra_semantics_test tests/semantics_test.cpp)
 target_link_libraries(veyra_semantics_test PRIVATE veyra)
