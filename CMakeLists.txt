@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(VEYRA_BUILD_BENCH "Build benchmark harness" ON)
+option(VEYRA_WITH_FILESYSTEM "Build asynchronous filesystem enumeration support" OFF)
 option(VEYRA_WITH_TEXT "Build HarfBuzz text shaping support" OFF)
 option(VEYRA_WITH_UNICODE "Build ICU-based Unicode editing, bidi, and line breaking" OFF)
 option(VEYRA_WITH_FREETYPE "Build FreeType glyph rasterization support" OFF)
@@ -49,6 +50,28 @@ enable_testing()
 set(veyra_build_config "$<CONFIG>")
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
  set(veyra_build_config "unspecified")
+endif()
+
+if(VEYRA_WITH_FILESYSTEM)
+ find_package(Threads REQUIRED)
+ add_library(veyra_filesystem STATIC src/files/directory_enumerator.cpp)
+ target_include_directories(veyra_filesystem PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ target_link_libraries(veyra_filesystem PUBLIC veyra Threads::Threads)
+ target_compile_features(veyra_filesystem PUBLIC cxx_std_23)
+
+ add_executable(veyra_directory_enumerator_test tests/directory_enumerator_test.cpp)
+ target_link_libraries(veyra_directory_enumerator_test PRIVATE veyra_filesystem)
+ add_test(NAME directory_enumerator_behavior COMMAND veyra_directory_enumerator_test)
+
+ if(VEYRA_BUILD_BENCH)
+  add_executable(veyra_directory_enumerator_bench bench/directory_enumerator.cpp)
+  target_link_libraries(veyra_directory_enumerator_bench PRIVATE veyra_filesystem)
+  target_compile_definitions(veyra_directory_enumerator_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+ endif()
 endif()
 
 if(VEYRA_WITH_TEXT)
@@ -513,5 +536,8 @@ if(VEYRA_BUILD_BENCH)
   NAME text_editor_buffer_benchmark_smoke
   COMMAND veyra_text_editor_buffer_bench --bytes 1024 --queries 100 --warmup 10
  )
- add_test(NAME file_list_benchmark_smoke COMMAND veyra_file_list_bench)
+ add_test(
+  NAME file_list_benchmark_smoke
+  COMMAND veyra_file_list_bench --entries 10000 --warmup 2 --queries 10
+ )
 endif()
