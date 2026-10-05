@@ -11,7 +11,7 @@ namespace veyra {
 
 struct FileListEntry {
     std::uint64_t id{};
-    std::string_view name;
+    std::u8string_view name;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};
     bool is_directory{};
@@ -42,7 +42,7 @@ enum class FileListResult : std::uint8_t {
 
 FileListResult build_file_list_order(
     std::span<const FileListEntry> entries,
-    std::string_view name_filter,
+    std::u8string_view name_filter,
     FileListSort sort,
     std::span<std::size_t> output_indices,
     std::size_t& output_count

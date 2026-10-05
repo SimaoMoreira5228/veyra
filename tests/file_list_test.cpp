@@ -19,31 +19,31 @@ void check_directory_grouping_and_stable_sort() {
     const std::array entries{
         veyra::FileListEntry{
             .id = 5,
-            .name = "zeta.txt",
+            .name = u8"zeta.txt",
             .size_bytes = 100,
             .modified_nanoseconds = 30,
         },
         veyra::FileListEntry{
             .id = 4,
-            .name = "folder",
+            .name = u8"folder",
             .is_directory = true,
         },
         veyra::FileListEntry{
             .id = 2,
-            .name = "alpha.txt",
+            .name = u8"alpha.txt",
             .size_bytes = 10,
             .modified_nanoseconds = 20,
         },
         veyra::FileListEntry{
             .id = 1,
-            .name = "alpha",
+            .name = u8"alpha",
             .size_bytes = 10,
             .modified_nanoseconds = 40,
             .is_directory = true,
         },
         veyra::FileListEntry{
             .id = 3,
-            .name = "beta.txt",
+            .name = u8"beta.txt",
             .size_bytes = 10,
             .modified_nanoseconds = 20,
         },
@@ -75,22 +75,22 @@ void check_filter_and_sort_direction() {
     const std::array entries{
         veyra::FileListEntry{
             .id = 5,
-            .name = "zeta.txt",
+            .name = u8"zeta.txt",
             .size_bytes = 100,
         },
         veyra::FileListEntry{
             .id = 2,
-            .name = "alpha.txt",
+            .name = u8"alpha.txt",
             .size_bytes = 10,
         },
         veyra::FileListEntry{
             .id = 3,
-            .name = "beta.txt",
+            .name = u8"beta.txt",
             .size_bytes = 10,
         },
         veyra::FileListEntry{
             .id = 4,
-            .name = "notes.md",
+            .name = u8"notes.md",
             .modified_nanoseconds = -5,
         },
     };
@@ -100,7 +100,7 @@ void check_filter_and_sort_direction() {
     require(
         veyra::build_file_list_order(
             entries,
-            ".txt",
+            u8".txt",
             {
                 .key = veyra::FileListSortKey::size,
                 .direction = veyra::FileListSortDirection::descending,
@@ -137,18 +137,36 @@ void check_filter_and_sort_direction() {
     );
 
     require(
-        veyra::build_file_list_order(entries, ".TXT", {}, order, count) ==
+        veyra::build_file_list_order(entries, u8".TXT", {}, order, count) ==
             veyra::FileListResult::complete,
         "case-sensitive filter with no matches succeeds"
     );
     require(count == 0, "case-sensitive filter can return no entries");
 }
 
+void check_utf8_name_filter() {
+    const std::array entries{
+        veyra::FileListEntry{
+            .id = 1,
+            .name = u8"café.png",
+        },
+    };
+    std::array<std::size_t, 1> order{};
+    auto count = std::size_t{0};
+
+    require(
+        veyra::build_file_list_order(entries, u8"fé", {}, order, count) ==
+            veyra::FileListResult::complete,
+        "UTF-8 filter succeeds"
+    );
+    require(count == 1 && order[0] == 0, "UTF-8 substring matches the file name");
+}
+
 void check_capacity_failure_preserves_output() {
     const std::array entries{
-        veyra::FileListEntry{.id = 1, .name = "one"},
-        veyra::FileListEntry{.id = 2, .name = "two"},
-        veyra::FileListEntry{.id = 3, .name = "three"},
+        veyra::FileListEntry{.id = 1, .name = u8"one"},
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+        veyra::FileListEntry{.id = 3, .name = u8"three"},
     };
     std::array<std::size_t, 2> order{91, 92};
     auto count = std::size_t{0};
@@ -177,10 +195,10 @@ void check_capacity_failure_preserves_output() {
 
 void check_selection_follows_ids_across_views() {
     const std::array entries{
-        veyra::FileListEntry{.id = 11, .name = "delta"},
-        veyra::FileListEntry{.id = 22, .name = "alpha"},
-        veyra::FileListEntry{.id = 33, .name = "charlie"},
-        veyra::FileListEntry{.id = 44, .name = "bravo"},
+        veyra::FileListEntry{.id = 11, .name = u8"delta"},
+        veyra::FileListEntry{.id = 22, .name = u8"alpha"},
+        veyra::FileListEntry{.id = 33, .name = u8"charlie"},
+        veyra::FileListEntry{.id = 44, .name = u8"bravo"},
     };
     std::array<std::size_t, 4> visible{};
     auto visible_count = std::size_t{0};
@@ -235,7 +253,7 @@ void check_selection_follows_ids_across_views() {
 
     visible_count = 0;
     require(
-        veyra::build_file_list_order(entries, "delta", {}, visible, visible_count) ==
+        veyra::build_file_list_order(entries, u8"delta", {}, visible, visible_count) ==
             veyra::FileListResult::complete,
         "filtered selection view builds"
     );
@@ -260,9 +278,9 @@ void check_selection_follows_ids_across_views() {
 
 void check_selection_failures_preserve_state() {
     const std::array entries{
-        veyra::FileListEntry{.id = 1, .name = "one"},
-        veyra::FileListEntry{.id = 2, .name = "two"},
-        veyra::FileListEntry{.id = 3, .name = "three"},
+        veyra::FileListEntry{.id = 1, .name = u8"one"},
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+        veyra::FileListEntry{.id = 3, .name = u8"three"},
     };
     const std::array<std::size_t, 3> visible{0, 1, 2};
     std::array<std::uint64_t, 2> storage{};
@@ -328,6 +346,7 @@ int main() {
     try {
         check_directory_grouping_and_stable_sort();
         check_filter_and_sort_direction();
+        check_utf8_name_filter();
         check_capacity_failure_preserves_output();
         check_selection_follows_ids_across_views();
         check_selection_failures_preserve_state();

@@ -18,7 +18,7 @@
 namespace veyra {
 
 struct DirectoryEntry {
-    std::string name;
+    std::u8string name;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};
     bool is_directory{};

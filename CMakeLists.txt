@@ -54,7 +54,10 @@ endif()
 
 if(VEYRA_WITH_FILESYSTEM)
  find_package(Threads REQUIRED)
- add_library(veyra_filesystem STATIC src/files/directory_enumerator.cpp)
+ add_library(veyra_filesystem STATIC
+  src/files/directory_enumerator.cpp
+  src/files/directory_history.cpp
+ )
  target_include_directories(veyra_filesystem PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_filesystem PUBLIC veyra Threads::Threads)
  target_compile_features(veyra_filesystem PUBLIC cxx_std_23)
@@ -261,6 +264,10 @@ add_test(NAME engine_behavior COMMAND veyra_engine_test)
 add_executable(veyra_file_list_test tests/file_list_test.cpp)
 target_link_libraries(veyra_file_list_test PRIVATE veyra)
 add_test(NAME file_list_behavior COMMAND veyra_file_list_test)
+
+add_executable(veyra_file_thumbnail_cache_test tests/file_thumbnail_cache_test.cpp)
+target_link_libraries(veyra_file_thumbnail_cache_test PRIVATE veyra)
+add_test(NAME file_thumbnail_cache_behavior COMMAND veyra_file_thumbnail_cache_test)
 
 add_executable(veyra_node_id_pool_test tests/node_id_pool_test.cpp)
 target_link_libraries(veyra_node_id_pool_test PRIVATE veyra)

@@ -1,6 +1,8 @@
 #include "veyra/files/file_list.hpp"
+#include "veyra/files/file_thumbnail_cache.hpp"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
@@ -66,10 +68,24 @@ double percentile(std::span<const double> sorted_times, std::size_t percent) {
 }
 
 int run(const Options& options) {
-    std::vector<std::string> names;
+    std::vector<std::u8string> names;
     names.reserve(options.entries);
     for (std::size_t index = 0; index < options.entries; ++index) {
-        names.push_back("file-" + std::to_string(index) + ".dat");
+        auto index_text = std::array<char, 32>{};
+        const auto [end, error] =
+            std::to_chars(index_text.data(), index_text.data() + index_text.size(), index);
+        if (error != std::errc{}) {
+            throw std::runtime_error("could not format benchmark entry name");
+        }
+
+        auto name = std::u8string{};
+        name.reserve(9 + static_cast<std::size_t>(end - index_text.data()));
+        name.append(u8"file-");
+        for (auto digit = index_text.data(); digit != end; ++digit) {
+            name.push_back(static_cast<char8_t>(*digit));
+        }
+        name.append(u8".dat");
+        names.push_back(std::move(name));
     }
 
     std::vector<veyra::FileListEntry> entries;
@@ -94,7 +110,7 @@ int run(const Options& options) {
     };
     const auto run_query = [&]() {
         const auto result =
-            veyra::build_file_list_order(entries, "file-9", sort, output, output_count);
+            veyra::build_file_list_order(entries, u8"file-9", sort, output, output_count);
         if (result != veyra::FileListResult::complete) {
             throw std::runtime_error("file list query failed");
         }
@@ -158,6 +174,64 @@ int run(const Options& options) {
     }
     std::sort(selection_times.begin(), selection_times.end());
 
+    auto thumbnail_slots = std::array<veyra::FileThumbnailCacheSlot, 1024>{};
+    auto thumbnail_pixel_storage = std::array<veyra::SoftwarePixel, 1024>{};
+    auto thumbnail_cache =
+        veyra::FileThumbnailCache(thumbnail_slots, thumbnail_pixel_storage, 1, 1);
+    const auto thumbnail_source = std::array{
+        veyra::SoftwarePixel{.red = 37, .alpha = 255},
+    };
+    auto thumbnail_keys = std::array<veyra::FileThumbnailKey, 16>{};
+    for (std::size_t index = 0; index < thumbnail_keys.size(); ++index) {
+        auto& key = thumbnail_keys[index];
+        key = {
+            .file_id = index,
+            .size_bytes = 1024 + index,
+            .modified_nanoseconds = static_cast<std::int64_t>(index + 1),
+        };
+        const auto result = thumbnail_cache.insert(
+            key,
+            {
+                .image = {
+                    .width = 1,
+                    .height = 1,
+                    .stride = 1,
+                    .pixels = thumbnail_source,
+                },
+            }
+        );
+        if (result != veyra::FileThumbnailCacheResult::inserted) {
+            throw std::runtime_error("file thumbnail cache setup failed");
+        }
+    }
+
+    constexpr auto thumbnail_lookups_per_query = std::size_t{100'000};
+    auto thumbnail_times = std::vector<double>(options.queries);
+    const auto run_thumbnail_query = [&]() {
+        auto checksum = std::uint64_t{0};
+        for (std::size_t index = 0; index < thumbnail_lookups_per_query; ++index) {
+            const auto& key = thumbnail_keys[index % thumbnail_keys.size()];
+            const auto cached = thumbnail_cache.find(key);
+            if (!cached) {
+                throw std::runtime_error("file thumbnail cache lookup missed");
+            }
+            checksum += key.file_id + cached->image.pixels[0].red;
+        }
+        return checksum;
+    };
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        static_cast<void>(run_thumbnail_query());
+    }
+
+    std::uint64_t thumbnail_checksum = 0;
+    for (auto& elapsed : thumbnail_times) {
+        const auto begin = Clock::now();
+        thumbnail_checksum += run_thumbnail_query();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+    }
+    std::sort(thumbnail_times.begin(), thumbnail_times.end());
+
     std::cout << "scenario,platform,compiler,build_config,entries,warmup_queries,measured_queries,"
                  "p50_us,p95_us,p99_us,max_us,checksum\n";
     std::cout << "file_list_filter_sort," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
@@ -169,6 +243,11 @@ int run(const Options& options) {
               << options.queries << ',' << percentile(selection_times, 50) << ','
               << percentile(selection_times, 95) << ',' << percentile(selection_times, 99) << ','
               << selection_times.back() << ',' << selection_checksum << '\n';
+    std::cout << "file_thumbnail_cache_lookup," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
+              << options.warmup << ',' << options.queries << ',' << percentile(thumbnail_times, 50)
+              << ',' << percentile(thumbnail_times, 95) << ',' << percentile(thumbnail_times, 99)
+              << ',' << thumbnail_times.back() << ',' << thumbnail_checksum << '\n';
     return 0;
 }
 

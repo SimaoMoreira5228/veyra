@@ -13,7 +13,7 @@ bool valid_sort(FileListSort sort) noexcept {
     return valid_key && valid_direction;
 }
 
-bool matches_name_filter(std::string_view name, std::string_view filter) noexcept {
+bool matches_name_filter(std::u8string_view name, std::u8string_view filter) noexcept {
     if (filter.empty()) {
         return true;
     }
@@ -52,7 +52,7 @@ int compare_entries(
 
 FileListResult build_file_list_order(
     std::span<const FileListEntry> entries,
-    std::string_view name_filter,
+    std::u8string_view name_filter,
     FileListSort sort,
     std::span<std::size_t> output_indices,
     std::size_t& output_count

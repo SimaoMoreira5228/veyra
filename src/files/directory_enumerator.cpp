@@ -7,14 +7,6 @@
 namespace veyra {
 namespace {
 
-std::string utf8_name(const std::filesystem::path& path) {
-    const auto value = path.u8string();
-    return {
-        reinterpret_cast<const char*>(value.data()),
-        value.size(),
-    };
-}
-
 DirectoryEnumerationBatch
 event(std::uint64_t generation, DirectoryEnumerationEvent kind, std::error_code error = {}) {
     return {
@@ -172,7 +164,7 @@ void DirectoryEnumerator::enumerate(
             const auto& item = *iterator;
             auto entry_error = std::error_code{};
             auto entry = DirectoryEntry{
-                .name = utf8_name(item.path().filename()),
+                .name = item.path().filename().u8string(),
             };
             entry.is_directory = item.is_directory(entry_error);
             if (entry_error) {
