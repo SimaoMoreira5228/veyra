@@ -275,6 +275,52 @@ FileListSelectionResult FileListSelection::update(
     return FileListSelectionResult::complete;
 }
 
+FileListSelectionResult
+FileListSelection::reconcile(std::span<const FileListEntry> entries_by_id) noexcept {
+    for (std::size_t index = 1; index < entries_by_id.size(); ++index) {
+        if (entries_by_id[index - 1].id >= entries_by_id[index].id) {
+            return FileListSelectionResult::invalid_order;
+        }
+    }
+
+    auto selection_index = std::size_t{0};
+    auto entry_index = std::size_t{0};
+    auto retained_count = std::size_t{0};
+    while (selection_index < count_ && entry_index < entries_by_id.size()) {
+        const auto selected_id = storage_[selection_index];
+        const auto entry_id = entries_by_id[entry_index].id;
+        if (selected_id < entry_id) {
+            ++selection_index;
+            continue;
+        }
+        if (entry_id < selected_id) {
+            ++entry_index;
+            continue;
+        }
+
+        storage_[retained_count] = selected_id;
+        ++retained_count;
+        ++selection_index;
+        ++entry_index;
+    }
+    count_ = retained_count;
+
+    if (anchor_id_) {
+        const auto anchor = std::lower_bound(
+            entries_by_id.begin(),
+            entries_by_id.end(),
+            *anchor_id_,
+            [](const FileListEntry& entry, std::uint64_t id) {
+                return entry.id < id;
+            }
+        );
+        if (anchor == entries_by_id.end() || anchor->id != *anchor_id_) {
+            anchor_id_.reset();
+        }
+    }
+    return FileListSelectionResult::complete;
+}
+
 bool FileListSelection::contains(std::uint64_t id) const noexcept {
     if (count_ == 0) {
         return false;

@@ -52,7 +52,7 @@ class DirectoryEnumerator {
 
     std::uint64_t start(std::filesystem::path directory);
     std::uint64_t cancel() noexcept;
-    std::optional<DirectoryEnumerationBatch> poll();
+    bool poll(DirectoryEnumerationBatch& batch);
 
   private:
     struct Request {
@@ -66,16 +66,17 @@ class DirectoryEnumerator {
     void clear_queue() noexcept;
     void run(const std::stop_token& stop_token) noexcept;
     void enumerate(const Request& request, const std::stop_token& stop_token) noexcept;
-    bool publish(DirectoryEnumerationBatch batch, const std::stop_token& stop_token) noexcept;
+    bool publish(DirectoryEnumerationBatch& batch, const std::stop_token& stop_token) noexcept;
 
     std::atomic<std::uint64_t> generation_{};
     std::mutex mutex_;
     std::condition_variable_any work_available_;
     std::condition_variable_any queue_space_available_;
     std::optional<Request> pending_request_;
-    std::array<std::optional<DirectoryEnumerationBatch>, queued_batch_capacity> queue_;
+    std::array<DirectoryEnumerationBatch, queued_batch_capacity> queue_;
     std::size_t queue_head_{};
     std::size_t queue_size_{};
+    DirectoryEnumerationBatch working_batch_;
     std::jthread worker_;
 };
 

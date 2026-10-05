@@ -57,6 +57,7 @@ if(VEYRA_WITH_FILESYSTEM)
  add_library(veyra_filesystem STATIC
   src/files/directory_enumerator.cpp
   src/files/directory_history.cpp
+  src/files/file_thumbnail_queue.cpp
  )
  target_include_directories(veyra_filesystem PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_filesystem PUBLIC veyra Threads::Threads)
@@ -65,6 +66,10 @@ if(VEYRA_WITH_FILESYSTEM)
  add_executable(veyra_directory_enumerator_test tests/directory_enumerator_test.cpp)
  target_link_libraries(veyra_directory_enumerator_test PRIVATE veyra_filesystem)
  add_test(NAME directory_enumerator_behavior COMMAND veyra_directory_enumerator_test)
+
+ add_executable(veyra_file_thumbnail_queue_test tests/file_thumbnail_queue_test.cpp)
+ target_link_libraries(veyra_file_thumbnail_queue_test PRIVATE veyra_filesystem)
+ add_test(NAME file_thumbnail_queue_behavior COMMAND veyra_file_thumbnail_queue_test)
 
  if(VEYRA_BUILD_BENCH)
   add_executable(veyra_directory_enumerator_bench bench/directory_enumerator.cpp)

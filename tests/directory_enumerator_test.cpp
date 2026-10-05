@@ -49,21 +49,21 @@ std::vector<veyra::DirectoryEnumerationBatch> collect(
 ) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     auto batches = std::vector<veyra::DirectoryEnumerationBatch>{};
+    auto batch = veyra::DirectoryEnumerationBatch{};
     auto complete = false;
     while (std::chrono::steady_clock::now() < deadline && !complete) {
-        auto batch = enumerator.poll();
-        if (!batch) {
+        if (!enumerator.poll(batch)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 
-        require(batch->generation == generation, "only the current generation is delivered");
-        if (batch->event == veyra::DirectoryEnumerationEvent::error) {
-            require(expect_error, batch->error.message());
+        require(batch.generation == generation, "only the current generation is delivered");
+        if (batch.event == veyra::DirectoryEnumerationEvent::error) {
+            require(expect_error, batch.error.message());
             complete = true;
         }
-        complete = complete || batch->event == veyra::DirectoryEnumerationEvent::complete;
-        batches.push_back(std::move(*batch));
+        complete = complete || batch.event == veyra::DirectoryEnumerationEvent::complete;
+        batches.push_back(batch);
     }
     require(complete, "enumeration completes before the timeout");
     return batches;
@@ -172,7 +172,10 @@ void check_cancel_and_errors() {
     const auto canceled_generation = enumerator.cancel();
     require(canceled_generation > generation, "cancellation advances the generation");
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    require(!enumerator.poll(), "canceled generations do not publish results");
+    auto batch = veyra::DirectoryEnumerationBatch{};
+    batch.generation = 42;
+    require(!enumerator.poll(batch), "canceled generations do not publish results");
+    require(batch.generation == 42, "an empty poll leaves the output unchanged");
 
     const auto missing_generation = enumerator.start(fixture.path / "missing");
     const auto batches = collect(enumerator, missing_generation, true);

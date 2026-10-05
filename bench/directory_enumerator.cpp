@@ -1,6 +1,8 @@
 #include "veyra/files/directory_enumerator.hpp"
+#include "veyra/files/file_thumbnail_queue.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <charconv>
 #include <chrono>
@@ -124,24 +126,24 @@ std::uint64_t scan(
     auto entries = std::size_t{0};
     auto checksum = std::uint64_t{14695981039346656037ULL};
     auto complete = false;
+    auto batch = veyra::DirectoryEnumerationBatch{};
     while (!complete) {
-        const auto batch = enumerator.poll();
-        if (!batch) {
+        if (!enumerator.poll(batch)) {
             std::this_thread::sleep_for(std::chrono::microseconds(50));
             continue;
         }
-        if (batch->generation != generation) {
+        if (batch.generation != generation) {
             throw std::runtime_error("enumerator returned a stale generation");
         }
-        if (batch->event == veyra::DirectoryEnumerationEvent::error) {
-            throw std::runtime_error(batch->error.message());
+        if (batch.event == veyra::DirectoryEnumerationEvent::error) {
+            throw std::runtime_error(batch.error.message());
         }
-        if (batch->event == veyra::DirectoryEnumerationEvent::complete) {
+        if (batch.event == veyra::DirectoryEnumerationEvent::complete) {
             complete = true;
             continue;
         }
 
-        for (const auto& entry : batch->entries) {
+        for (const auto& entry : batch.entries) {
             if (entry.metadata_error) {
                 throw std::runtime_error(entry.metadata_error.message());
             }
@@ -154,6 +156,34 @@ std::uint64_t scan(
     }
     if (entries != expected_entries) {
         throw std::runtime_error("enumerator returned an unexpected entry count");
+    }
+    return checksum;
+}
+
+std::uint64_t schedule_thumbnails(
+    veyra::FileThumbnailQueue& queue,
+    std::span<const veyra::FileThumbnailKey> keys,
+    std::span<const std::filesystem::path> paths
+) {
+    const auto generation = queue.reset();
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+        const auto result = queue.submit(
+            keys[index],
+            paths[index],
+            static_cast<std::uint32_t>(keys.size() - index)
+        );
+        if (result != veyra::FileThumbnailQueueResult::queued) {
+            throw std::runtime_error("thumbnail queue rejected benchmark work");
+        }
+    }
+
+    auto checksum = std::uint64_t{0};
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+        const auto request = queue.wait_next({});
+        if (!request || request->generation != generation) {
+            throw std::runtime_error("thumbnail queue returned stale or missing work");
+        }
+        checksum += request->key.file_id + request->priority;
     }
     return checksum;
 }
@@ -171,6 +201,20 @@ int run(const Options& options) {
         checksum += scan(enumerator, fixture.path, options.entries);
     }
 
+    constexpr auto thumbnail_count = std::size_t{64};
+    auto thumbnail_storage = std::array<veyra::FileThumbnailRequest, thumbnail_count>{};
+    auto thumbnail_queue = veyra::FileThumbnailQueue(thumbnail_storage);
+    auto thumbnail_keys = std::array<veyra::FileThumbnailKey, thumbnail_count>{};
+    auto thumbnail_paths = std::array<std::filesystem::path, thumbnail_count>{};
+    auto thumbnail_checksum = std::uint64_t{0};
+    for (std::size_t index = 0; index < thumbnail_count; ++index) {
+        thumbnail_keys[index].file_id = index + 1;
+        thumbnail_paths[index] = fixture.path / ("thumbnail_" + std::to_string(index));
+    }
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        thumbnail_checksum += schedule_thumbnails(thumbnail_queue, thumbnail_keys, thumbnail_paths);
+    }
+
     auto times = std::vector<double>(options.queries);
     for (auto& elapsed : times) {
         const auto begin = Clock::now();
@@ -180,6 +224,15 @@ int run(const Options& options) {
     }
     std::sort(times.begin(), times.end());
 
+    auto thumbnail_times = std::vector<double>(options.queries);
+    for (auto& elapsed : thumbnail_times) {
+        const auto begin = Clock::now();
+        thumbnail_checksum += schedule_thumbnails(thumbnail_queue, thumbnail_keys, thumbnail_paths);
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+    }
+    std::sort(thumbnail_times.begin(), thumbnail_times.end());
+
     std::cout << "scenario,platform,compiler,build_config,entries,setup_ms,warmup_queries,"
                  "measured_queries,p50_us,p95_us,p99_us,max_us,checksum\n";
     std::cout << "directory_enumeration," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
@@ -187,6 +240,12 @@ int run(const Options& options) {
               << options.warmup << ',' << options.queries << ',' << percentile(times, 50) << ','
               << percentile(times, 95) << ',' << percentile(times, 99) << ',' << times.back() << ','
               << checksum << '\n';
+    std::cout << "thumbnail_queue_scheduling," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << thumbnail_count
+              << ",0," << options.warmup << ',' << options.queries << ','
+              << percentile(thumbnail_times, 50) << ',' << percentile(thumbnail_times, 95) << ','
+              << percentile(thumbnail_times, 99) << ',' << thumbnail_times.back() << ','
+              << thumbnail_checksum << '\n';
     return 0;
 }
 

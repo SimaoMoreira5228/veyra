@@ -340,6 +340,67 @@ void check_selection_failures_preserve_state() {
     );
 }
 
+void check_selection_reconciles_refreshed_entries() {
+    const std::array entries{
+        veyra::FileListEntry{.id = 1, .name = u8"one"},
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+        veyra::FileListEntry{.id = 3, .name = u8"three"},
+        veyra::FileListEntry{.id = 4, .name = u8"four"},
+    };
+    const std::array<std::size_t, 4> visible{0, 1, 2, 3};
+    auto storage = std::array<std::uint64_t, 4>{};
+    auto selection = veyra::FileListSelection(storage);
+    require(
+        selection.update(entries, visible, 1) == veyra::FileListSelectionResult::complete,
+        "selection begins with one file"
+    );
+    require(
+        selection.update(entries, visible, 2, {.toggle = true}) ==
+            veyra::FileListSelectionResult::complete,
+        "selection adds a second file"
+    );
+
+    const std::array refreshed_entries{
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+        veyra::FileListEntry{.id = 3, .name = u8"three"},
+        veyra::FileListEntry{.id = 5, .name = u8"five"},
+    };
+    require(
+        selection.reconcile(refreshed_entries) == veyra::FileListSelectionResult::complete,
+        "refresh retains selected files that still exist"
+    );
+    require(
+        selection.ids().size() == 2 && selection.ids()[0] == 2 && selection.ids()[1] == 3,
+        "refresh removes selection IDs for deleted files"
+    );
+    require(selection.anchor_id() == 3, "refresh keeps an anchor that still exists");
+
+    const std::array invalid_order{
+        veyra::FileListEntry{.id = 5, .name = u8"five"},
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+    };
+    require(
+        selection.reconcile(invalid_order) == veyra::FileListSelectionResult::invalid_order,
+        "reconciliation rejects unsorted IDs"
+    );
+    require(
+        selection.ids().size() == 2 && selection.ids()[0] == 2 && selection.ids()[1] == 3 &&
+            selection.anchor_id() == 3,
+        "invalid refresh order preserves selection and anchor"
+    );
+
+    const std::array deleted_anchor_entries{
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+        veyra::FileListEntry{.id = 5, .name = u8"five"},
+    };
+    require(
+        selection.reconcile(deleted_anchor_entries) == veyra::FileListSelectionResult::complete,
+        "a second refresh reconciles the remaining files"
+    );
+    require(selection.ids().size() == 1 && selection.ids()[0] == 2, "selection keeps its survivor");
+    require(!selection.anchor_id(), "refresh clears a deleted anchor");
+}
+
 }
 
 int main() {
@@ -350,6 +411,7 @@ int main() {
         check_capacity_failure_preserves_output();
         check_selection_follows_ids_across_views();
         check_selection_failures_preserve_state();
+        check_selection_reconciles_refreshed_entries();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

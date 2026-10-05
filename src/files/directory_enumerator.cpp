@@ -5,19 +5,6 @@
 #include <utility>
 
 namespace veyra {
-namespace {
-
-DirectoryEnumerationBatch
-event(std::uint64_t generation, DirectoryEnumerationEvent kind, std::error_code error = {}) {
-    return {
-        .generation = generation,
-        .event = kind,
-        .entries = {},
-        .error = error,
-    };
-}
-
-}
 
 DirectoryEnumerator::DirectoryEnumerator() :
     worker_([this](const std::stop_token& token) {
@@ -42,7 +29,10 @@ std::uint64_t DirectoryEnumerator::advance_generation() noexcept {
 
 void DirectoryEnumerator::clear_queue() noexcept {
     for (auto& batch : queue_) {
-        batch.reset();
+        batch.generation = 0;
+        batch.event = DirectoryEnumerationEvent::entries;
+        batch.entries.clear();
+        batch.error.clear();
     }
     queue_head_ = 0;
     queue_size_ = 0;
@@ -72,22 +62,29 @@ std::uint64_t DirectoryEnumerator::cancel() noexcept {
     return generation;
 }
 
-std::optional<DirectoryEnumerationBatch> DirectoryEnumerator::poll() {
+bool DirectoryEnumerator::poll(DirectoryEnumerationBatch& output) {
     std::lock_guard lock(mutex_);
     if (queue_size_ == 0) {
-        return std::nullopt;
+        return false;
     }
 
-    auto batch = std::move(queue_[queue_head_]);
-    queue_[queue_head_].reset();
+    auto& batch = queue_[queue_head_];
+    output.generation = batch.generation;
+    output.event = batch.event;
+    output.error = batch.error;
+    output.entries.swap(batch.entries);
+    batch.entries.clear();
+    batch.generation = 0;
+    batch.event = DirectoryEnumerationEvent::entries;
+    batch.error.clear();
     queue_head_ = (queue_head_ + 1) % queued_batch_capacity;
     --queue_size_;
     queue_space_available_.notify_one();
-    return batch;
+    return true;
 }
 
 bool DirectoryEnumerator::publish(
-    DirectoryEnumerationBatch batch,
+    DirectoryEnumerationBatch& batch,
     const std::stop_token& stop_token
 ) noexcept {
     std::unique_lock lock(mutex_);
@@ -101,7 +98,11 @@ bool DirectoryEnumerator::publish(
     }
 
     const auto index = (queue_head_ + queue_size_) % queued_batch_capacity;
-    queue_[index].emplace(std::move(batch));
+    auto& slot = queue_[index];
+    slot.generation = batch.generation;
+    slot.event = batch.event;
+    slot.error = batch.error;
+    slot.entries.swap(batch.entries);
     ++queue_size_;
     return true;
 }
@@ -122,6 +123,17 @@ void DirectoryEnumerator::run(const std::stop_token& stop_token) noexcept {
             }
             request = std::move(*pending_request_);
             pending_request_.reset();
+
+            auto best_buffer_index = std::size_t{0};
+            for (std::size_t index = 1; index < queued_batch_capacity; ++index) {
+                if (queue_[index].entries.capacity() >
+                    queue_[best_buffer_index].entries.capacity()) {
+                    best_buffer_index = index;
+                }
+            }
+            if (queue_[best_buffer_index].entries.capacity() > working_batch_.entries.capacity()) {
+                working_batch_.entries.swap(queue_[best_buffer_index].entries);
+            }
         }
 
         enumerate(request, stop_token);
@@ -132,29 +144,30 @@ void DirectoryEnumerator::enumerate(
     const Request& request,
     const std::stop_token& stop_token
 ) noexcept {
+    auto& batch = working_batch_;
+    batch.generation = request.generation;
+    batch.event = DirectoryEnumerationEvent::entries;
+    batch.entries.clear();
+    batch.error.clear();
     try {
         if (!request.directory.is_absolute()) {
-            publish(
-                event(
-                    request.generation,
-                    DirectoryEnumerationEvent::error,
-                    std::make_error_code(std::errc::invalid_argument)
-                ),
-                stop_token
-            );
+            batch.event = DirectoryEnumerationEvent::error;
+            batch.error = std::make_error_code(std::errc::invalid_argument);
+            publish(batch, stop_token);
             return;
         }
 
         std::error_code error;
         auto iterator = std::filesystem::directory_iterator(request.directory, error);
         if (error) {
-            publish(event(request.generation, DirectoryEnumerationEvent::error, error), stop_token);
+            batch.event = DirectoryEnumerationEvent::error;
+            batch.error = error;
+            publish(batch, stop_token);
             return;
         }
 
         const auto end = std::filesystem::directory_iterator{};
-        auto entries = std::vector<DirectoryEntry>{};
-        entries.reserve(entries_per_batch);
+        batch.entries.reserve(entries_per_batch);
         while (iterator != end) {
             if (stop_token.stop_requested() ||
                 generation_.load(std::memory_order_acquire) != request.generation) {
@@ -193,21 +206,14 @@ void DirectoryEnumerator::enumerate(
                     }
                 }
             }
-            entries.push_back(std::move(entry));
+            batch.entries.push_back(std::move(entry));
 
-            if (entries.size() == entries_per_batch) {
-                if (!publish(
-                        {
-                            .generation = request.generation,
-                            .event = DirectoryEnumerationEvent::entries,
-                            .entries = std::move(entries),
-                        },
-                        stop_token
-                    )) {
+            if (batch.entries.size() == entries_per_batch) {
+                batch.event = DirectoryEnumerationEvent::entries;
+                if (!publish(batch, stop_token)) {
                     return;
                 }
-                entries = {};
-                entries.reserve(entries_per_batch);
+                batch.entries.clear();
             }
 
             if (stop_token.stop_requested() ||
@@ -217,61 +223,46 @@ void DirectoryEnumerator::enumerate(
 
             iterator.increment(error);
             if (error) {
-                if (!entries.empty() &&
-                    !publish(
-                        {
-                            .generation = request.generation,
-                            .event = DirectoryEnumerationEvent::entries,
-                            .entries = std::move(entries),
-                        },
-                        stop_token
-                    )) {
-                    return;
+                if (!batch.entries.empty()) {
+                    batch.event = DirectoryEnumerationEvent::entries;
+                    if (!publish(batch, stop_token)) {
+                        return;
+                    }
                 }
-                publish(
-                    event(request.generation, DirectoryEnumerationEvent::error, error),
-                    stop_token
-                );
+                batch.event = DirectoryEnumerationEvent::error;
+                batch.error = error;
+                batch.entries.clear();
+                publish(batch, stop_token);
                 return;
             }
         }
 
-        if (!entries.empty() &&
-            !publish(
-                {
-                    .generation = request.generation,
-                    .event = DirectoryEnumerationEvent::entries,
-                    .entries = std::move(entries),
-                },
-                stop_token
-            )) {
-            return;
+        if (!batch.entries.empty()) {
+            batch.event = DirectoryEnumerationEvent::entries;
+            if (!publish(batch, stop_token)) {
+                return;
+            }
         }
 
-        publish(event(request.generation, DirectoryEnumerationEvent::complete), stop_token);
+        batch.event = DirectoryEnumerationEvent::complete;
+        batch.error.clear();
+        batch.entries.clear();
+        publish(batch, stop_token);
     } catch (const std::filesystem::filesystem_error& error) {
-        publish(
-            event(request.generation, DirectoryEnumerationEvent::error, error.code()),
-            stop_token
-        );
+        batch.event = DirectoryEnumerationEvent::error;
+        batch.entries.clear();
+        batch.error = error.code();
+        publish(batch, stop_token);
     } catch (const std::bad_alloc&) {
-        publish(
-            event(
-                request.generation,
-                DirectoryEnumerationEvent::error,
-                std::make_error_code(std::errc::not_enough_memory)
-            ),
-            stop_token
-        );
+        batch.event = DirectoryEnumerationEvent::error;
+        batch.entries.clear();
+        batch.error = std::make_error_code(std::errc::not_enough_memory);
+        publish(batch, stop_token);
     } catch (...) {
-        publish(
-            event(
-                request.generation,
-                DirectoryEnumerationEvent::error,
-                std::make_error_code(std::errc::io_error)
-            ),
-            stop_token
-        );
+        batch.event = DirectoryEnumerationEvent::error;
+        batch.entries.clear();
+        batch.error = std::make_error_code(std::errc::io_error);
+        publish(batch, stop_token);
     }
 }
 

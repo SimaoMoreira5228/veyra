@@ -174,6 +174,59 @@ int run(const Options& options) {
     }
     std::sort(selection_times.begin(), selection_times.end());
 
+    auto entries_by_id = entries;
+    std::sort(entries_by_id.begin(), entries_by_id.end(), [](const auto& left, const auto& right) {
+        return left.id < right.id;
+    });
+    entries_by_id.erase(
+        std::remove_if(
+            entries_by_id.begin(),
+            entries_by_id.end(),
+            [](const auto& entry) {
+                return entry.id % 10 == 0;
+            }
+        ),
+        entries_by_id.end()
+    );
+    auto refresh_selection = [&]() {
+        selection.clear();
+        if (selection.update(entries, visible_order, anchor_position) !=
+            veyra::FileListSelectionResult::complete) {
+            throw std::runtime_error("file list selection reset failed");
+        }
+        if (selection.update(
+                entries,
+                visible_order,
+                range_end,
+                {
+                    .extend_range = true,
+                }
+            ) != veyra::FileListSelectionResult::complete) {
+            throw std::runtime_error("file list range reset failed");
+        }
+    };
+    const auto run_reconciliation = [&]() {
+        if (selection.reconcile(entries_by_id) != veyra::FileListSelectionResult::complete) {
+            throw std::runtime_error("file list selection reconciliation failed");
+        }
+    };
+    auto reconciliation_times = std::vector<double>(options.queries);
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_reconciliation();
+        refresh_selection();
+    }
+
+    auto reconciliation_checksum = std::uint64_t{0};
+    for (auto& elapsed : reconciliation_times) {
+        const auto begin = Clock::now();
+        run_reconciliation();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        reconciliation_checksum += selection.ids().size() + selection.ids().front();
+        refresh_selection();
+    }
+    std::sort(reconciliation_times.begin(), reconciliation_times.end());
+
     auto thumbnail_slots = std::array<veyra::FileThumbnailCacheSlot, 1024>{};
     auto thumbnail_pixel_storage = std::array<veyra::SoftwarePixel, 1024>{};
     auto thumbnail_cache =
@@ -243,6 +296,12 @@ int run(const Options& options) {
               << options.queries << ',' << percentile(selection_times, 50) << ','
               << percentile(selection_times, 95) << ',' << percentile(selection_times, 99) << ','
               << selection_times.back() << ',' << selection_checksum << '\n';
+    std::cout << "file_list_selection_reconciliation," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
+              << options.warmup << ',' << options.queries << ','
+              << percentile(reconciliation_times, 50) << ',' << percentile(reconciliation_times, 95)
+              << ',' << percentile(reconciliation_times, 99) << ',' << reconciliation_times.back()
+              << ',' << reconciliation_checksum << '\n';
     std::cout << "file_thumbnail_cache_lookup," << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
               << options.warmup << ',' << options.queries << ',' << percentile(thumbnail_times, 50)
