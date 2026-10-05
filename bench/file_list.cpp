@@ -174,6 +174,26 @@ int run(const Options& options) {
     }
     std::sort(selection_times.begin(), selection_times.end());
 
+    const auto run_select_visible = [&]() {
+        if (selection.select_visible(entries, visible_order) !=
+            veyra::FileListSelectionResult::complete) {
+            throw std::runtime_error("visible file selection failed");
+        }
+    };
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_select_visible();
+    }
+    auto visible_selection_times = std::vector<double>(options.queries);
+    auto visible_selection_checksum = std::uint64_t{0};
+    for (auto& elapsed : visible_selection_times) {
+        const auto begin = Clock::now();
+        run_select_visible();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        visible_selection_checksum += selection.ids().size() + selection.ids().front();
+    }
+    std::sort(visible_selection_times.begin(), visible_selection_times.end());
+
     auto entries_by_id = entries;
     std::sort(entries_by_id.begin(), entries_by_id.end(), [](const auto& left, const auto& right) {
         return left.id < right.id;
@@ -205,6 +225,7 @@ int run(const Options& options) {
             throw std::runtime_error("file list range reset failed");
         }
     };
+    refresh_selection();
     const auto run_reconciliation = [&]() {
         if (selection.reconcile(entries_by_id) != veyra::FileListSelectionResult::complete) {
             throw std::runtime_error("file list selection reconciliation failed");
@@ -238,7 +259,7 @@ int run(const Options& options) {
     for (std::size_t index = 0; index < thumbnail_keys.size(); ++index) {
         auto& key = thumbnail_keys[index];
         key = {
-            .file_id = index,
+            .file_id = veyra::FileId{1, index + 1},
             .size_bytes = 1024 + index,
             .modified_nanoseconds = static_cast<std::int64_t>(index + 1),
         };
@@ -268,7 +289,7 @@ int run(const Options& options) {
             if (!cached) {
                 throw std::runtime_error("file thumbnail cache lookup missed");
             }
-            checksum += key.file_id + cached->image.pixels[0].red;
+            checksum += key.file_id.object + cached->image.pixels[0].red;
         }
         return checksum;
     };
@@ -296,6 +317,13 @@ int run(const Options& options) {
               << options.queries << ',' << percentile(selection_times, 50) << ','
               << percentile(selection_times, 95) << ',' << percentile(selection_times, 99) << ','
               << selection_times.back() << ',' << selection_checksum << '\n';
+    std::cout << "file_list_visible_selection," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
+              << options.warmup << ',' << options.queries << ','
+              << percentile(visible_selection_times, 50) << ','
+              << percentile(visible_selection_times, 95) << ','
+              << percentile(visible_selection_times, 99) << ',' << visible_selection_times.back()
+              << ',' << visible_selection_checksum << '\n';
     std::cout << "file_list_selection_reconciliation," << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
               << options.warmup << ',' << options.queries << ','

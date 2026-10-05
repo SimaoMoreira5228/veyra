@@ -183,7 +183,7 @@ std::uint64_t schedule_thumbnails(
         if (!request || request->generation != generation) {
             throw std::runtime_error("thumbnail queue returned stale or missing work");
         }
-        checksum += request->key.file_id + request->priority;
+        checksum += request->key.file_id.object + request->priority;
     }
     return checksum;
 }
@@ -208,7 +208,7 @@ int run(const Options& options) {
     auto thumbnail_paths = std::array<std::filesystem::path, thumbnail_count>{};
     auto thumbnail_checksum = std::uint64_t{0};
     for (std::size_t index = 0; index < thumbnail_count; ++index) {
-        thumbnail_keys[index].file_id = index + 1;
+        thumbnail_keys[index].file_id = {1, index + 1};
         thumbnail_paths[index] = fixture.path / ("thumbnail_" + std::to_string(index));
     }
     for (std::size_t index = 0; index < options.warmup; ++index) {

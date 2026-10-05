@@ -1,6 +1,7 @@
 #ifndef VEYRA_FILES_FILE_THUMBNAIL_CACHE_HPP
 #define VEYRA_FILES_FILE_THUMBNAIL_CACHE_HPP
 
+#include "veyra/files/file_id.hpp"
 #include "veyra/render/bounded_image_cache.hpp"
 
 #include <cstddef>
@@ -9,7 +10,7 @@
 namespace veyra {
 
 struct FileThumbnailKey {
-    std::uint64_t file_id{};
+    FileId file_id;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};
 
@@ -25,7 +26,8 @@ struct FileThumbnailHash {
             return value ^ (value >> 31U);
         };
 
-        auto hash = mix(key.file_id);
+        auto hash = mix(key.file_id.volume);
+        hash ^= mix(key.file_id.object + hash);
         hash ^= mix(key.size_bytes + hash);
         hash ^= mix(static_cast<std::uint64_t>(key.modified_nanoseconds) + hash);
         return static_cast<std::size_t>(mix(hash));
@@ -33,8 +35,8 @@ struct FileThumbnailHash {
 };
 
 struct FileThumbnailKeyValidator {
-    bool operator()(const FileThumbnailKey&) const noexcept {
-        return true;
+    bool operator()(const FileThumbnailKey& key) const noexcept {
+        return key.file_id.valid();
     }
 };
 

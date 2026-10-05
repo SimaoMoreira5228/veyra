@@ -126,6 +126,10 @@ void check_streaming_and_supersession() {
     });
     require(has_only, "file names and sizes are reported");
     require(has_unicode, "non-ASCII entry names use UTF-8");
+    const auto only_entry = std::ranges::find_if(latest_batches[0].entries, [](const auto& entry) {
+        return entry.name == u8"only.txt";
+    });
+    require(only_entry != latest_batches[0].entries.end(), "the file entry is available");
     require(
         std::ranges::all_of(
             latest_batches[0].entries,
@@ -139,6 +143,19 @@ void check_streaming_and_supersession() {
         latest_batches[1].event == veyra::DirectoryEnumerationEvent::complete,
         "completion is explicit"
     );
+
+    const auto repeated_generation = enumerator.start(fixture.path / "latest");
+    const auto repeated_batches = collect(enumerator, repeated_generation);
+    const auto repeated_only =
+        std::ranges::find_if(repeated_batches[0].entries, [](const auto& entry) {
+            return entry.name == u8"only.txt";
+        });
+    require(repeated_only != repeated_batches[0].entries.end(), "the refreshed file is available");
+    if (only_entry->id.valid()) {
+        require(repeated_only->id == only_entry->id, "file identity survives a directory refresh");
+    } else {
+        require(!repeated_only->id.valid(), "unsupported filesystem identities stay invalid");
+    }
 
     const auto streamed_generation = enumerator.start(fixture.path / "many");
     const auto streamed_batches = collect(enumerator, streamed_generation);

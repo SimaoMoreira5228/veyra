@@ -75,6 +75,10 @@ class FileListSelection {
         std::size_t visible_position,
         FileListSelectionModifiers modifiers = {}
     ) noexcept;
+    FileListSelectionResult select_visible(
+        std::span<const FileListEntry> entries,
+        std::span<const std::size_t> visible_indices
+    ) noexcept;
     FileListSelectionResult reconcile(std::span<const FileListEntry> entries_by_id) noexcept;
 
     bool contains(std::uint64_t id) const noexcept;

@@ -25,6 +25,7 @@ enum class FileThumbnailQueueResult : std::uint8_t {
     queued,
     updated,
     replaced_lower_priority,
+    invalid_file_id,
     invalid_path,
     queue_full,
 };

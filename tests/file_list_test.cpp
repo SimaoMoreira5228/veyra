@@ -401,6 +401,96 @@ void check_selection_reconciles_refreshed_entries() {
     require(!selection.anchor_id(), "refresh clears a deleted anchor");
 }
 
+void check_select_visible_entries() {
+    const std::array entries{
+        veyra::FileListEntry{.id = 20, .name = u8"twenty"},
+        veyra::FileListEntry{.id = 30, .name = u8"thirty"},
+        veyra::FileListEntry{.id = 10, .name = u8"ten"},
+    };
+    const std::array<std::size_t, 3> visible{2, 0, 1};
+    auto storage = std::array<std::uint64_t, 3>{};
+    auto selection = veyra::FileListSelection(storage);
+    require(
+        selection.select_visible(entries, visible) == veyra::FileListSelectionResult::complete,
+        "visible entries can be selected together"
+    );
+    require(
+        selection.ids().size() == 3 && selection.ids()[0] == 10 && selection.ids()[1] == 20 &&
+            selection.ids()[2] == 30,
+        "selecting a view stores sorted IDs"
+    );
+    require(selection.anchor_id() == 10, "the first visible item becomes the selection anchor");
+
+    const std::array<std::size_t, 2> reverse_visible{1, 0};
+    auto reverse_storage = std::array<std::uint64_t, 2>{};
+    auto reverse_selection = veyra::FileListSelection(reverse_storage);
+    require(
+        reverse_selection.select_visible(entries, reverse_visible) ==
+            veyra::FileListSelectionResult::complete,
+        "descending IDs can be selected"
+    );
+    require(
+        reverse_selection.ids().size() == 2 && reverse_selection.ids()[0] == 20 &&
+            reverse_selection.ids()[1] == 30,
+        "selection IDs stay sorted when visible order is descending"
+    );
+    require(reverse_selection.anchor_id() == 30, "reverse order keeps its visible anchor");
+
+    const std::array<std::size_t, 2> filtered_visible{2, 1};
+    require(
+        selection.select_visible(entries, filtered_visible) ==
+            veyra::FileListSelectionResult::complete,
+        "filtered views can select only their visible entries"
+    );
+    require(
+        selection.ids().size() == 2 && selection.ids()[0] == 10 && selection.ids()[1] == 30,
+        "selecting a filtered view replaces the previous selection"
+    );
+
+    const std::array<std::size_t, 2> invalid_order{0, 9};
+    require(
+        selection.select_visible(entries, invalid_order) ==
+            veyra::FileListSelectionResult::invalid_order,
+        "selection rejects an invalid visible order"
+    );
+    require(
+        selection.ids().size() == 2 && selection.ids()[0] == 10 && selection.ids()[1] == 30 &&
+            selection.anchor_id() == 10,
+        "invalid order preserves state"
+    );
+
+    auto small_storage = std::array<std::uint64_t, 1>{};
+    auto small_selection = veyra::FileListSelection(small_storage);
+    require(
+        small_selection.update(entries, visible, 0) == veyra::FileListSelectionResult::complete,
+        "small selection starts with one item"
+    );
+    require(
+        small_selection.select_visible(entries, visible) ==
+            veyra::FileListSelectionResult::insufficient_storage,
+        "selection reports insufficient storage before replacing its contents"
+    );
+    require(
+        small_selection.ids().size() == 1 && small_selection.ids()[0] == 10 &&
+            small_selection.anchor_id() == 10,
+        "capacity failure preserves the current selection"
+    );
+
+    require(
+        selection.select_visible(entries, std::span<const std::size_t>{}) ==
+            veyra::FileListSelectionResult::complete,
+        "an empty view clears selection successfully"
+    );
+    require(selection.ids().empty() && !selection.anchor_id(), "empty view clears its anchor");
+
+    auto empty_selection = veyra::FileListSelection(std::span<std::uint64_t>{});
+    require(
+        empty_selection.select_visible(entries, std::span<const std::size_t>{}) ==
+            veyra::FileListSelectionResult::complete,
+        "an empty view needs no selection storage"
+    );
+}
+
 }
 
 int main() {
@@ -412,6 +502,7 @@ int main() {
         check_selection_follows_ids_across_views();
         check_selection_failures_preserve_state();
         check_selection_reconciles_refreshed_entries();
+        check_select_visible_entries();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

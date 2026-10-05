@@ -275,6 +275,35 @@ FileListSelectionResult FileListSelection::update(
     return FileListSelectionResult::complete;
 }
 
+FileListSelectionResult FileListSelection::select_visible(
+    std::span<const FileListEntry> entries,
+    std::span<const std::size_t> visible_indices
+) noexcept {
+    for (const auto index : visible_indices) {
+        if (index >= entries.size()) {
+            return FileListSelectionResult::invalid_order;
+        }
+    }
+    if (visible_indices.empty()) {
+        count_ = 0;
+        anchor_id_.reset();
+        return FileListSelectionResult::complete;
+    }
+    if (visible_indices.size() > storage_.size()) {
+        return FileListSelectionResult::insufficient_storage;
+    }
+
+    for (std::size_t position = 0; position < visible_indices.size(); ++position) {
+        storage_[position] = entries[visible_indices[position]].id;
+    }
+    const auto visible_end = storage_.begin() + static_cast<std::ptrdiff_t>(visible_indices.size());
+    std::sort(storage_.begin(), visible_end);
+    count_ =
+        static_cast<std::size_t>(std::unique(storage_.begin(), visible_end) - storage_.begin());
+    anchor_id_ = entries[visible_indices.front()].id;
+    return FileListSelectionResult::complete;
+}
+
 FileListSelectionResult
 FileListSelection::reconcile(std::span<const FileListEntry> entries_by_id) noexcept {
     for (std::size_t index = 1; index < entries_by_id.size(); ++index) {

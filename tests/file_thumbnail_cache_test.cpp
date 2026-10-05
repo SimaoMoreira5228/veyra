@@ -31,12 +31,16 @@ void check_identity_and_freshness() {
         },
     };
     const auto key = veyra::FileThumbnailKey{
-        .file_id = 0,
+        .file_id = veyra::FileId{1, 1},
         .size_bytes = 4096,
         .modified_nanoseconds = 17,
     };
 
     require(cache.valid(), "caller storage configures the thumbnail cache");
+    require(
+        cache.insert({}, thumbnail) == veyra::FileThumbnailCacheResult::invalid_key,
+        "cache rejects keys without a filesystem identity"
+    );
     require(
         cache.insert(key, thumbnail) == veyra::FileThumbnailCacheResult::inserted,
         "thumbnail inserts for a file identity"
@@ -60,8 +64,12 @@ void check_identity_and_freshness() {
     require(!cache.find(changed_size).has_value(), "new file size misses the old image");
 
     auto changed_identity = key;
-    ++changed_identity.file_id;
+    ++changed_identity.file_id.object;
     require(!cache.find(changed_identity).has_value(), "different file identity misses the image");
+
+    changed_identity = key;
+    ++changed_identity.file_id.volume;
+    require(!cache.find(changed_identity).has_value(), "different volumes miss the image");
 }
 
 }

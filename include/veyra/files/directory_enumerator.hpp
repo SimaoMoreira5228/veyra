@@ -1,6 +1,8 @@
 #ifndef VEYRA_FILES_DIRECTORY_ENUMERATOR_HPP
 #define VEYRA_FILES_DIRECTORY_ENUMERATOR_HPP
 
+#include "veyra/files/file_id.hpp"
+
 #include <array>
 #include <atomic>
 #include <condition_variable>
@@ -18,6 +20,7 @@
 namespace veyra {
 
 struct DirectoryEntry {
+    FileId id;
     std::u8string name;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};

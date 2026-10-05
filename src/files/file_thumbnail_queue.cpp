@@ -24,6 +24,9 @@ FileThumbnailQueueResult FileThumbnailQueue::submit(
     std::filesystem::path path,
     std::uint32_t priority
 ) {
+    if (!key.file_id.valid()) {
+        return FileThumbnailQueueResult::invalid_file_id;
+    }
     if (!path.is_absolute()) {
         return FileThumbnailQueueResult::invalid_path;
     }

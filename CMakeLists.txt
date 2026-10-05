@@ -57,6 +57,8 @@ if(VEYRA_WITH_FILESYSTEM)
  add_library(veyra_filesystem STATIC
   src/files/directory_enumerator.cpp
   src/files/directory_history.cpp
+  src/files/directory_watcher.cpp
+  src/files/file_metadata.cpp
   src/files/file_thumbnail_queue.cpp
  )
  target_include_directories(veyra_filesystem PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -66,6 +68,12 @@ if(VEYRA_WITH_FILESYSTEM)
  add_executable(veyra_directory_enumerator_test tests/directory_enumerator_test.cpp)
  target_link_libraries(veyra_directory_enumerator_test PRIVATE veyra_filesystem)
  add_test(NAME directory_enumerator_behavior COMMAND veyra_directory_enumerator_test)
+
+ if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(veyra_directory_watcher_test tests/directory_watcher_test.cpp)
+  target_link_libraries(veyra_directory_watcher_test PRIVATE veyra_filesystem)
+  add_test(NAME directory_watcher_behavior COMMAND veyra_directory_watcher_test)
+ endif()
 
  add_executable(veyra_file_thumbnail_queue_test tests/file_thumbnail_queue_test.cpp)
  target_link_libraries(veyra_file_thumbnail_queue_test PRIVATE veyra_filesystem)

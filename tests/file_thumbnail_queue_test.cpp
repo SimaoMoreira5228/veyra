@@ -26,27 +26,27 @@ void check_priority_and_capacity() {
     auto queue = veyra::FileThumbnailQueue(storage);
     const auto first_generation = queue.reset();
     require(
-        queue.submit({.file_id = 1}, image_path("first.png"), 10) ==
+        queue.submit({.file_id = veyra::FileId{1, 1}}, image_path("first.png"), 10) ==
             veyra::FileThumbnailQueueResult::queued,
         "first request enters the queue"
     );
     require(
-        queue.submit({.file_id = 2}, image_path("second.png"), 4) ==
+        queue.submit({.file_id = veyra::FileId{1, 2}}, image_path("second.png"), 4) ==
             veyra::FileThumbnailQueueResult::queued,
         "second request enters the queue"
     );
     require(
-        queue.submit({.file_id = 3}, image_path("third.png"), 1) ==
+        queue.submit({.file_id = veyra::FileId{1, 3}}, image_path("third.png"), 1) ==
             veyra::FileThumbnailQueueResult::queued,
         "third request fills the queue"
     );
     require(
-        queue.submit({.file_id = 4}, image_path("background.png"), 20) ==
+        queue.submit({.file_id = veyra::FileId{1, 4}}, image_path("background.png"), 20) ==
             veyra::FileThumbnailQueueResult::queue_full,
         "a lower-priority request cannot displace visible work"
     );
     require(
-        queue.submit({.file_id = 4}, image_path("visible.png"), 0) ==
+        queue.submit({.file_id = veyra::FileId{1, 4}}, image_path("visible.png"), 0) ==
             veyra::FileThumbnailQueueResult::replaced_lower_priority,
         "a higher-priority request displaces the least visible work"
     );
@@ -57,9 +57,9 @@ void check_priority_and_capacity() {
     if (!first || !second || !third) {
         throw std::runtime_error("all retained requests can be taken");
     }
-    require(first->key.file_id == 4, "lowest numeric priority is handled first");
-    require(second->key.file_id == 3, "next visible request follows");
-    require(third->key.file_id == 2, "displaced request is not returned");
+    require(first->key.file_id == veyra::FileId{1, 4}, "lowest numeric priority is handled first");
+    require(second->key.file_id == veyra::FileId{1, 3}, "next visible request follows");
+    require(third->key.file_id == veyra::FileId{1, 2}, "displaced request is not returned");
     require(first->generation == first_generation, "requests carry their view generation");
     require(queue.pending() == 0, "taking work frees queue slots");
 }
@@ -68,7 +68,7 @@ void check_updates_and_generation_changes() {
     auto storage = std::array<veyra::FileThumbnailRequest, 2>{};
     auto queue = veyra::FileThumbnailQueue(storage);
     const auto first_key = veyra::FileThumbnailKey{
-        .file_id = 7,
+        .file_id = veyra::FileId{1, 7},
         .size_bytes = 12,
         .modified_nanoseconds = 14,
     };
@@ -111,9 +111,12 @@ void check_worker_wait_and_stop() {
     });
 
     worker_started.acquire();
-    queue.submit({.file_id = 9}, image_path("worker.png"), 0);
+    queue.submit({.file_id = veyra::FileId{1, 9}}, image_path("worker.png"), 0);
     worker.join();
-    require(result && result->key.file_id == 9, "waiting worker wakes for new work");
+    require(
+        result && result->key.file_id == veyra::FileId{1, 9},
+        "waiting worker wakes for new work"
+    );
 
     auto stopped_worker = std::jthread([&](const std::stop_token& token) {
         result = queue.wait_next(token);
@@ -127,14 +130,19 @@ void check_invalid_paths_and_empty_storage() {
     auto storage = std::array<veyra::FileThumbnailRequest, 1>{};
     auto queue = veyra::FileThumbnailQueue(storage);
     require(
-        queue.submit({.file_id = 1}, "relative.png", 0) ==
+        queue.submit({}, image_path("missing-id.png"), 0) ==
+            veyra::FileThumbnailQueueResult::invalid_file_id,
+        "queue rejects requests without a filesystem identity"
+    );
+    require(
+        queue.submit({.file_id = veyra::FileId{1, 1}}, "relative.png", 0) ==
             veyra::FileThumbnailQueueResult::invalid_path,
         "queue rejects relative paths"
     );
 
     auto empty_queue = veyra::FileThumbnailQueue(std::span<veyra::FileThumbnailRequest>{});
     require(
-        empty_queue.submit({.file_id = 1}, image_path("empty.png"), 0) ==
+        empty_queue.submit({.file_id = veyra::FileId{1, 1}}, image_path("empty.png"), 0) ==
             veyra::FileThumbnailQueueResult::queue_full,
         "empty storage rejects requests"
     );

@@ -1,6 +1,6 @@
 #include "veyra/files/directory_enumerator.hpp"
+#include "file_metadata.hpp"
 
-#include <chrono>
 #include <new>
 #include <utility>
 
@@ -175,37 +175,15 @@ void DirectoryEnumerator::enumerate(
             }
 
             const auto& item = *iterator;
-            auto entry_error = std::error_code{};
+            const auto metadata = read_file_metadata(item.path());
             auto entry = DirectoryEntry{
+                .id = metadata.id,
                 .name = item.path().filename().u8string(),
+                .size_bytes = metadata.size_bytes,
+                .modified_nanoseconds = metadata.modified_nanoseconds,
+                .is_directory = metadata.is_directory,
+                .metadata_error = metadata.error,
             };
-            entry.is_directory = item.is_directory(entry_error);
-            if (entry_error) {
-                entry.metadata_error = entry_error;
-            } else {
-                const auto is_regular_file = item.is_regular_file(entry_error);
-                if (entry_error) {
-                    entry.metadata_error = entry_error;
-                } else if (is_regular_file) {
-                    entry.size_bytes = item.file_size(entry_error);
-                    if (entry_error) {
-                        entry.metadata_error = entry_error;
-                    }
-                }
-
-                if (!entry_error) {
-                    const auto modified = item.last_write_time(entry_error);
-                    if (entry_error) {
-                        entry.metadata_error = entry_error;
-                    } else {
-                        entry.modified_nanoseconds =
-                            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                std::chrono::file_clock::to_sys(modified).time_since_epoch()
-                            )
-                                .count();
-                    }
-                }
-            }
             batch.entries.push_back(std::move(entry));
 
             if (batch.entries.size() == entries_per_batch) {
