@@ -239,97 +239,6 @@ TextEditorBuffer::set_cursor(std::size_t byte_offset, bool extend_selection) noe
     return TextEditResult::complete;
 }
 
-TextEditResult
-TextEditorBuffer::move_cursor(TextCursorDirection direction, bool extend_selection) noexcept {
-    if (initialization_result_ != TextEditResult::complete) {
-        return initialization_result_;
-    }
-    if (direction != TextCursorDirection::backward && direction != TextCursorDirection::forward) {
-        return TextEditResult::invalid_direction;
-    }
-
-    cancel_composition();
-    const auto current_selection = selection();
-    if (current_selection.length > 0 && !extend_selection) {
-        const auto destination = direction == TextCursorDirection::backward
-            ? current_selection.start
-            : current_selection.start + current_selection.length;
-        move_gap(destination);
-        selection_anchor_ = gap_start_;
-        return TextEditResult::complete;
-    }
-
-    auto destination = gap_start_;
-    if (direction == TextCursorDirection::backward && gap_start_ > 0) {
-        --destination;
-        while (destination > 0 &&
-               (static_cast<unsigned char>(byte_at(destination)) & 0xc0U) == 0x80U) {
-            --destination;
-        }
-    } else if (direction == TextCursorDirection::forward && gap_start_ < size()) {
-        ++destination;
-        while (destination < size() &&
-               (static_cast<unsigned char>(byte_at(destination)) & 0xc0U) == 0x80U) {
-            ++destination;
-        }
-    }
-
-    move_gap(destination);
-    if (!extend_selection) {
-        selection_anchor_ = gap_start_;
-    }
-    return TextEditResult::complete;
-}
-
-TextEditResult TextEditorBuffer::move_cursor_to_line_start(bool extend_selection) noexcept {
-    return set_cursor(line_start_at_cursor(), extend_selection);
-}
-
-TextEditResult TextEditorBuffer::move_cursor_to_line_end(bool extend_selection) noexcept {
-    return set_cursor(line_end_at_cursor(), extend_selection);
-}
-
-TextEditResult TextEditorBuffer::move_cursor_to_visual_line(
-    std::span<const TextCaretStop> caret_stops,
-    float preferred_x,
-    std::size_t& selected_stop,
-    bool extend_selection
-) noexcept {
-    if (initialization_result_ != TextEditResult::complete) {
-        return initialization_result_;
-    }
-    if (caret_stops.empty() || !std::isfinite(preferred_x)) {
-        return TextEditResult::invalid_state;
-    }
-
-    auto closest_stop_index = std::size_t{0};
-    auto closest_distance = 0.0;
-    for (std::size_t index = 0; index < caret_stops.size(); ++index) {
-        const auto& stop = caret_stops[index];
-        if (!std::isfinite(stop.x)) {
-            return TextEditResult::invalid_state;
-        }
-        if (stop.byte_offset > size() || !is_boundary(stop.byte_offset)) {
-            return TextEditResult::invalid_cursor;
-        }
-
-        const auto distance =
-            std::abs(static_cast<double>(stop.x) - static_cast<double>(preferred_x));
-        if (index == 0 || distance < closest_distance) {
-            closest_stop_index = index;
-            closest_distance = distance;
-        }
-    }
-
-    const auto result = set_cursor(caret_stops[closest_stop_index].byte_offset, extend_selection);
-    if (result != TextEditResult::complete) {
-        return result;
-    }
-
-    selected_stop = closest_stop_index;
-    return TextEditResult::complete;
-}
-
 void TextEditorBuffer::select_all() noexcept {
     if (initialization_result_ != TextEditResult::complete) {
         return;
@@ -469,65 +378,6 @@ TextEditResult TextEditorBuffer::update_composition(
     return TextEditResult::complete;
 }
 
-TextComposition TextEditorBuffer::composition() const noexcept {
-    if (!composition_active_) {
-        return {};
-    }
-    const auto composition_text = composition_length_ == 0
-        ? std::string_view{}
-        : std::string_view(composition_storage_.data(), composition_length_);
-    return {
-        .text = composition_text,
-        .replacement = composition_replacement_,
-        .cursor = composition_cursor_,
-        .selection = {
-            .start = composition_selection_start_,
-            .length = composition_selection_length_,
-        },
-    };
-}
-
-TextEditResult TextEditorBuffer::commit_composition() noexcept {
-    if (initialization_result_ != TextEditResult::complete) {
-        return initialization_result_;
-    }
-    if (!composition_active_) {
-        return TextEditResult::invalid_state;
-    }
-
-    const auto remaining_length = size() - composition_replacement_.length;
-    const auto available_capacity = storage_.size() - remaining_length;
-    if (composition_length_ > available_capacity) {
-        return TextEditResult::insufficient_capacity;
-    }
-
-    const std::string_view text(composition_storage_.data(), composition_length_);
-    const auto start = composition_replacement_.start;
-    const auto end = start + composition_replacement_.length;
-    if (start == end && text.empty()) {
-        clear_composition();
-        return TextEditResult::complete;
-    }
-
-    const auto history_result = TextEditorHistory::record(*this, start, end, text);
-    if (history_result != TextEditResult::complete) {
-        return history_result;
-    }
-
-    replace_range(start, end, text);
-    clear_composition();
-    return TextEditResult::complete;
-}
-
-void TextEditorBuffer::cancel_composition() noexcept {
-    if (!composition_active_) {
-        return;
-    }
-    move_gap(original_cursor_);
-    selection_anchor_ = original_selection_anchor_;
-    clear_composition();
-}
-
 char TextEditorBuffer::byte_at(std::size_t byte_offset) const noexcept {
     if (byte_offset < gap_start_) {
         return storage_[byte_offset];
@@ -539,6 +389,264 @@ bool TextEditorBuffer::is_boundary(std::size_t byte_offset) const noexcept {
     return byte_offset <= size() &&
         (byte_offset == size() ||
          (static_cast<unsigned char>(byte_at(byte_offset)) & 0xc0U) != 0x80U);
+}
+
+void TextEditorBuffer::move_gap(std::size_t byte_offset) noexcept {
+    if (byte_offset < gap_start_) {
+        const auto moved_length = gap_start_ - byte_offset;
+        std::memmove(
+            storage_.data() + gap_end_ - moved_length,
+            storage_.data() + byte_offset,
+            moved_length
+        );
+        gap_start_ -= moved_length;
+        gap_end_ -= moved_length;
+        return;
+    }
+    if (byte_offset > gap_start_) {
+        const auto moved_length = byte_offset - gap_start_;
+        std::memmove(storage_.data() + gap_start_, storage_.data() + gap_end_, moved_length);
+        gap_start_ += moved_length;
+        gap_end_ += moved_length;
+    }
+}
+
+TextEditResult TextEditorBuffer::replace_selection(std::string_view text) noexcept {
+    const auto current_selection = selection();
+    const auto remaining_length = size() - current_selection.length;
+    const auto available_capacity = storage_.size() - remaining_length;
+    if (text.size() > available_capacity) {
+        return TextEditResult::insufficient_capacity;
+    }
+    if (current_selection.length == 0 && text.empty()) {
+        cancel_composition();
+        return TextEditResult::complete;
+    }
+
+    const auto history_result = TextEditorHistory::record(
+        *this,
+        current_selection.start,
+        current_selection.start + current_selection.length,
+        text
+    );
+    if (history_result != TextEditResult::complete) {
+        return history_result;
+    }
+
+    cancel_composition();
+    replace_range(
+        current_selection.start,
+        current_selection.start + current_selection.length,
+        text
+    );
+    return TextEditResult::complete;
+}
+
+void TextEditorBuffer::replace_range(
+    std::size_t start,
+    std::size_t end,
+    std::string_view text
+) noexcept {
+    move_gap(start);
+    gap_end_ += end - start;
+    if (!text.empty()) {
+        std::memcpy(storage_.data() + gap_start_, text.data(), text.size());
+        gap_start_ += text.size();
+    }
+    selection_anchor_ = gap_start_;
+}
+
+TextEditResult TextEditorBuffer::erase_range(std::size_t start, std::size_t end) noexcept {
+    const auto history_result = TextEditorHistory::record(*this, start, end, {});
+    if (history_result != TextEditResult::complete) {
+        return history_result;
+    }
+
+    cancel_composition();
+    move_gap(start);
+    gap_end_ += end - start;
+    selection_anchor_ = gap_start_;
+    return TextEditResult::complete;
+}
+
+TextEditResult
+TextEditorBuffer::move_cursor(TextCursorDirection direction, bool extend_selection) noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        return initialization_result_;
+    }
+    if (direction != TextCursorDirection::backward && direction != TextCursorDirection::forward) {
+        return TextEditResult::invalid_direction;
+    }
+
+    cancel_composition();
+    const auto current_selection = selection();
+    if (current_selection.length > 0 && !extend_selection) {
+        const auto destination = direction == TextCursorDirection::backward
+            ? current_selection.start
+            : current_selection.start + current_selection.length;
+        move_gap(destination);
+        selection_anchor_ = gap_start_;
+        return TextEditResult::complete;
+    }
+
+    auto destination = gap_start_;
+    if (direction == TextCursorDirection::backward && gap_start_ > 0) {
+        --destination;
+        while (destination > 0 &&
+               (static_cast<unsigned char>(byte_at(destination)) & 0xc0U) == 0x80U) {
+            --destination;
+        }
+    } else if (direction == TextCursorDirection::forward && gap_start_ < size()) {
+        ++destination;
+        while (destination < size() &&
+               (static_cast<unsigned char>(byte_at(destination)) & 0xc0U) == 0x80U) {
+            ++destination;
+        }
+    }
+
+    move_gap(destination);
+    if (!extend_selection) {
+        selection_anchor_ = gap_start_;
+    }
+    return TextEditResult::complete;
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_line_start(bool extend_selection) noexcept {
+    return set_cursor(line_start_at_cursor(), extend_selection);
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_line_end(bool extend_selection) noexcept {
+    return set_cursor(line_end_at_cursor(), extend_selection);
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_visual_line(
+    std::span<const TextCaretStop> caret_stops,
+    float preferred_x,
+    std::size_t& selected_stop,
+    bool extend_selection
+) noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        return initialization_result_;
+    }
+    if (caret_stops.empty() || !std::isfinite(preferred_x)) {
+        return TextEditResult::invalid_state;
+    }
+
+    auto closest_stop_index = std::size_t{0};
+    auto closest_distance = 0.0;
+    for (std::size_t index = 0; index < caret_stops.size(); ++index) {
+        const auto& stop = caret_stops[index];
+        if (!std::isfinite(stop.x)) {
+            return TextEditResult::invalid_state;
+        }
+        if (stop.byte_offset > size() || !is_boundary(stop.byte_offset)) {
+            return TextEditResult::invalid_cursor;
+        }
+
+        const auto distance =
+            std::abs(static_cast<double>(stop.x) - static_cast<double>(preferred_x));
+        if (index == 0 || distance < closest_distance) {
+            closest_stop_index = index;
+            closest_distance = distance;
+        }
+    }
+
+    const auto result = set_cursor(caret_stops[closest_stop_index].byte_offset, extend_selection);
+    if (result != TextEditResult::complete) {
+        return result;
+    }
+
+    selected_stop = closest_stop_index;
+    return TextEditResult::complete;
+}
+
+TextEditResult TextEditorBuffer::move_cursor_to_visual_edge(
+    std::span<const TextCaretStop> caret_stops,
+    TextVisualEdge edge,
+    std::size_t& selected_stop,
+    bool extend_selection
+) noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        return initialization_result_;
+    }
+    if (edge != TextVisualEdge::left && edge != TextVisualEdge::right) {
+        return TextEditResult::invalid_direction;
+    }
+    if (caret_stops.empty()) {
+        return TextEditResult::invalid_state;
+    }
+
+    const auto stop_index = edge == TextVisualEdge::left ? std::size_t{0} : caret_stops.size() - 1;
+    const auto& stop = caret_stops[stop_index];
+    if (!std::isfinite(stop.x)) {
+        return TextEditResult::invalid_state;
+    }
+    if (stop.byte_offset > size() || !is_boundary(stop.byte_offset)) {
+        return TextEditResult::invalid_cursor;
+    }
+
+    const auto result = set_cursor(stop.byte_offset, extend_selection);
+    if (result != TextEditResult::complete) {
+        return result;
+    }
+
+    selected_stop = stop_index;
+    return TextEditResult::complete;
+}
+
+TextEditResult TextEditorBuffer::move_cursor_vertically(
+    std::span<const TextVisualLine> lines,
+    TextVisualPosition current_position,
+    TextVerticalDirection direction,
+    float preferred_x,
+    TextVisualPosition& next_position,
+    bool extend_selection
+) noexcept {
+    if (initialization_result_ != TextEditResult::complete) {
+        return initialization_result_;
+    }
+    if (direction != TextVerticalDirection::up && direction != TextVerticalDirection::down) {
+        return TextEditResult::invalid_direction;
+    }
+    if (!std::isfinite(preferred_x) || current_position.line_index >= lines.size()) {
+        return TextEditResult::invalid_state;
+    }
+
+    const auto current_stops = lines[current_position.line_index].caret_stops;
+    if (current_position.stop_index >= current_stops.size() ||
+        current_stops[current_position.stop_index].byte_offset != cursor()) {
+        return TextEditResult::invalid_state;
+    }
+
+    auto target_line_index = current_position.line_index;
+    if (direction == TextVerticalDirection::up) {
+        if (target_line_index == 0) {
+            return TextEditResult::complete;
+        }
+        --target_line_index;
+    } else {
+        if (target_line_index >= lines.size() - 1) {
+            return TextEditResult::complete;
+        }
+        ++target_line_index;
+    }
+
+    auto target_stop_index = std::size_t{0};
+    const auto result = move_cursor_to_visual_line(
+        lines[target_line_index].caret_stops,
+        preferred_x,
+        target_stop_index,
+        extend_selection
+    );
+    if (result != TextEditResult::complete) {
+        return result;
+    }
+
+    next_position = {
+        .line_index = target_line_index,
+        .stop_index = target_stop_index,
+    };
+    return TextEditResult::complete;
 }
 
 std::size_t TextEditorBuffer::line_break_length_at(std::size_t byte_offset) const noexcept {
@@ -622,96 +730,6 @@ std::size_t TextEditorBuffer::line_end_at_cursor() const noexcept {
         line_end += first <= 0xdfU ? 2 : first <= 0xefU ? 3 : 4;
     }
     return line_end;
-}
-
-void TextEditorBuffer::move_gap(std::size_t byte_offset) noexcept {
-    if (byte_offset < gap_start_) {
-        const auto moved_length = gap_start_ - byte_offset;
-        std::memmove(
-            storage_.data() + gap_end_ - moved_length,
-            storage_.data() + byte_offset,
-            moved_length
-        );
-        gap_start_ -= moved_length;
-        gap_end_ -= moved_length;
-        return;
-    }
-    if (byte_offset > gap_start_) {
-        const auto moved_length = byte_offset - gap_start_;
-        std::memmove(storage_.data() + gap_start_, storage_.data() + gap_end_, moved_length);
-        gap_start_ += moved_length;
-        gap_end_ += moved_length;
-    }
-}
-
-TextEditResult TextEditorBuffer::replace_selection(std::string_view text) noexcept {
-    const auto current_selection = selection();
-    const auto remaining_length = size() - current_selection.length;
-    const auto available_capacity = storage_.size() - remaining_length;
-    if (text.size() > available_capacity) {
-        return TextEditResult::insufficient_capacity;
-    }
-    if (current_selection.length == 0 && text.empty()) {
-        cancel_composition();
-        return TextEditResult::complete;
-    }
-
-    const auto history_result = TextEditorHistory::record(
-        *this,
-        current_selection.start,
-        current_selection.start + current_selection.length,
-        text
-    );
-    if (history_result != TextEditResult::complete) {
-        return history_result;
-    }
-
-    cancel_composition();
-    replace_range(
-        current_selection.start,
-        current_selection.start + current_selection.length,
-        text
-    );
-    return TextEditResult::complete;
-}
-
-void TextEditorBuffer::replace_range(
-    std::size_t start,
-    std::size_t end,
-    std::string_view text
-) noexcept {
-    move_gap(start);
-    gap_end_ += end - start;
-    if (!text.empty()) {
-        std::memcpy(storage_.data() + gap_start_, text.data(), text.size());
-        gap_start_ += text.size();
-    }
-    selection_anchor_ = gap_start_;
-}
-
-void TextEditorBuffer::clear_composition() noexcept {
-    composition_storage_ = {};
-    composition_length_ = 0;
-    composition_cursor_ = 0;
-    composition_selection_start_ = 0;
-    composition_selection_length_ = 0;
-    composition_replacement_ = {};
-    original_cursor_ = 0;
-    original_selection_anchor_ = 0;
-    composition_active_ = false;
-}
-
-TextEditResult TextEditorBuffer::erase_range(std::size_t start, std::size_t end) noexcept {
-    const auto history_result = TextEditorHistory::record(*this, start, end, {});
-    if (history_result != TextEditResult::complete) {
-        return history_result;
-    }
-
-    cancel_composition();
-    move_gap(start);
-    gap_end_ += end - start;
-    selection_anchor_ = gap_start_;
-    return TextEditResult::complete;
 }
 
 }

@@ -27,6 +27,16 @@ enum class TextCursorDirection : std::uint8_t {
     forward,
 };
 
+enum class TextVerticalDirection : std::uint8_t {
+    up,
+    down,
+};
+
+enum class TextVisualEdge : std::uint8_t {
+    left,
+    right,
+};
+
 struct TextSelection {
     std::size_t start{};
     std::size_t length{};
@@ -35,6 +45,15 @@ struct TextSelection {
 struct TextCaretStop {
     std::size_t byte_offset{};
     float x{};
+};
+
+struct TextVisualLine {
+    std::span<const TextCaretStop> caret_stops;
+};
+
+struct TextVisualPosition {
+    std::size_t line_index{};
+    std::size_t stop_index{};
 };
 
 struct TextComposition {
@@ -80,6 +99,20 @@ class TextEditorBuffer {
         std::span<const TextCaretStop> caret_stops,
         float preferred_x,
         std::size_t& selected_stop,
+        bool extend_selection = false
+    ) noexcept;
+    TextEditResult move_cursor_to_visual_edge(
+        std::span<const TextCaretStop> caret_stops,
+        TextVisualEdge edge,
+        std::size_t& selected_stop,
+        bool extend_selection = false
+    ) noexcept;
+    TextEditResult move_cursor_vertically(
+        std::span<const TextVisualLine> lines,
+        TextVisualPosition current_position,
+        TextVerticalDirection direction,
+        float preferred_x,
+        TextVisualPosition& next_position,
         bool extend_selection = false
     ) noexcept;
     void select_all() noexcept;

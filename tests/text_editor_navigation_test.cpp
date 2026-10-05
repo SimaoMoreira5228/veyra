@@ -238,12 +238,214 @@ void check_visual_line_navigation() {
     );
 }
 
+void check_vertical_line_navigation() {
+    std::array<char, 16> storage{};
+    veyra::TextEditorBuffer buffer(storage, "one\ntwo");
+    const std::array first_line_stops{
+        veyra::TextCaretStop{.byte_offset = 0, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 1, .x = 10.0F},
+        veyra::TextCaretStop{.byte_offset = 2, .x = 20.0F},
+        veyra::TextCaretStop{.byte_offset = 3, .x = 30.0F},
+    };
+    const std::array second_line_stops{
+        veyra::TextCaretStop{.byte_offset = 4, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 6, .x = 10.0F},
+        veyra::TextCaretStop{.byte_offset = 6, .x = 20.0F},
+        veyra::TextCaretStop{.byte_offset = 7, .x = 30.0F},
+    };
+    const std::array lines{
+        veyra::TextVisualLine{.caret_stops = first_line_stops},
+        veyra::TextVisualLine{.caret_stops = second_line_stops},
+    };
+    require(
+        buffer.set_cursor(2) == veyra::TextEditResult::complete,
+        "vertical cursor starts on line one"
+    );
+
+    auto position = veyra::TextVisualPosition{.line_index = 0, .stop_index = 2};
+    auto next_position = veyra::TextVisualPosition{.line_index = 99, .stop_index = 99};
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            position,
+            veyra::TextVerticalDirection::down,
+            19.0F,
+            next_position,
+            true
+        ) == veyra::TextEditResult::complete,
+        "Down moves to the nearest caret on the next visual line"
+    );
+    require(
+        next_position.line_index == 1 && next_position.stop_index == 2 && buffer.cursor() == 6,
+        "Down reports the selected visual position, including duplicate offsets"
+    );
+    require(
+        buffer.selection().start == 2 && buffer.selection().length == 4,
+        "Down can extend the current selection"
+    );
+
+    position = next_position;
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            position,
+            veyra::TextVerticalDirection::up,
+            19.0F,
+            next_position
+        ) == veyra::TextEditResult::complete,
+        "Up returns to the preceding visual line"
+    );
+    require(
+        next_position.line_index == 0 && next_position.stop_index == 2 && buffer.cursor() == 2,
+        "Up keeps the preferred x position"
+    );
+
+    const auto cursor_before_boundary = buffer.cursor();
+    const auto position_before_boundary = position;
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            next_position,
+            veyra::TextVerticalDirection::up,
+            19.0F,
+            position
+        ) == veyra::TextEditResult::complete,
+        "Up at the first visual line succeeds without moving"
+    );
+    require(buffer.cursor() == cursor_before_boundary, "a visual line boundary keeps the cursor");
+    require(
+        position.line_index == position_before_boundary.line_index &&
+            position.stop_index == position_before_boundary.stop_index,
+        "a visual line boundary leaves the output position alone"
+    );
+
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            next_position,
+            veyra::TextVerticalDirection::down,
+            19.0F,
+            position
+        ) == veyra::TextEditResult::complete,
+        "Down moves from the first visual line"
+    );
+    require(buffer.cursor() == 6, "Down reaches the last visual line");
+    const auto cursor_before_last_line = buffer.cursor();
+    const auto position_before_last_line = next_position;
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            position,
+            veyra::TextVerticalDirection::down,
+            19.0F,
+            next_position
+        ) == veyra::TextEditResult::complete,
+        "Down at the last visual line succeeds without moving"
+    );
+    require(buffer.cursor() == cursor_before_last_line, "the last visual line keeps the cursor");
+    require(
+        next_position.line_index == position_before_last_line.line_index &&
+            next_position.stop_index == position_before_last_line.stop_index,
+        "the last visual line leaves the output position alone"
+    );
+
+    require(
+        buffer.move_cursor_vertically(
+            lines,
+            {.line_index = 0, .stop_index = 2},
+            veyra::TextVerticalDirection::down,
+            19.0F,
+            position
+        ) == veyra::TextEditResult::invalid_state,
+        "vertical movement rejects a stale visual position"
+    );
+    require(
+        buffer.cursor() == cursor_before_last_line,
+        "stale visual positions leave the cursor alone"
+    );
+}
+
+void check_visual_edge_navigation() {
+    std::array<char, 16> storage{};
+    veyra::TextEditorBuffer buffer(storage, "word");
+    const std::array caret_stops{
+        veyra::TextCaretStop{.byte_offset = 0, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 1, .x = 12.0F},
+        veyra::TextCaretStop{.byte_offset = 2, .x = 21.0F},
+        veyra::TextCaretStop{.byte_offset = 3, .x = 31.0F},
+        veyra::TextCaretStop{.byte_offset = 4, .x = 42.0F},
+    };
+    auto selected_stop = std::size_t{99};
+
+    require(
+        buffer.set_cursor(2) == veyra::TextEditResult::complete,
+        "visual edge navigation starts inside the line"
+    );
+    require(
+        buffer.move_cursor_to_visual_edge(
+            caret_stops,
+            veyra::TextVisualEdge::right,
+            selected_stop
+        ) == veyra::TextEditResult::complete,
+        "visual edge movement reaches the rightmost caret stop"
+    );
+    require(buffer.cursor() == 4 && selected_stop == 4, "right edge reports its caret stop");
+    require(
+        buffer.move_cursor_to_visual_edge(
+            caret_stops,
+            veyra::TextVisualEdge::left,
+            selected_stop
+        ) == veyra::TextEditResult::complete,
+        "visual edge movement reaches the leftmost caret stop"
+    );
+    require(buffer.cursor() == 0 && selected_stop == 0, "left edge reports its caret stop");
+
+    require(
+        buffer.move_cursor_to_visual_edge(
+            caret_stops,
+            veyra::TextVisualEdge::right,
+            selected_stop,
+            true
+        ) == veyra::TextEditResult::complete,
+        "visual edge movement can extend a selection"
+    );
+    require(
+        buffer.selection().start == 0 && buffer.selection().length == 4,
+        "visual edge movement selects through the right edge"
+    );
+
+    const std::array invalid_edge{
+        veyra::TextCaretStop{.byte_offset = 99, .x = 0.0F},
+    };
+    selected_stop = 99;
+    require(
+        buffer.move_cursor_to_visual_edge(
+            invalid_edge,
+            veyra::TextVisualEdge::left,
+            selected_stop
+        ) == veyra::TextEditResult::invalid_cursor,
+        "visual edge navigation rejects a caret outside the buffer"
+    );
+    require(buffer.cursor() == 4, "invalid visual edge geometry leaves the cursor alone");
+    require(selected_stop == 99, "invalid visual edge geometry leaves its output alone");
+
+    selected_stop = 99;
+    require(
+        buffer.move_cursor_to_visual_edge({}, veyra::TextVisualEdge::left, selected_stop) ==
+            veyra::TextEditResult::invalid_state,
+        "visual edge navigation rejects an empty line"
+    );
+    require(selected_stop == 99, "failed visual edge navigation leaves its output alone");
+}
+
 }
 
 int main() {
     try {
         check_line_boundary_navigation();
         check_visual_line_navigation();
+        check_vertical_line_navigation();
+        check_visual_edge_navigation();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

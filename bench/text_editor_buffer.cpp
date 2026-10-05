@@ -1,6 +1,7 @@
 #include "veyra/text/text_editor_buffer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <iostream>
@@ -168,39 +169,82 @@ int run(const Options& options) {
         for (std::size_t index = 79; index < multiline_text.size(); index += 80) {
             multiline_text[index] = '\n';
         }
-        const auto middle = options.bytes / 2;
-        const auto line_start = middle - middle % 80;
-        const auto line_end = std::min(line_start + 79, options.bytes);
-        std::vector<veyra::TextCaretStop> caret_stops;
-        caret_stops.reserve(line_end - line_start + 1);
-        for (auto offset = line_start; offset <= line_end; ++offset) {
-            caret_stops.push_back({
-                .byte_offset = offset,
-                .x = static_cast<float>(offset - line_start),
-            });
-        }
-
-        veyra::TextEditorBuffer editor(
-            storage,
-            std::string_view(multiline_text.data(), multiline_text.size())
-        );
-        if (editor.initialization_result() != veyra::TextEditResult::complete ||
-            editor.set_cursor(line_start) != veyra::TextEditResult::complete) {
-            throw std::runtime_error("visual line buffer setup failed");
-        }
-        auto selected_stop = std::size_t{0};
-        run_scenario(
-            "visual_line_nearest_caret",
-            editor,
-            options,
-            timings,
-            [&editor, &caret_stops, &selected_stop]() {
-                if (editor.move_cursor_to_visual_line(caret_stops, 40.0F, selected_stop) !=
-                    veyra::TextEditResult::complete) {
-                    throw std::runtime_error("visual line navigation failed");
-                }
+        if (options.bytes > 80) {
+            const auto first_line_end = std::min(std::size_t{79}, options.bytes);
+            const auto second_line_end = std::min(std::size_t{159}, options.bytes);
+            std::vector<veyra::TextCaretStop> first_line_stops;
+            std::vector<veyra::TextCaretStop> second_line_stops;
+            first_line_stops.reserve(first_line_end + 1);
+            second_line_stops.reserve(second_line_end - 79);
+            for (std::size_t offset = 0; offset <= first_line_end; ++offset) {
+                first_line_stops.push_back({
+                    .byte_offset = offset,
+                    .x = static_cast<float>(offset),
+                });
             }
-        );
+            for (std::size_t offset = 80; offset <= second_line_end; ++offset) {
+                second_line_stops.push_back({
+                    .byte_offset = offset,
+                    .x = static_cast<float>(offset - 80),
+                });
+            }
+
+            const std::array lines{
+                veyra::TextVisualLine{.caret_stops = first_line_stops},
+                veyra::TextVisualLine{.caret_stops = second_line_stops},
+            };
+
+            veyra::TextEditorBuffer edge_editor(
+                storage,
+                std::string_view(multiline_text.data(), multiline_text.size())
+            );
+            if (edge_editor.initialization_result() != veyra::TextEditResult::complete ||
+                edge_editor.set_cursor(40) != veyra::TextEditResult::complete) {
+                throw std::runtime_error("visual edge buffer setup failed");
+            }
+            auto selected_stop = std::size_t{40};
+            run_scenario(
+                "visual_line_edge_navigation",
+                edge_editor,
+                options,
+                timings,
+                [&edge_editor, &first_line_stops, &selected_stop]() {
+                    const auto edge = selected_stop == 0 ? veyra::TextVisualEdge::right
+                                                         : veyra::TextVisualEdge::left;
+                    if (edge_editor
+                            .move_cursor_to_visual_edge(first_line_stops, edge, selected_stop) !=
+                        veyra::TextEditResult::complete) {
+                        throw std::runtime_error("visual line edge navigation failed");
+                    }
+                }
+            );
+
+            veyra::TextEditorBuffer editor(
+                storage,
+                std::string_view(multiline_text.data(), multiline_text.size())
+            );
+            if (editor.initialization_result() != veyra::TextEditResult::complete ||
+                editor.set_cursor(40) != veyra::TextEditResult::complete) {
+                throw std::runtime_error("visual line buffer setup failed");
+            }
+            auto position = veyra::TextVisualPosition{.line_index = 0, .stop_index = 40};
+            run_scenario(
+                "vertical_visual_line_navigation",
+                editor,
+                options,
+                timings,
+                [&editor, &lines, &position]() {
+                    const auto direction = position.line_index == 0
+                        ? veyra::TextVerticalDirection::down
+                        : veyra::TextVerticalDirection::up;
+                    if (editor
+                            .move_cursor_vertically(lines, position, direction, 40.0F, position) !=
+                        veyra::TextEditResult::complete) {
+                        throw std::runtime_error("vertical line navigation failed");
+                    }
+                }
+            );
+        }
     }
     return 0;
 }

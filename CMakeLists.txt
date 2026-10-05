@@ -17,6 +17,7 @@ if(NOT VEYRA_PARADIGM IN_LIST valid_paradigms)
 endif()
 
 add_library(veyra STATIC
+ src/files/file_list.cpp
  src/media/animation_frame_cache.cpp
  src/media/animation_timeline.cpp
  src/core/focus_navigation.cpp
@@ -35,6 +36,7 @@ add_library(veyra STATIC
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/text_edit_history.cpp
+ src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
  src/engines.cpp
@@ -233,6 +235,10 @@ add_executable(veyra_engine_test tests/engine_test.cpp)
 target_link_libraries(veyra_engine_test PRIVATE veyra)
 add_test(NAME engine_behavior COMMAND veyra_engine_test)
 
+add_executable(veyra_file_list_test tests/file_list_test.cpp)
+target_link_libraries(veyra_file_list_test PRIVATE veyra)
+add_test(NAME file_list_behavior COMMAND veyra_file_list_test)
+
 add_executable(veyra_node_id_pool_test tests/node_id_pool_test.cpp)
 target_link_libraries(veyra_node_id_pool_test PRIVATE veyra)
 add_test(NAME node_id_pool_behavior COMMAND veyra_node_id_pool_test)
@@ -352,6 +358,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_text_editor_buffer_bench PRIVATE veyra)
  add_executable(veyra_animation_timeline_bench bench/animation_timeline.cpp)
  target_link_libraries(veyra_animation_timeline_bench PRIVATE veyra)
+ add_executable(veyra_file_list_bench bench/file_list.cpp)
+ target_link_libraries(veyra_file_list_bench PRIVATE veyra)
  target_compile_definitions(veyra_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
@@ -413,6 +421,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_animation_timeline_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_file_list_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -500,4 +513,5 @@ if(VEYRA_BUILD_BENCH)
   NAME text_editor_buffer_benchmark_smoke
   COMMAND veyra_text_editor_buffer_bench --bytes 1024 --queries 100 --warmup 10
  )
+ add_test(NAME file_list_benchmark_smoke COMMAND veyra_file_list_bench)
 endif()
