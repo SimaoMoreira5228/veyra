@@ -2,6 +2,7 @@
 
 #include <array>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -160,6 +161,87 @@ void check_utf8_name_filter() {
         "UTF-8 filter succeeds"
     );
     require(count == 1 && order[0] == 0, "UTF-8 substring matches the file name");
+}
+
+void check_row_ids_survive_refreshes() {
+    const auto previous_entries = std::array{
+        veyra::FileListEntry{.id = 7, .name = u8"alpha"},
+        veyra::FileListEntry{.id = 11, .name = u8"beta"},
+        veyra::FileListEntry{.id = 13, .name = u8"delta"},
+    };
+    auto refreshed_entries = std::array{
+        veyra::FileListEntry{.name = u8"beta"},
+        veyra::FileListEntry{.name = u8"delta"},
+        veyra::FileListEntry{.name = u8"epsilon"},
+        veyra::FileListEntry{.name = u8"gamma"},
+    };
+    auto next_id = std::uint64_t{20};
+
+    require(
+        veyra::reconcile_file_list_row_ids(previous_entries, refreshed_entries, next_id) ==
+            veyra::FileListRowIdResult::complete,
+        "refresh maps existing names and assigns IDs to new rows"
+    );
+    require(
+        std::array<std::uint64_t, 4>{
+            refreshed_entries[0].id,
+            refreshed_entries[1].id,
+            refreshed_entries[2].id,
+            refreshed_entries[3].id,
+        } == std::array<std::uint64_t, 4>{11, 13, 20, 21},
+        "same-name rows keep their IDs while new names get distinct IDs"
+    );
+    require(next_id == 22, "refresh advances the caller's next row ID");
+}
+
+void check_row_id_reconciliation_failures_preserve_output() {
+    const auto previous_entries = std::array{
+        veyra::FileListEntry{.id = 4, .name = u8"alpha"},
+        veyra::FileListEntry{.id = 9, .name = u8"beta"},
+    };
+    auto next_id = std::uint64_t{10};
+
+    auto unsorted_entries = std::array{
+        veyra::FileListEntry{.id = 91, .name = u8"gamma"},
+        veyra::FileListEntry{.id = 92, .name = u8"beta"},
+    };
+    require(
+        veyra::reconcile_file_list_row_ids(previous_entries, unsorted_entries, next_id) ==
+            veyra::FileListRowIdResult::invalid_order,
+        "unsorted refreshed names are rejected"
+    );
+    require(
+        unsorted_entries[0].id == 91 && unsorted_entries[1].id == 92 && next_id == 10,
+        "bad order preserves refreshed entries and next ID"
+    );
+
+    auto new_entry = std::array{veyra::FileListEntry{.id = 91, .name = u8"gamma"}};
+    next_id = std::numeric_limits<std::uint64_t>::max();
+    require(
+        veyra::reconcile_file_list_row_ids(
+            std::span<const veyra::FileListEntry>{},
+            new_entry,
+            next_id
+        ) == veyra::FileListRowIdResult::ids_exhausted,
+        "row ID exhaustion is reported before the counter can overflow"
+    );
+    require(
+        new_entry[0].id == 91 && next_id == std::numeric_limits<std::uint64_t>::max(),
+        "ID exhaustion preserves refreshed entries and the next ID"
+    );
+
+    const auto zero_id_entry = std::array{veyra::FileListEntry{.name = u8"alpha"}};
+    auto unchanged_entry = std::array{veyra::FileListEntry{.id = 91, .name = u8"alpha"}};
+    next_id = 10;
+    require(
+        veyra::reconcile_file_list_row_ids(zero_id_entry, unchanged_entry, next_id) ==
+            veyra::FileListRowIdResult::invalid_identity,
+        "previous rows need valid IDs"
+    );
+    require(
+        unchanged_entry[0].id == 91 && next_id == 10,
+        "invalid previous identity preserves the refreshed entries"
+    );
 }
 
 void check_capacity_failure_preserves_output() {
@@ -498,6 +580,8 @@ int main() {
         check_directory_grouping_and_stable_sort();
         check_filter_and_sort_direction();
         check_utf8_name_filter();
+        check_row_ids_survive_refreshes();
+        check_row_id_reconciliation_failures_preserve_output();
         check_capacity_failure_preserves_output();
         check_selection_follows_ids_across_views();
         check_selection_failures_preserve_state();

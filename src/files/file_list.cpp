@@ -1,6 +1,7 @@
 #include "veyra/files/file_list.hpp"
 
 #include <algorithm>
+#include <limits>
 
 namespace veyra {
 namespace {
@@ -108,6 +109,91 @@ FileListResult build_file_list_order(
     }
 
     return FileListResult::complete;
+}
+
+FileListRowIdResult reconcile_file_list_row_ids(
+    std::span<const FileListEntry> previous_entries_by_name,
+    std::span<FileListEntry> refreshed_entries_by_name,
+    std::uint64_t& next_id
+) noexcept {
+    if (next_id == 0) {
+        return FileListRowIdResult::ids_exhausted;
+    }
+
+    auto maximum_previous_id = std::uint64_t{0};
+    for (std::size_t index = 0; index < previous_entries_by_name.size(); ++index) {
+        const auto& entry = previous_entries_by_name[index];
+        if (entry.id == 0) {
+            return FileListRowIdResult::invalid_identity;
+        }
+        maximum_previous_id = std::max(maximum_previous_id, entry.id);
+        if (index > 0 && previous_entries_by_name[index - 1].name >= entry.name) {
+            return FileListRowIdResult::invalid_order;
+        }
+    }
+    if (next_id <= maximum_previous_id) {
+        return FileListRowIdResult::invalid_identity;
+    }
+    for (std::size_t index = 1; index < refreshed_entries_by_name.size(); ++index) {
+        if (refreshed_entries_by_name[index - 1].name >= refreshed_entries_by_name[index].name) {
+            return FileListRowIdResult::invalid_order;
+        }
+    }
+
+    auto previous_index = std::size_t{0};
+    auto refreshed_index = std::size_t{0};
+    auto new_id_count = std::size_t{0};
+    while (previous_index < previous_entries_by_name.size() &&
+           refreshed_index < refreshed_entries_by_name.size()) {
+        const auto comparison = previous_entries_by_name[previous_index].name.compare(
+            refreshed_entries_by_name[refreshed_index].name
+        );
+        if (comparison < 0) {
+            ++previous_index;
+        } else if (comparison > 0) {
+            ++new_id_count;
+            ++refreshed_index;
+        } else {
+            ++previous_index;
+            ++refreshed_index;
+        }
+    }
+    new_id_count += refreshed_entries_by_name.size() - refreshed_index;
+
+    const auto maximum_id = std::numeric_limits<std::uint64_t>::max();
+    if (new_id_count > maximum_id - next_id) {
+        return FileListRowIdResult::ids_exhausted;
+    }
+
+    previous_index = 0;
+    refreshed_index = 0;
+    auto assigned_id = next_id;
+    while (previous_index < previous_entries_by_name.size() &&
+           refreshed_index < refreshed_entries_by_name.size()) {
+        const auto comparison = previous_entries_by_name[previous_index].name.compare(
+            refreshed_entries_by_name[refreshed_index].name
+        );
+        if (comparison < 0) {
+            ++previous_index;
+        } else if (comparison > 0) {
+            refreshed_entries_by_name[refreshed_index].id = assigned_id;
+            ++assigned_id;
+            ++refreshed_index;
+        } else {
+            refreshed_entries_by_name[refreshed_index].id =
+                previous_entries_by_name[previous_index].id;
+            ++previous_index;
+            ++refreshed_index;
+        }
+    }
+    while (refreshed_index < refreshed_entries_by_name.size()) {
+        refreshed_entries_by_name[refreshed_index].id = assigned_id;
+        ++assigned_id;
+        ++refreshed_index;
+    }
+
+    next_id = assigned_id;
+    return FileListRowIdResult::complete;
 }
 
 FileListSelection::FileListSelection(std::span<std::uint64_t> storage) noexcept :

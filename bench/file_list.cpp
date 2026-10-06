@@ -101,6 +101,47 @@ int run(const Options& options) {
     }
     std::reverse(entries.begin(), entries.end());
 
+    auto rows_by_name = entries;
+    std::sort(rows_by_name.begin(), rows_by_name.end(), [](const auto& left, const auto& right) {
+        return left.name < right.name;
+    });
+    auto refreshed_entries = std::vector<veyra::FileListEntry>{};
+    refreshed_entries.reserve(options.entries);
+    for (std::size_t index = 0; index < rows_by_name.size(); ++index) {
+        if (index % 10 != 0 || rows_by_name.size() == 1) {
+            refreshed_entries.push_back(rows_by_name[index]);
+        }
+    }
+    const auto added_count = std::max(std::size_t{1}, options.entries / 10);
+    auto added_names = std::vector<std::u8string>{};
+    added_names.reserve(added_count);
+    for (std::size_t index = 0; index < added_count; ++index) {
+        auto index_text = std::array<char, 32>{};
+        const auto [end, error] =
+            std::to_chars(index_text.data(), index_text.data() + index_text.size(), index);
+        if (error != std::errc{}) {
+            throw std::runtime_error("could not format refreshed entry name");
+        }
+        auto name = std::u8string{u8"new-file-"};
+        for (auto digit = index_text.data(); digit != end; ++digit) {
+            name.push_back(static_cast<char8_t>(*digit));
+        }
+        name.append(u8".dat");
+        added_names.push_back(std::move(name));
+    }
+    for (const auto& name : added_names) {
+        refreshed_entries.push_back({
+            .name = name,
+        });
+    }
+    std::sort(
+        refreshed_entries.begin(),
+        refreshed_entries.end(),
+        [](const auto& left, const auto& right) {
+            return left.name < right.name;
+        }
+    );
+
     std::vector<std::size_t> output(options.entries);
     std::vector<double> times(options.queries);
     auto output_count = std::size_t{0};
@@ -248,6 +289,29 @@ int run(const Options& options) {
     }
     std::sort(reconciliation_times.begin(), reconciliation_times.end());
 
+    auto row_id_reconciliation_times = std::vector<double>(options.queries);
+    auto row_id_reconciliation_checksum = std::uint64_t{0};
+    const auto run_row_id_reconciliation = [&]() {
+        auto next_id = static_cast<std::uint64_t>(options.entries + 1);
+        if (veyra::reconcile_file_list_row_ids(rows_by_name, refreshed_entries, next_id) !=
+            veyra::FileListRowIdResult::complete) {
+            throw std::runtime_error("file list row ID reconciliation failed");
+        }
+    };
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_row_id_reconciliation();
+    }
+    for (auto& elapsed : row_id_reconciliation_times) {
+        const auto begin = Clock::now();
+        run_row_id_reconciliation();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        for (const auto& entry : refreshed_entries) {
+            row_id_reconciliation_checksum += entry.id;
+        }
+    }
+    std::sort(row_id_reconciliation_times.begin(), row_id_reconciliation_times.end());
+
     auto thumbnail_slots = std::array<veyra::FileThumbnailCacheSlot, 1024>{};
     auto thumbnail_pixel_storage = std::array<veyra::SoftwarePixel, 1024>{};
     auto thumbnail_cache =
@@ -330,6 +394,14 @@ int run(const Options& options) {
               << percentile(reconciliation_times, 50) << ',' << percentile(reconciliation_times, 95)
               << ',' << percentile(reconciliation_times, 99) << ',' << reconciliation_times.back()
               << ',' << reconciliation_checksum << '\n';
+    std::cout << "file_list_row_id_reconciliation," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
+              << options.warmup << ',' << options.queries << ','
+              << percentile(row_id_reconciliation_times, 50) << ','
+              << percentile(row_id_reconciliation_times, 95) << ','
+              << percentile(row_id_reconciliation_times, 99) << ','
+              << row_id_reconciliation_times.back() << ',' << row_id_reconciliation_checksum
+              << '\n';
     std::cout << "file_thumbnail_cache_lookup," << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
               << options.warmup << ',' << options.queries << ',' << percentile(thumbnail_times, 50)

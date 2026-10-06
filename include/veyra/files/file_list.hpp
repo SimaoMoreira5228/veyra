@@ -48,6 +48,19 @@ FileListResult build_file_list_order(
     std::size_t& output_count
 ) noexcept;
 
+enum class FileListRowIdResult : std::uint8_t {
+    complete,
+    invalid_order,
+    invalid_identity,
+    ids_exhausted,
+};
+
+FileListRowIdResult reconcile_file_list_row_ids(
+    std::span<const FileListEntry> previous_entries_by_name,
+    std::span<FileListEntry> refreshed_entries_by_name,
+    std::uint64_t& next_id
+) noexcept;
+
 struct FileListSelectionModifiers {
     bool toggle{};
     bool extend_range{};
