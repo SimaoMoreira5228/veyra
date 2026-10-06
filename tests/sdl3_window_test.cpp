@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -133,6 +134,23 @@ void check_software_frame_lifecycle() {
         found_quit = found_quit || event.type == SDL_EVENT_QUIT;
     }
     require(found_quit, "window exposes SDL events to the application");
+
+    const auto dropped_path =
+        (std::filesystem::temp_directory_path() / "veyra-dropped-file.txt").u8string();
+    const auto* dropped_path_utf8 = reinterpret_cast<const char*>(dropped_path.c_str());
+    expected_event = {};
+    expected_event.type = SDL_EVENT_DROP_FILE;
+    expected_event.drop.type = SDL_EVENT_DROP_FILE;
+    expected_event.drop.windowID = SDL_GetWindowID(window.native_window());
+    expected_event.drop.data = dropped_path_utf8;
+    require(SDL_PushEvent(&expected_event), "test can queue a file drop event");
+    auto found_drop = false;
+    while (window.poll_event(event)) {
+        if (event.type == SDL_EVENT_DROP_FILE) {
+            found_drop = std::string_view(event.drop.data) == dropped_path_utf8;
+        }
+    }
+    require(found_drop, "window exposes the dropped path to the application");
 
     expected_event = {};
     expected_event.type = SDL_EVENT_QUIT;

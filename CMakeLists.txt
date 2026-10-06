@@ -73,6 +73,10 @@ if(VEYRA_WITH_FILESYSTEM)
  target_link_libraries(veyra_directory_enumerator_test PRIVATE veyra_filesystem)
  add_test(NAME directory_enumerator_behavior COMMAND veyra_directory_enumerator_test)
 
+ add_executable(veyra_directory_history_test tests/directory_history_test.cpp)
+ target_link_libraries(veyra_directory_history_test PRIVATE veyra_filesystem)
+ add_test(NAME directory_history_behavior COMMAND veyra_directory_history_test)
+
  if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(veyra_directory_watcher_test tests/directory_watcher_test.cpp)
   target_link_libraries(veyra_directory_watcher_test PRIVATE veyra_filesystem)

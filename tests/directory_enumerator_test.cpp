@@ -1,5 +1,4 @@
 #include "veyra/files/directory_enumerator.hpp"
-#include "veyra/files/directory_history.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -212,92 +211,12 @@ void check_cancel_and_errors() {
     );
 }
 
-void check_directory_history() {
-    auto fixture = make_fixture();
-    auto storage = std::array<std::filesystem::path, 3>{};
-    auto history = veyra::DirectoryHistory(storage);
-    require(history.current() == nullptr, "empty history has no current directory");
-    require(!history.go_back() && !history.go_forward(), "empty history cannot move");
-    require(
-        history.navigate("relative") == veyra::DirectoryHistoryResult::invalid_path,
-        "history rejects relative paths"
-    );
-
-    const auto root = fixture.path;
-    const auto many = fixture.path / "many";
-    const auto latest = fixture.path / "latest";
-    const auto folder = fixture.path / "many" / "folder";
-    require(
-        history.navigate(root) == veyra::DirectoryHistoryResult::complete,
-        "history accepts an absolute path"
-    );
-    require(
-        history.navigate(many) == veyra::DirectoryHistoryResult::complete,
-        "history records navigation"
-    );
-    require(
-        history.navigate(latest) == veyra::DirectoryHistoryResult::complete,
-        "history records later navigation"
-    );
-    require(history.go_back() && *history.current() == many, "back returns to the prior path");
-    require(
-        history.navigate(folder) == veyra::DirectoryHistoryResult::complete,
-        "new navigation branches from the current path"
-    );
-    require(!history.go_forward(), "new navigation drops the old forward path");
-
-    require(history.go_back() && *history.current() == many, "back follows the new branch");
-    require(history.go_back() && *history.current() == root, "back reaches the oldest path");
-    require(!history.go_back(), "back stops at the oldest retained path");
-    require(history.go_forward() && *history.current() == many, "forward advances the path");
-    require(
-        history.go_forward() && *history.current() == folder,
-        "forward reaches the latest path"
-    );
-
-    require(
-        history.navigate(latest) == veyra::DirectoryHistoryResult::complete,
-        "full history accepts a new path"
-    );
-    require(
-        history.go_back() && *history.current() == folder,
-        "full history evicts its oldest path"
-    );
-    require(history.go_back() && *history.current() == many, "retained paths keep their order");
-    require(!history.go_back(), "evicted path is no longer reachable");
-
-    history.clear();
-    require(history.current() == nullptr, "clear forgets every path");
-
-    auto no_storage = veyra::DirectoryHistory(std::span<std::filesystem::path>{});
-    require(
-        no_storage.navigate(root) == veyra::DirectoryHistoryResult::insufficient_storage,
-        "history reports missing caller storage"
-    );
-
-    auto single_path_storage = std::array<std::filesystem::path, 1>{};
-    auto single_path_history = veyra::DirectoryHistory(single_path_storage);
-    require(
-        single_path_history.navigate(root) == veyra::DirectoryHistoryResult::complete,
-        "one-slot history accepts its first path"
-    );
-    require(
-        single_path_history.navigate(many) == veyra::DirectoryHistoryResult::complete,
-        "one-slot history replaces its oldest path"
-    );
-    require(
-        *single_path_history.current() == many && !single_path_history.go_back(),
-        "one-slot history retains only its latest path"
-    );
-}
-
 }
 
 int main() {
     try {
         check_streaming_and_supersession();
         check_cancel_and_errors();
-        check_directory_history();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
