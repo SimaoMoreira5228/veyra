@@ -72,11 +72,48 @@ void check_identity_and_freshness() {
     require(!cache.find(changed_identity).has_value(), "different volumes miss the image");
 }
 
+void check_least_recently_used_eviction() {
+    auto slots = std::array<veyra::FileThumbnailCacheSlot, 4>{};
+    auto pixel_storage = std::array<veyra::SoftwarePixel, 4>{};
+    auto cache = veyra::FileThumbnailCache(slots, pixel_storage, 1, 1);
+    auto keys = std::array<veyra::FileThumbnailKey, 5>{};
+    auto pixel = veyra::SoftwarePixel{.alpha = 255};
+    const auto image = veyra::FileThumbnail{
+        .image = {
+            .width = 1,
+            .height = 1,
+            .stride = 1,
+            .pixels = std::span<const veyra::SoftwarePixel>{&pixel, 1},
+        },
+    };
+
+    for (std::size_t index = 0; index < slots.size(); ++index) {
+        keys[index].file_id = veyra::FileId{1, index + 1};
+        require(
+            cache.insert(keys[index], image) == veyra::FileThumbnailCacheResult::inserted,
+            "colliding thumbnails enter the cache"
+        );
+    }
+
+    require(cache.find(keys[0]).has_value(), "a hit refreshes the thumbnail's recency");
+    keys[4].file_id = veyra::FileId{1, 5};
+    require(
+        cache.insert(keys[4], image) == veyra::FileThumbnailCacheResult::inserted,
+        "a colliding thumbnail replaces one cached image"
+    );
+    require(!cache.find(keys[1]).has_value(), "least recent thumbnail is evicted");
+    require(cache.find(keys[0]).has_value(), "recent thumbnail survives eviction");
+    require(cache.find(keys[2]).has_value(), "unexpired thumbnail remains available");
+    require(cache.find(keys[3]).has_value(), "newest thumbnail remains available");
+    require(cache.find(keys[4]).has_value(), "replacement thumbnail is available");
+}
+
 }
 
 int main() {
     try {
         check_identity_and_freshness();
+        check_least_recently_used_eviction();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

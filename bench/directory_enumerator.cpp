@@ -148,7 +148,7 @@ std::uint64_t scan(
                 throw std::runtime_error(entry.metadata_error.message());
             }
             ++entries;
-            for (const auto byte : entry.name) {
+            for (const auto byte : batch.name(entry)) {
                 checksum ^= static_cast<unsigned char>(byte);
                 checksum *= 1099511628211ULL;
             }

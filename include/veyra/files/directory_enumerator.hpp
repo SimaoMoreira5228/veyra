@@ -12,7 +12,7 @@
 #include <mutex>
 #include <optional>
 #include <stop_token>
-#include <string>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <vector>
@@ -20,10 +20,12 @@
 namespace veyra {
 
 struct DirectoryEntry {
+    std::size_t name_offset{};
+    std::size_t name_length{};
     FileId id;
-    std::u8string name;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};
+    bool is_symlink{};
     bool is_directory{};
     std::error_code metadata_error;
 };
@@ -38,7 +40,10 @@ struct DirectoryEnumerationBatch {
     std::uint64_t generation{};
     DirectoryEnumerationEvent event{DirectoryEnumerationEvent::entries};
     std::vector<DirectoryEntry> entries;
+    std::vector<char8_t> name_storage;
     std::error_code error;
+
+    std::u8string_view name(const DirectoryEntry& entry) const noexcept;
 };
 
 class DirectoryEnumerator {

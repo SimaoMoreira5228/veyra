@@ -87,6 +87,7 @@ TemporaryDirectory make_fixture() {
     auto result = TemporaryDirectory(std::move(root));
     std::filesystem::create_directories(result.path / "many");
     std::filesystem::create_directories(result.path / "latest");
+    std::filesystem::create_directories(result.path / "links" / "target-folder");
     std::filesystem::create_directory(result.path / "many" / "folder");
 
     for (auto index = 0; index < 260; ++index) {
@@ -99,6 +100,26 @@ TemporaryDirectory make_fixture() {
     require(latest.good(), "latest fixture entry is created");
     std::ofstream unicode(result.path / "latest" / std::filesystem::path{u8"café.txt"});
     require(unicode.good(), "UTF-8 fixture entry is created");
+    std::ofstream long_name(result.path / "latest" / "very-long-file-name-with-several-parts.txt");
+    require(long_name.good(), "long fixture entry is created");
+
+#ifdef __linux__
+    std::ofstream link_target(result.path / "links" / "target.txt");
+    link_target << "target";
+    require(link_target.good(), "symlink target is created");
+    std::filesystem::create_symlink(
+        result.path / "links" / "target.txt",
+        result.path / "links" / "file-link.txt"
+    );
+    std::filesystem::create_directory_symlink(
+        result.path / "links" / "target-folder",
+        result.path / "links" / "folder-link"
+    );
+    std::filesystem::create_symlink(
+        result.path / "links" / "missing.txt",
+        result.path / "links" / "broken-link"
+    );
+#endif
     return result;
 }
 
@@ -116,22 +137,31 @@ void check_streaming_and_supersession() {
         latest_batches[0].event == veyra::DirectoryEnumerationEvent::entries,
         "entries arrive first"
     );
-    require(latest_batches[0].entries.size() == 2, "the newest directory has two entries");
-    const auto has_only = std::ranges::any_of(latest_batches[0].entries, [](const auto& entry) {
-        return entry.name == u8"only.txt" && entry.size_bytes == 5;
-    });
-    const auto has_unicode = std::ranges::any_of(latest_batches[0].entries, [](const auto& entry) {
-        return entry.name == u8"café.txt";
-    });
+    const auto& latest_batch = latest_batches[0];
+    require(latest_batch.entries.size() == 3, "the newest directory has three entries");
+    const auto has_only =
+        std::ranges::any_of(latest_batch.entries, [&latest_batch](const auto& entry) {
+            return latest_batch.name(entry) == u8"only.txt" && entry.size_bytes == 5;
+        });
+    const auto has_unicode =
+        std::ranges::any_of(latest_batch.entries, [&latest_batch](const auto& entry) {
+            return latest_batch.name(entry) == u8"café.txt";
+        });
+    const auto has_long_name =
+        std::ranges::any_of(latest_batch.entries, [&latest_batch](const auto& entry) {
+            return latest_batch.name(entry) == u8"very-long-file-name-with-several-parts.txt";
+        });
     require(has_only, "file names and sizes are reported");
     require(has_unicode, "non-ASCII entry names use UTF-8");
-    const auto only_entry = std::ranges::find_if(latest_batches[0].entries, [](const auto& entry) {
-        return entry.name == u8"only.txt";
-    });
-    require(only_entry != latest_batches[0].entries.end(), "the file entry is available");
+    require(has_long_name, "long entry names stay intact in shared storage");
+    const auto only_entry =
+        std::ranges::find_if(latest_batch.entries, [&latest_batch](const auto& entry) {
+            return latest_batch.name(entry) == u8"only.txt";
+        });
+    require(only_entry != latest_batch.entries.end(), "the file entry is available");
     require(
         std::ranges::all_of(
-            latest_batches[0].entries,
+            latest_batch.entries,
             [](const auto& entry) {
                 return !entry.metadata_error;
             }
@@ -145,11 +175,12 @@ void check_streaming_and_supersession() {
 
     const auto repeated_generation = enumerator.start(fixture.path / "latest");
     const auto repeated_batches = collect(enumerator, repeated_generation);
+    const auto& repeated_batch = repeated_batches[0];
     const auto repeated_only =
-        std::ranges::find_if(repeated_batches[0].entries, [](const auto& entry) {
-            return entry.name == u8"only.txt";
+        std::ranges::find_if(repeated_batch.entries, [&repeated_batch](const auto& entry) {
+            return repeated_batch.name(entry) == u8"only.txt";
         });
-    require(repeated_only != repeated_batches[0].entries.end(), "the refreshed file is available");
+    require(repeated_only != repeated_batch.entries.end(), "the refreshed file is available");
     if (only_entry->id.valid()) {
         require(repeated_only->id == only_entry->id, "file identity survives a directory refresh");
     } else {
@@ -171,8 +202,9 @@ void check_streaming_and_supersession() {
             "entry batches stay within the configured bound"
         );
         for (const auto& entry : batch.entries) {
-            names.emplace(entry.name);
-            has_directory = has_directory || (entry.name == u8"folder" && entry.is_directory);
+            names.emplace(batch.name(entry));
+            has_directory =
+                has_directory || (batch.name(entry) == u8"folder" && entry.is_directory);
         }
     }
     require(entry_batch_count == 5, "large directories are split into bounded batches");
@@ -211,12 +243,49 @@ void check_cancel_and_errors() {
     );
 }
 
+void check_symbolic_links() {
+#ifdef __linux__
+    auto fixture = make_fixture();
+    auto enumerator = veyra::DirectoryEnumerator{};
+    const auto generation = enumerator.start(fixture.path / "links");
+    const auto batches = collect(enumerator, generation);
+    const auto& batch = batches.front();
+    const auto& entries = batch.entries;
+
+    const auto file_link = std::ranges::find_if(entries, [&batch](const auto& entry) {
+        return batch.name(entry) == u8"file-link.txt";
+    });
+    const auto folder_link = std::ranges::find_if(entries, [&batch](const auto& entry) {
+        return batch.name(entry) == u8"folder-link";
+    });
+    const auto broken_link = std::ranges::find_if(entries, [&batch](const auto& entry) {
+        return batch.name(entry) == u8"broken-link";
+    });
+
+    require(file_link != entries.end(), "file symbolic link is listed");
+    require(file_link->is_symlink && !file_link->is_directory, "file links keep their link type");
+    require(file_link->id.valid(), "file links retain their target identity");
+    require(folder_link != entries.end(), "directory symbolic link is listed");
+    require(
+        folder_link->is_symlink && folder_link->is_directory,
+        "directory links retain both link and target types"
+    );
+    require(broken_link != entries.end(), "broken symbolic links remain visible");
+    require(broken_link->is_symlink, "broken entries retain their link type");
+    require(
+        static_cast<bool>(broken_link->metadata_error),
+        "broken links report missing target metadata"
+    );
+#endif
+}
+
 }
 
 int main() {
     try {
         check_streaming_and_supersession();
         check_cancel_and_errors();
+        check_symbolic_links();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -14,6 +14,7 @@ struct FileListEntry {
     std::u8string_view name;
     std::uint64_t size_bytes{};
     std::int64_t modified_nanoseconds{};
+    bool is_symlink{};
     bool is_directory{};
 };
 

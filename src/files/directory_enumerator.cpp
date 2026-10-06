@@ -1,10 +1,98 @@
 #include "veyra/files/directory_enumerator.hpp"
 #include "file_metadata.hpp"
 
+#include <limits>
 #include <new>
+#include <string_view>
 #include <utility>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace veyra {
+namespace {
+
+std::error_code append_filename(
+    std::vector<char8_t>& storage,
+    const std::filesystem::path& path,
+    std::size_t& offset,
+    std::size_t& length
+) {
+    const auto& native = path.native();
+#ifdef _WIN32
+    const auto separator = native.find_last_of(L"\\/");
+#else
+    const auto separator = native.find_last_of('/');
+#endif
+    const auto component_offset = separator == native.npos ? 0 : separator + 1;
+    offset = storage.size();
+
+#ifdef _WIN32
+    const auto component_length = native.size() - component_offset;
+    if (component_length > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        return std::make_error_code(std::errc::filename_too_long);
+    }
+
+    const auto* component = native.data() + component_offset;
+    const auto required = WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        component,
+        static_cast<int>(component_length),
+        nullptr,
+        0,
+        nullptr,
+        nullptr
+    );
+    if (required <= 0) {
+        return {static_cast<int>(GetLastError()), std::system_category()};
+    }
+    const auto required_size = static_cast<std::size_t>(required);
+    if (required_size > storage.max_size() - offset) {
+        return std::make_error_code(std::errc::value_too_large);
+    }
+
+    storage.resize(offset + required_size);
+    auto* output = reinterpret_cast<char*>(storage.data() + offset);
+    const auto written = WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        component,
+        static_cast<int>(component_length),
+        output,
+        required,
+        nullptr,
+        nullptr
+    );
+    if (written != required) {
+        storage.resize(offset);
+        return {static_cast<int>(GetLastError()), std::system_category()};
+    }
+    length = required_size;
+#else
+    const auto component = std::string_view{native}.substr(component_offset);
+    if (component.size() > storage.max_size() - offset) {
+        return std::make_error_code(std::errc::value_too_large);
+    }
+    storage.insert(storage.end(), component.begin(), component.end());
+    length = component.size();
+#endif
+    return {};
+}
+
+}
+
+std::u8string_view DirectoryEnumerationBatch::name(const DirectoryEntry& entry) const noexcept {
+    if (entry.name_length == 0 || entry.name_offset > name_storage.size() ||
+        entry.name_length > name_storage.size() - entry.name_offset) {
+        return {};
+    }
+    return {name_storage.data() + entry.name_offset, entry.name_length};
+}
 
 DirectoryEnumerator::DirectoryEnumerator() :
     worker_([this](const std::stop_token& token) {
@@ -32,6 +120,7 @@ void DirectoryEnumerator::clear_queue() noexcept {
         batch.generation = 0;
         batch.event = DirectoryEnumerationEvent::entries;
         batch.entries.clear();
+        batch.name_storage.clear();
         batch.error.clear();
     }
     queue_head_ = 0;
@@ -73,7 +162,9 @@ bool DirectoryEnumerator::poll(DirectoryEnumerationBatch& output) {
     output.event = batch.event;
     output.error = batch.error;
     output.entries.swap(batch.entries);
+    output.name_storage.swap(batch.name_storage);
     batch.entries.clear();
+    batch.name_storage.clear();
     batch.generation = 0;
     batch.event = DirectoryEnumerationEvent::entries;
     batch.error.clear();
@@ -103,6 +194,7 @@ bool DirectoryEnumerator::publish(
     slot.event = batch.event;
     slot.error = batch.error;
     slot.entries.swap(batch.entries);
+    slot.name_storage.swap(batch.name_storage);
     ++queue_size_;
     return true;
 }
@@ -133,6 +225,7 @@ void DirectoryEnumerator::run(const std::stop_token& stop_token) noexcept {
             }
             if (queue_[best_buffer_index].entries.capacity() > working_batch_.entries.capacity()) {
                 working_batch_.entries.swap(queue_[best_buffer_index].entries);
+                working_batch_.name_storage.swap(queue_[best_buffer_index].name_storage);
             }
         }
 
@@ -148,6 +241,7 @@ void DirectoryEnumerator::enumerate(
     batch.generation = request.generation;
     batch.event = DirectoryEnumerationEvent::entries;
     batch.entries.clear();
+    batch.name_storage.clear();
     batch.error.clear();
     try {
         if (!request.directory.is_absolute()) {
@@ -176,15 +270,31 @@ void DirectoryEnumerator::enumerate(
 
             const auto& item = *iterator;
             const auto metadata = read_file_metadata(item.path());
+            auto symlink_error = std::error_code{};
+            const auto is_symlink = item.is_symlink(symlink_error);
+            auto name_offset = std::size_t{0};
+            auto name_length = std::size_t{0};
+            const auto name_error =
+                append_filename(batch.name_storage, item.path(), name_offset, name_length);
+            if (name_error) {
+                batch.event = DirectoryEnumerationEvent::error;
+                batch.entries.clear();
+                batch.name_storage.clear();
+                batch.error = name_error;
+                publish(batch, stop_token);
+                return;
+            }
             auto entry = DirectoryEntry{
+                .name_offset = name_offset,
+                .name_length = name_length,
                 .id = metadata.id,
-                .name = item.path().filename().u8string(),
                 .size_bytes = metadata.size_bytes,
                 .modified_nanoseconds = metadata.modified_nanoseconds,
+                .is_symlink = is_symlink,
                 .is_directory = metadata.is_directory,
-                .metadata_error = metadata.error,
+                .metadata_error = metadata.error ? metadata.error : symlink_error,
             };
-            batch.entries.push_back(std::move(entry));
+            batch.entries.push_back(entry);
 
             if (batch.entries.size() == entries_per_batch) {
                 batch.event = DirectoryEnumerationEvent::entries;
@@ -192,6 +302,7 @@ void DirectoryEnumerator::enumerate(
                     return;
                 }
                 batch.entries.clear();
+                batch.name_storage.clear();
             }
 
             if (stop_token.stop_requested() ||
@@ -210,6 +321,7 @@ void DirectoryEnumerator::enumerate(
                 batch.event = DirectoryEnumerationEvent::error;
                 batch.error = error;
                 batch.entries.clear();
+                batch.name_storage.clear();
                 publish(batch, stop_token);
                 return;
             }
@@ -229,16 +341,19 @@ void DirectoryEnumerator::enumerate(
     } catch (const std::filesystem::filesystem_error& error) {
         batch.event = DirectoryEnumerationEvent::error;
         batch.entries.clear();
+        batch.name_storage.clear();
         batch.error = error.code();
         publish(batch, stop_token);
     } catch (const std::bad_alloc&) {
         batch.event = DirectoryEnumerationEvent::error;
         batch.entries.clear();
+        batch.name_storage.clear();
         batch.error = std::make_error_code(std::errc::not_enough_memory);
         publish(batch, stop_token);
     } catch (...) {
         batch.event = DirectoryEnumerationEvent::error;
         batch.entries.clear();
+        batch.name_storage.clear();
         batch.error = std::make_error_code(std::errc::io_error);
         publish(batch, stop_token);
     }
