@@ -33,6 +33,7 @@ struct FileListSort {
     FileListSortKey key{FileListSortKey::name};
     FileListSortDirection direction{FileListSortDirection::ascending};
     bool directories_first{true};
+    bool entries_are_sorted{};
 };
 
 enum class FileListResult : std::uint8_t {

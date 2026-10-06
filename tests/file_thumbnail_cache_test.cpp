@@ -108,12 +108,57 @@ void check_least_recently_used_eviction() {
     require(cache.find(keys[4]).has_value(), "replacement thumbnail is available");
 }
 
+void check_erase_reuses_bucket_and_preserves_recency() {
+    auto slots = std::array<veyra::FileThumbnailCacheSlot, 4>{};
+    auto pixel_storage = std::array<veyra::SoftwarePixel, 4>{};
+    auto cache = veyra::FileThumbnailCache(slots, pixel_storage, 1, 1);
+    auto keys = std::array<veyra::FileThumbnailKey, 6>{};
+    auto pixel = veyra::SoftwarePixel{.alpha = 255};
+    const auto image = veyra::FileThumbnail{
+        .image = {
+            .width = 1,
+            .height = 1,
+            .stride = 1,
+            .pixels = std::span<const veyra::SoftwarePixel>{&pixel, 1},
+        },
+    };
+
+    for (std::size_t index = 0; index < 4; ++index) {
+        keys[index].file_id = veyra::FileId{2, index + 1};
+        require(
+            cache.insert(keys[index], image) == veyra::FileThumbnailCacheResult::inserted,
+            "cache fills a collision bucket before erasure"
+        );
+    }
+
+    require(cache.find(keys[0]).has_value(), "first key becomes recent");
+    require(cache.find(keys[1]).has_value(), "second key becomes most recent");
+    require(cache.erase(keys[3]), "cache erases a matching key");
+    require(!cache.erase(keys[3]), "erasing an absent key reports no change");
+    require(!cache.erase({}), "erasing an invalid key does not touch the cache");
+
+    keys[4].file_id = veyra::FileId{2, 5};
+    keys[5].file_id = veyra::FileId{2, 6};
+    require(
+        cache.insert(keys[4], image) == veyra::FileThumbnailCacheResult::inserted,
+        "cache reuses an erased bucket slot before evicting"
+    );
+    require(
+        cache.insert(keys[5], image) == veyra::FileThumbnailCacheResult::inserted,
+        "a full bucket evicts after slot reuse"
+    );
+    require(!cache.find(keys[2]).has_value(), "erasure preserves least-recently-used ordering");
+    require(cache.find(keys[0]).has_value(), "recent keys survive the next eviction");
+    require(cache.find(keys[1]).has_value(), "the most recent key survives the next eviction");
+}
+
 }
 
 int main() {
     try {
         check_identity_and_freshness();
         check_least_recently_used_eviction();
+        check_erase_reuses_bucket_and_preserves_recency();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

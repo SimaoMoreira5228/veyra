@@ -72,6 +72,31 @@ void check_directory_grouping_and_stable_sort() {
     );
 }
 
+void check_order_for_sorted_entries() {
+    const std::array entries{
+        veyra::FileListEntry{.id = 1, .name = u8"alpha"},
+        veyra::FileListEntry{.id = 2, .name = u8"beta"},
+        veyra::FileListEntry{.id = 3, .name = u8"gamma"},
+    };
+    std::array<std::size_t, 3> order{91, 92, 93};
+    auto count = std::size_t{0};
+
+    require(
+        veyra::build_file_list_order(
+            entries,
+            {},
+            {
+                .entries_are_sorted = true,
+            },
+            order,
+            count
+        ) == veyra::FileListResult::complete,
+        "order builds from entries already sorted by name"
+    );
+    require(count == entries.size(), "sorted input keeps all entries");
+    require(order == std::array<std::size_t, 3>{0, 1, 2}, "sorted input keeps its index order");
+}
+
 void check_filter_and_sort_direction() {
     const std::array entries{
         veyra::FileListEntry{
@@ -503,6 +528,20 @@ void check_select_visible_entries() {
     );
     require(selection.anchor_id() == 10, "the first visible item becomes the selection anchor");
 
+    const std::array<std::size_t, 3> duplicate_visible{2, 2, 0};
+    auto duplicate_storage = std::array<std::uint64_t, 3>{};
+    auto duplicate_selection = veyra::FileListSelection(duplicate_storage);
+    require(
+        duplicate_selection.select_visible(entries, duplicate_visible) ==
+            veyra::FileListSelectionResult::complete,
+        "duplicate visible indices are accepted"
+    );
+    require(
+        duplicate_selection.ids().size() == 2 && duplicate_selection.ids()[0] == 10 &&
+            duplicate_selection.ids()[1] == 20,
+        "duplicate visible IDs are removed from the selection"
+    );
+
     const std::array<std::size_t, 2> reverse_visible{1, 0};
     auto reverse_storage = std::array<std::uint64_t, 2>{};
     auto reverse_selection = veyra::FileListSelection(reverse_storage);
@@ -578,6 +617,7 @@ void check_select_visible_entries() {
 int main() {
     try {
         check_directory_grouping_and_stable_sort();
+        check_order_for_sorted_entries();
         check_filter_and_sort_direction();
         check_utf8_name_filter();
         check_row_ids_survive_refreshes();

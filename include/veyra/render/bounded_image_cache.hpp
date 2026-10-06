@@ -82,6 +82,28 @@ template <typename Key, typename Hash, typename KeyValidator> class BoundedImage
         std::fill(slots_.begin(), slots_.end(), BoundedImageCacheSlot<Key>{});
     }
 
+    bool erase(const Key& key) noexcept {
+        if (!valid_ || !KeyValidator{}(key)) {
+            return false;
+        }
+
+        const auto slot_index = find_slot(key);
+        if (slot_index == slots_.size()) {
+            return false;
+        }
+
+        const auto bucket = bucket_start(key);
+        const auto previous_recency = slots_[slot_index].recency;
+        slots_[slot_index] = {};
+        for (std::size_t way = 0; way < ways_per_bucket; ++way) {
+            auto& candidate = slots_[bucket + way];
+            if (candidate.occupied && candidate.recency > previous_recency) {
+                --candidate.recency;
+            }
+        }
+        return true;
+    }
+
     std::optional<CachedImage> find(const Key& key) noexcept {
         if (!valid_ || !KeyValidator{}(key)) {
             return std::nullopt;

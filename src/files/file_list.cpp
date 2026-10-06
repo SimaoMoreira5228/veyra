@@ -82,32 +82,36 @@ FileListResult build_file_list_order(
         }
     }
 
-    if (matching_count > 1) {
-        std::sort(
-            output_indices.begin(),
-            output_indices.begin() + static_cast<std::ptrdiff_t>(matching_count),
-            [&entries, sort](std::size_t left_index, std::size_t right_index) noexcept {
-                const auto& left = entries[left_index];
-                const auto& right = entries[right_index];
-                if (sort.directories_first && left.is_directory != right.is_directory) {
-                    return left.is_directory;
-                }
-
-                const auto comparison = compare_entries(left, right, sort.key);
-                if (comparison != 0) {
-                    if (sort.direction == FileListSortDirection::ascending) {
-                        return comparison < 0;
-                    }
-                    return comparison > 0;
-                }
-                if (left.id != right.id) {
-                    return left.id < right.id;
-                }
-                return left_index < right_index;
-            }
-        );
+    if (matching_count < 2 || sort.entries_are_sorted) {
+        return FileListResult::complete;
     }
 
+    const auto comes_before = [&entries,
+                               sort](std::size_t left_index, std::size_t right_index) noexcept {
+        const auto& left = entries[left_index];
+        const auto& right = entries[right_index];
+        if (sort.directories_first && left.is_directory != right.is_directory) {
+            return left.is_directory;
+        }
+
+        const auto comparison = compare_entries(left, right, sort.key);
+        if (comparison != 0) {
+            if (sort.direction == FileListSortDirection::ascending) {
+                return comparison < 0;
+            }
+            return comparison > 0;
+        }
+        if (left.id != right.id) {
+            return left.id < right.id;
+        }
+        return left_index < right_index;
+    };
+
+    std::sort(
+        output_indices.begin(),
+        output_indices.begin() + static_cast<std::ptrdiff_t>(matching_count),
+        comes_before
+    );
     return FileListResult::complete;
 }
 
@@ -379,13 +383,23 @@ FileListSelectionResult FileListSelection::select_visible(
         return FileListSelectionResult::insufficient_storage;
     }
 
+    auto ids_are_increasing = true;
     for (std::size_t position = 0; position < visible_indices.size(); ++position) {
-        storage_[position] = entries[visible_indices[position]].id;
+        const auto id = entries[visible_indices[position]].id;
+        if (position > 0 && storage_[position - 1] >= id) {
+            ids_are_increasing = false;
+        }
+        storage_[position] = id;
     }
+
     const auto visible_end = storage_.begin() + static_cast<std::ptrdiff_t>(visible_indices.size());
-    std::sort(storage_.begin(), visible_end);
-    count_ =
-        static_cast<std::size_t>(std::unique(storage_.begin(), visible_end) - storage_.begin());
+    if (ids_are_increasing) {
+        count_ = visible_indices.size();
+    } else {
+        std::sort(storage_.begin(), visible_end);
+        count_ =
+            static_cast<std::size_t>(std::unique(storage_.begin(), visible_end) - storage_.begin());
+    }
     anchor_id_ = entries[visible_indices.front()].id;
     return FileListSelectionResult::complete;
 }

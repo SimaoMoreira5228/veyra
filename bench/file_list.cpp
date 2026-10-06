@@ -171,6 +171,64 @@ int run(const Options& options) {
     }
     std::sort(times.begin(), times.end());
 
+    const auto run_sorted_order = [&]() {
+        const auto result = veyra::build_file_list_order(
+            rows_by_name,
+            {},
+            {
+                .key = veyra::FileListSortKey::name,
+                .directories_first = false,
+                .entries_are_sorted = true,
+            },
+            output,
+            output_count
+        );
+        if (result != veyra::FileListResult::complete || output_count != options.entries) {
+            throw std::runtime_error("sorted file list order failed");
+        }
+    };
+
+    run_sorted_order();
+    for (std::size_t index = 0; index < output_count; ++index) {
+        if (output[index] != index) {
+            throw std::runtime_error("sorted file list fixture is not in name order");
+        }
+    }
+
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_sorted_order();
+    }
+    auto sorted_order_times = std::vector<double>(options.queries);
+    auto sorted_order_checksum = std::uint64_t{0};
+    for (auto& elapsed : sorted_order_times) {
+        const auto begin = Clock::now();
+        run_sorted_order();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        sorted_order_checksum += output_count + output[0];
+    }
+    std::sort(sorted_order_times.begin(), sorted_order_times.end());
+
+    const auto run_full_order = [&]() {
+        const auto result = veyra::build_file_list_order(entries, {}, sort, output, output_count);
+        if (result != veyra::FileListResult::complete || output_count != options.entries) {
+            throw std::runtime_error("unfiltered file list order failed");
+        }
+    };
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_full_order();
+    }
+    auto full_order_times = std::vector<double>(options.queries);
+    auto full_order_checksum = std::uint64_t{0};
+    for (auto& elapsed : full_order_times) {
+        const auto begin = Clock::now();
+        run_full_order();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        full_order_checksum += output_count + output[0];
+    }
+    std::sort(full_order_times.begin(), full_order_times.end());
+
     const auto all_entries_result =
         veyra::build_file_list_order(entries, {}, sort, output, output_count);
     if (all_entries_result != veyra::FileListResult::complete) {
@@ -234,6 +292,31 @@ int run(const Options& options) {
         visible_selection_checksum += selection.ids().size() + selection.ids().front();
     }
     std::sort(visible_selection_times.begin(), visible_selection_times.end());
+
+    auto visible_by_id = std::vector<std::size_t>(options.entries);
+    for (std::size_t index = 0; index < visible_by_id.size(); ++index) {
+        visible_by_id[index] = visible_by_id.size() - index - 1;
+    }
+    const auto visible_by_id_order = std::span<const std::size_t>(visible_by_id);
+    const auto run_select_visible_by_id = [&]() {
+        if (selection.select_visible(entries, visible_by_id_order) !=
+            veyra::FileListSelectionResult::complete) {
+            throw std::runtime_error("ID-ordered file selection failed");
+        }
+    };
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        run_select_visible_by_id();
+    }
+    auto visible_by_id_times = std::vector<double>(options.queries);
+    auto visible_by_id_checksum = std::uint64_t{0};
+    for (auto& elapsed : visible_by_id_times) {
+        const auto begin = Clock::now();
+        run_select_visible_by_id();
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        visible_by_id_checksum += selection.ids().size() + selection.ids().front();
+    }
+    std::sort(visible_by_id_times.begin(), visible_by_id_times.end());
 
     auto entries_by_id = entries;
     std::sort(entries_by_id.begin(), entries_by_id.end(), [](const auto& left, const auto& right) {
@@ -376,6 +459,16 @@ int run(const Options& options) {
               << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ',' << options.warmup << ','
               << options.queries << ',' << percentile(times, 50) << ',' << percentile(times, 95)
               << ',' << percentile(times, 99) << ',' << times.back() << ',' << checksum << '\n';
+    std::cout << "file_list_sorted_order," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
+              << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ',' << options.warmup << ','
+              << options.queries << ',' << percentile(sorted_order_times, 50) << ','
+              << percentile(sorted_order_times, 95) << ',' << percentile(sorted_order_times, 99)
+              << ',' << sorted_order_times.back() << ',' << sorted_order_checksum << '\n';
+    std::cout << "file_list_full_order," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
+              << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ',' << options.warmup << ','
+              << options.queries << ',' << percentile(full_order_times, 50) << ','
+              << percentile(full_order_times, 95) << ',' << percentile(full_order_times, 99) << ','
+              << full_order_times.back() << ',' << full_order_checksum << '\n';
     std::cout << "file_list_range_selection," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
               << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ',' << options.warmup << ','
               << options.queries << ',' << percentile(selection_times, 50) << ','
@@ -388,6 +481,12 @@ int run(const Options& options) {
               << percentile(visible_selection_times, 95) << ','
               << percentile(visible_selection_times, 99) << ',' << visible_selection_times.back()
               << ',' << visible_selection_checksum << '\n';
+    std::cout << "file_list_visible_selection_by_id," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
+              << options.warmup << ',' << options.queries << ','
+              << percentile(visible_by_id_times, 50) << ',' << percentile(visible_by_id_times, 95)
+              << ',' << percentile(visible_by_id_times, 99) << ',' << visible_by_id_times.back()
+              << ',' << visible_by_id_checksum << '\n';
     std::cout << "file_list_selection_reconciliation," << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.entries << ','
               << options.warmup << ',' << options.queries << ','
