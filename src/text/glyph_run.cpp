@@ -111,8 +111,8 @@ GlyphRunResult build_glyph_draw_commands(
 
         mask_views[index] = cached->mask;
         commands[index] = DrawMask{
-            .x = draw_x,
-            .y = draw_y,
+            .x = static_cast<float>(draw_x),
+            .y = static_cast<float>(draw_y),
             .mask = &mask_views[index],
             .color = color,
         };
@@ -299,8 +299,8 @@ GlyphRunResult build_mixed_glyph_draw_commands(
 
         if (draw_kind == GlyphDrawKind::mask) {
             commands[index] = DrawMask{
-                .x = draw_x,
-                .y = draw_y,
+                .x = static_cast<float>(draw_x),
+                .y = static_cast<float>(draw_y),
                 .mask = &mask_views[index],
                 .color = mask_color,
             };

@@ -36,7 +36,7 @@ add_library(veyra STATIC
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
- src/render/software_polygon.cpp
+ src/render/software_path.cpp
  src/render/software_image.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
@@ -378,9 +378,9 @@ add_executable(veyra_software_renderer_translation_test tests/software_renderer_
 target_link_libraries(veyra_software_renderer_translation_test PRIVATE veyra)
 add_test(NAME software_renderer_translation_behavior COMMAND veyra_software_renderer_translation_test)
 
-add_executable(veyra_software_renderer_polygon_test tests/software_renderer_polygon_test.cpp)
-target_link_libraries(veyra_software_renderer_polygon_test PRIVATE veyra)
-add_test(NAME software_renderer_polygon_behavior COMMAND veyra_software_renderer_polygon_test)
+add_executable(veyra_software_renderer_path_test tests/software_renderer_path_test.cpp)
+target_link_libraries(veyra_software_renderer_path_test PRIVATE veyra)
+add_test(NAME software_renderer_path_behavior COMMAND veyra_software_renderer_path_test)
 
 add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
@@ -584,8 +584,16 @@ if(VEYRA_BUILD_BENCH)
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --translated
  )
  add_test(
-  NAME software_renderer_polygon_benchmark_smoke
-  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --polygon
+  NAME software_renderer_path_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --path
+ )
+ add_test(
+  NAME software_renderer_curve_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --curve
+ )
+ add_test(
+  NAME software_renderer_winding_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --winding
  )
  add_test(NAME damage_tracker_benchmark_smoke COMMAND veyra_damage_tracker_bench)
  add_test(

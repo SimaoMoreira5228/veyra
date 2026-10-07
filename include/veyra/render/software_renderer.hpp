@@ -49,9 +49,37 @@ struct DrawMask {
     DisplayColor color;
 };
 
-struct FillPolygon {
-    std::span<const LayoutPoint> points;
+struct SoftwareLineTo {
+    LayoutPoint end;
+};
+
+struct SoftwareQuadraticTo {
+    LayoutPoint control;
+    LayoutPoint end;
+};
+
+struct SoftwareCubicTo {
+    LayoutPoint control_1;
+    LayoutPoint control_2;
+    LayoutPoint end;
+};
+
+using SoftwarePathSegment = std::variant<SoftwareLineTo, SoftwareQuadraticTo, SoftwareCubicTo>;
+
+struct SoftwarePathContour {
+    LayoutPoint start;
+    std::span<const SoftwarePathSegment> segments;
+};
+
+enum class SoftwarePathFillRule : std::uint8_t {
+    even_odd,
+    non_zero,
+};
+
+struct FillPath {
+    std::span<const SoftwarePathContour> contours;
     DisplayColor color;
+    SoftwarePathFillRule fill_rule{SoftwarePathFillRule::even_odd};
 };
 
 struct PushTranslation {
@@ -91,7 +119,7 @@ using DisplayCommand = std::variant<
     StrokeRect,
     StrokeLine,
     DrawMask,
-    FillPolygon,
+    FillPath,
     DrawImage,
     PushTranslation,
     PopTranslation,
@@ -115,7 +143,8 @@ struct SoftwareClipRect {
 struct SoftwareRenderWorkspace {
     std::span<SoftwareClipRect> clips;
     std::span<LayoutPoint> translations;
-    std::span<double> polygon_intersections;
+    std::span<double> path_intersections;
+    std::span<std::int8_t> path_windings;
 };
 
 enum class SoftwareRenderResult : std::uint8_t {

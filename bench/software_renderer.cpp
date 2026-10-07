@@ -26,7 +26,9 @@ struct Options {
     bool damage{};
     bool translucent{};
     bool mask{};
-    bool polygon{};
+    bool path{};
+    bool curve{};
+    bool winding{};
     bool image{};
     bool scaled_image{};
     bool border{};
@@ -60,8 +62,16 @@ Options parse_options(int argc, char** argv) {
             options.mask = true;
             continue;
         }
-        if (argument == "--polygon") {
-            options.polygon = true;
+        if (argument == "--path") {
+            options.path = true;
+            continue;
+        }
+        if (argument == "--curve") {
+            options.curve = true;
+            continue;
+        }
+        if (argument == "--winding") {
+            options.winding = true;
             continue;
         }
         if (argument == "--image") {
@@ -105,12 +115,14 @@ Options parse_options(int argc, char** argv) {
     }
 
     const auto special_modes = static_cast<unsigned int>(options.mask) +
-        static_cast<unsigned int>(options.polygon) + static_cast<unsigned int>(options.image) +
+        static_cast<unsigned int>(options.path) + static_cast<unsigned int>(options.curve) +
+        static_cast<unsigned int>(options.winding) + static_cast<unsigned int>(options.image) +
         static_cast<unsigned int>(options.scaled_image) +
         static_cast<unsigned int>(options.border) + static_cast<unsigned int>(options.line);
     if (special_modes > 1) {
         throw std::invalid_argument(
-            "choose one of --mask, --polygon, --image, --scaled-image, --border, or --line"
+            "choose one of --mask, --path, --curve, --winding, --image, --scaled-image, "
+            "--border, or --line"
         );
     }
     if (options.width == 0 || options.width > 4'096 || options.height == 0 ||
@@ -128,15 +140,28 @@ double percentile(const std::vector<double>& sorted_times, std::size_t percent) 
 }
 
 std::string_view scenario_name(const Options& options) noexcept {
-    if (options.polygon && options.translated) {
-        return options.damage ? "software_polygon_translated_damage"
-                              : "software_polygon_translated_full";
+    if ((options.path || options.curve || options.winding) && options.translated) {
+        if (options.curve) {
+            return options.damage ? "software_curve_translated_damage"
+                                  : "software_curve_translated_full";
+        }
+        if (options.winding) {
+            return options.damage ? "software_winding_translated_damage"
+                                  : "software_winding_translated_full";
+        }
+        return options.damage ? "software_path_translated_damage" : "software_path_translated_full";
     }
     if (options.translated) {
         return options.damage ? "software_translated_damage" : "software_translated_full";
     }
-    if (options.polygon) {
-        return options.damage ? "software_polygon_damage" : "software_polygon_full";
+    if (options.path) {
+        return options.damage ? "software_path_damage" : "software_path_full";
+    }
+    if (options.curve) {
+        return options.damage ? "software_curve_damage" : "software_curve_full";
+    }
+    if (options.winding) {
+        return options.damage ? "software_winding_damage" : "software_winding_full";
     }
     if (options.mask) {
         if (options.translucent) {
@@ -180,7 +205,12 @@ std::string_view scenario_name(const Options& options) noexcept {
 
 int run(const Options& options) {
     std::vector<veyra::DisplayCommand> commands(options.commands + (options.translated ? 2 : 0));
-    std::vector<veyra::LayoutPoint> polygon_points(options.polygon ? options.commands * 4 : 0);
+    const auto path_mode = options.path || options.curve || options.winding;
+    const auto path_segments_per_command = options.curve ? std::size_t{2} : std::size_t{3};
+    std::vector<veyra::SoftwarePathSegment> path_segments(
+        path_mode ? options.commands * path_segments_per_command : 0
+    );
+    std::vector<veyra::SoftwarePathContour> path_contours(path_mode ? options.commands : 0);
     constexpr auto mask_width = std::size_t{12};
     constexpr auto mask_height = std::size_t{18};
     std::array<std::uint8_t, mask_width * mask_height> coverage{};
@@ -221,24 +251,58 @@ int run(const Options& options) {
     const auto image_height = mask_height * image_scale;
     const auto columns = std::max<std::size_t>(1, options.width / (image_width + 4));
     for (std::size_t index = 0; index < options.commands; ++index) {
-        if (options.polygon) {
+        if (path_mode) {
             const auto top = index * options.height / options.commands;
             const auto bottom = (index + 1) * options.height / options.commands;
-            const auto first_point = index * 4;
-            polygon_points[first_point] = {.x = 0.0F, .y = static_cast<float>(top)};
-            polygon_points[first_point + 1] = {
-                .x = static_cast<float>(options.width),
-                .y = static_cast<float>(top),
+            const auto first_segment = index * path_segments_per_command;
+            if (options.curve) {
+                path_segments[first_segment] = veyra::SoftwareCubicTo{
+                    .control_1 =
+                        {
+                            .x = static_cast<float>(options.width) / 3.0F,
+                            .y = static_cast<float>(bottom),
+                        },
+                    .control_2 =
+                        {
+                            .x = static_cast<float>(options.width) * 2.0F / 3.0F,
+                            .y = static_cast<float>(bottom),
+                        },
+                    .end = {
+                        .x = static_cast<float>(options.width),
+                        .y = static_cast<float>(top),
+                    },
+                };
+                path_segments[first_segment + 1] = veyra::SoftwareLineTo{
+                    .end = {.x = 0.0F, .y = static_cast<float>(top)},
+                };
+            } else {
+                path_segments[first_segment] = veyra::SoftwareLineTo{
+                    .end = {
+                        .x = static_cast<float>(options.width),
+                        .y = static_cast<float>(top),
+                    },
+                };
+                path_segments[first_segment + 1] = veyra::SoftwareLineTo{
+                    .end = {
+                        .x = static_cast<float>(options.width),
+                        .y = static_cast<float>(bottom),
+                    },
+                };
+                path_segments[first_segment + 2] = veyra::SoftwareLineTo{
+                    .end = {.x = 0.0F, .y = static_cast<float>(bottom)},
+                };
+            }
+            path_contours[index] = veyra::SoftwarePathContour{
+                .start = {.x = 0.0F, .y = static_cast<float>(top)},
+                .segments = std::span<const veyra::SoftwarePathSegment>(path_segments)
+                                .subspan(first_segment, path_segments_per_command),
             };
-            polygon_points[first_point + 2] = {
-                .x = static_cast<float>(options.width),
-                .y = static_cast<float>(bottom),
-            };
-            polygon_points[first_point + 3] = {.x = 0.0F, .y = static_cast<float>(bottom)};
-            commands[index + static_cast<std::size_t>(options.translated)] = veyra::FillPolygon{
-                .points =
-                    std::span<const veyra::LayoutPoint>(polygon_points).subspan(first_point, 4),
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::FillPath{
+                .contours =
+                    std::span<const veyra::SoftwarePathContour>(path_contours).subspan(index, 1),
                 .color = color,
+                .fill_rule = options.winding ? veyra::SoftwarePathFillRule::non_zero
+                                             : veyra::SoftwarePathFillRule::even_odd,
             };
             continue;
         }
@@ -341,7 +405,8 @@ int run(const Options& options) {
         .pixels = pixels,
     };
     std::array<veyra::LayoutPoint, 1> translations{};
-    std::array<double, 4> polygon_intersections{};
+    std::array<double, 5> path_intersections{};
+    std::array<std::int8_t, 5> path_windings{};
     if (options.translated) {
         commands.front() = veyra::PushTranslation{
             .offset = {.x = 0.25F, .y = -0.25F},
@@ -351,8 +416,10 @@ int run(const Options& options) {
     const auto workspace = veyra::SoftwareRenderWorkspace{
         .translations = options.translated ? std::span<veyra::LayoutPoint>(translations)
                                            : std::span<veyra::LayoutPoint>{},
-        .polygon_intersections =
-            options.polygon ? std::span<double>(polygon_intersections) : std::span<double>{},
+        .path_intersections =
+            path_mode ? std::span<double>(path_intersections) : std::span<double>{},
+        .path_windings =
+            options.winding ? std::span<std::int8_t>(path_windings) : std::span<std::int8_t>{},
     };
     const auto damage = veyra::LayoutRect{
         .x = static_cast<float>(options.width) / 4.0F,

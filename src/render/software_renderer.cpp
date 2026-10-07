@@ -74,7 +74,8 @@ bool valid_commands(
     std::span<const DisplayCommand> commands,
     std::size_t& maximum_clip_depth,
     std::size_t& maximum_translation_depth,
-    std::size_t& maximum_polygon_points
+    std::size_t& maximum_path_intersections,
+    std::size_t& maximum_path_windings
 ) noexcept {
     std::size_t clip_depth = 0;
     std::size_t translation_depth = 0;
@@ -106,11 +107,19 @@ bool valid_commands(
             }
             continue;
         }
-        if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
-            if (!render_detail::valid_polygon(*polygon)) {
+        if (const auto* path = std::get_if<FillPath>(&command)) {
+            std::size_t path_intersection_capacity = 0;
+            std::size_t path_winding_capacity = 0;
+            if (!render_detail::valid_path(
+                    *path,
+                    path_intersection_capacity,
+                    path_winding_capacity
+                )) {
                 return false;
             }
-            maximum_polygon_points = std::max(maximum_polygon_points, polygon->points.size());
+            maximum_path_intersections =
+                std::max(maximum_path_intersections, path_intersection_capacity);
+            maximum_path_windings = std::max(maximum_path_windings, path_winding_capacity);
             continue;
         }
         if (const auto* image = std::get_if<DrawImage>(&command)) {
@@ -196,11 +205,9 @@ bool valid_translated_commands(
             if (!finite(mask->x, mask->y)) {
                 return false;
             }
-        } else if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
-            for (const auto point : polygon->points) {
-                if (!finite(point.x, point.y)) {
-                    return false;
-                }
+        } else if (const auto* path = std::get_if<FillPath>(&command)) {
+            if (!render_detail::valid_translated_path(*path, offset)) {
+                return false;
             }
         } else if (const auto* image = std::get_if<DrawImage>(&command)) {
             if (!finite(image->destination.x, image->destination.y)) {
@@ -606,13 +613,14 @@ void render_commands(
             draw_mask(translated, surface, current_clip);
             continue;
         }
-        if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
-            render_detail::draw_polygon(
-                *polygon,
+        if (const auto* path = std::get_if<FillPath>(&command)) {
+            render_detail::draw_path(
+                *path,
                 translation,
                 surface,
                 current_clip,
-                workspace.polygon_intersections
+                workspace.path_intersections,
+                workspace.path_windings
             );
             continue;
         }
@@ -659,18 +667,21 @@ SoftwareRenderResult render(
 
     std::size_t maximum_clip_depth = 0;
     std::size_t maximum_translation_depth = 0;
-    std::size_t maximum_polygon_points = 0;
+    std::size_t maximum_path_intersections = 0;
+    std::size_t maximum_path_windings = 0;
     if (!valid_commands(
             commands,
             maximum_clip_depth,
             maximum_translation_depth,
-            maximum_polygon_points
+            maximum_path_intersections,
+            maximum_path_windings
         )) {
         return SoftwareRenderResult::invalid_input;
     }
     if (workspace.clips.size() < maximum_clip_depth ||
         workspace.translations.size() < maximum_translation_depth ||
-        workspace.polygon_intersections.size() < maximum_polygon_points) {
+        workspace.path_intersections.size() < maximum_path_intersections ||
+        workspace.path_windings.size() < maximum_path_windings) {
         return SoftwareRenderResult::insufficient_workspace;
     }
     if (maximum_translation_depth != 0 &&

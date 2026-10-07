@@ -172,13 +172,19 @@ inline BlitBounds blit_bounds(
 bool valid_image(const SoftwareImage& image) noexcept;
 bool valid_image_placement(const DrawImage& command) noexcept;
 void draw_image(const DrawImage& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept;
-bool valid_polygon(const FillPolygon& command) noexcept;
-void draw_polygon(
-    const FillPolygon& command,
+bool valid_path(
+    const FillPath& command,
+    std::size_t& intersection_capacity,
+    std::size_t& winding_capacity
+) noexcept;
+bool valid_translated_path(const FillPath& command, LayoutPoint translation) noexcept;
+void draw_path(
+    const FillPath& command,
     LayoutPoint translation,
     SoftwareSurface surface,
     SoftwareClipRect clip,
-    std::span<double> intersections
+    std::span<double> intersections,
+    std::span<std::int8_t> windings
 ) noexcept;
 
 }
