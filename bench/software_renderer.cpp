@@ -31,7 +31,11 @@ struct Options {
     bool winding{};
     bool image{};
     bool scaled_image{};
+    bool linear_image{};
+    bool faded_image{};
     bool border{};
+    bool rounded{};
+    bool rounded_border{};
     bool line{};
     bool translated{};
 };
@@ -82,8 +86,24 @@ Options parse_options(int argc, char** argv) {
             options.scaled_image = true;
             continue;
         }
+        if (argument == "--linear-image") {
+            options.linear_image = true;
+            continue;
+        }
+        if (argument == "--faded-image") {
+            options.faded_image = true;
+            continue;
+        }
         if (argument == "--border") {
             options.border = true;
+            continue;
+        }
+        if (argument == "--rounded") {
+            options.rounded = true;
+            continue;
+        }
+        if (argument == "--rounded-border") {
+            options.rounded_border = true;
             continue;
         }
         if (argument == "--line") {
@@ -118,11 +138,15 @@ Options parse_options(int argc, char** argv) {
         static_cast<unsigned int>(options.path) + static_cast<unsigned int>(options.curve) +
         static_cast<unsigned int>(options.winding) + static_cast<unsigned int>(options.image) +
         static_cast<unsigned int>(options.scaled_image) +
-        static_cast<unsigned int>(options.border) + static_cast<unsigned int>(options.line);
+        static_cast<unsigned int>(options.linear_image) +
+        static_cast<unsigned int>(options.faded_image) + static_cast<unsigned int>(options.border) +
+        static_cast<unsigned int>(options.rounded) +
+        static_cast<unsigned int>(options.rounded_border) + static_cast<unsigned int>(options.line);
     if (special_modes > 1) {
         throw std::invalid_argument(
             "choose one of --mask, --path, --curve, --winding, --image, --scaled-image, "
-            "--border, or --line"
+            "--linear-image, --faded-image, "
+            "--border, --rounded, --rounded-border, or --line"
         );
     }
     if (options.width == 0 || options.width > 4'096 || options.height == 0 ||
@@ -154,6 +178,12 @@ std::string_view scenario_name(const Options& options) noexcept {
     if (options.translated) {
         return options.damage ? "software_translated_damage" : "software_translated_full";
     }
+    if (options.rounded) {
+        return options.damage ? "software_rounded_rect_damage" : "software_rounded_rect_full";
+    }
+    if (options.rounded_border) {
+        return options.damage ? "software_rounded_border_damage" : "software_rounded_border_full";
+    }
     if (options.path) {
         return options.damage ? "software_path_damage" : "software_path_full";
     }
@@ -168,6 +198,17 @@ std::string_view scenario_name(const Options& options) noexcept {
             return options.damage ? "software_mask_alpha_damage" : "software_mask_alpha_full";
         }
         return options.damage ? "software_mask_damage" : "software_mask_full";
+    }
+    if (options.linear_image) {
+        if (options.translucent) {
+            return options.damage ? "software_image_scaled_linear_alpha_damage"
+                                  : "software_image_scaled_linear_alpha_full";
+        }
+        return options.damage ? "software_image_scaled_linear_damage"
+                              : "software_image_scaled_linear_full";
+    }
+    if (options.faded_image) {
+        return options.damage ? "software_image_opacity_damage" : "software_image_opacity_full";
     }
     if (options.scaled_image) {
         if (options.translucent) {
@@ -246,7 +287,8 @@ int run(const Options& options) {
         .blue = 210,
         .alpha = static_cast<std::uint8_t>(options.translucent ? 160 : 255),
     };
-    const auto image_scale = options.scaled_image ? std::size_t{2} : std::size_t{1};
+    const auto image_scale =
+        options.scaled_image || options.linear_image ? std::size_t{2} : std::size_t{1};
     const auto image_width = mask_width * image_scale;
     const auto image_height = mask_height * image_scale;
     const auto columns = std::max<std::size_t>(1, options.width / (image_width + 4));
@@ -317,7 +359,7 @@ int run(const Options& options) {
             };
             continue;
         }
-        if (options.image || options.scaled_image) {
+        if (options.image || options.scaled_image || options.linear_image || options.faded_image) {
             const auto x = (index % columns) * (image_width + 4);
             const auto y = (index / columns) * (image_height + 4);
             commands[index + static_cast<std::size_t>(options.translated)] = veyra::DrawImage{
@@ -334,6 +376,9 @@ int run(const Options& options) {
                         .height = static_cast<float>(image_height),
                     },
                 .image = &image,
+                .sampling = options.linear_image ? veyra::SoftwareImageSampling::linear
+                                                 : veyra::SoftwareImageSampling::nearest,
+                .opacity = static_cast<std::uint8_t>(options.faded_image ? 128 : 255),
             };
             continue;
         }
@@ -351,6 +396,40 @@ int run(const Options& options) {
                 .thickness = 1.0F,
                 .color = color,
             };
+            continue;
+        }
+        if (options.rounded) {
+            const auto top = index * options.height / options.commands;
+            const auto bottom = (index + 1) * options.height / options.commands;
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::FillRoundedRect{
+                .bounds =
+                    {
+                        .x = 0.0F,
+                        .y = static_cast<float>(top),
+                        .width = static_cast<float>(options.width),
+                        .height = static_cast<float>(bottom - top),
+                    },
+                .radius = static_cast<float>(bottom - top) * 0.25F,
+                .color = color,
+            };
+            continue;
+        }
+        if (options.rounded_border) {
+            const auto top = index * options.height / options.commands;
+            const auto bottom = (index + 1) * options.height / options.commands;
+            commands[index + static_cast<std::size_t>(options.translated)] =
+                veyra::StrokeRoundedRect{
+                    .bounds =
+                        {
+                            .x = 0.0F,
+                            .y = static_cast<float>(top),
+                            .width = static_cast<float>(options.width),
+                            .height = static_cast<float>(bottom - top),
+                        },
+                    .radius = static_cast<float>(bottom - top) * 0.25F,
+                    .thickness = 1.0F,
+                    .color = color,
+                };
             continue;
         }
         if (options.line) {

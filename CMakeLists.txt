@@ -36,7 +36,9 @@ add_library(veyra STATIC
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
+ src/render/software_command_validation.cpp
  src/render/software_path.cpp
+ src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
@@ -366,6 +368,26 @@ add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
 target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
 add_test(NAME software_renderer_behavior COMMAND veyra_software_renderer_test)
 
+add_executable(
+ veyra_software_renderer_image_sampling_test
+ tests/software_renderer_image_sampling_test.cpp
+)
+target_link_libraries(veyra_software_renderer_image_sampling_test PRIVATE veyra)
+add_test(
+ NAME software_renderer_image_sampling_behavior
+ COMMAND veyra_software_renderer_image_sampling_test
+)
+
+add_executable(
+ veyra_software_renderer_rounded_rect_test
+ tests/software_renderer_rounded_rect_test.cpp
+)
+target_link_libraries(veyra_software_renderer_rounded_rect_test PRIVATE veyra)
+add_test(
+ NAME software_renderer_rounded_rect_behavior
+ COMMAND veyra_software_renderer_rounded_rect_test
+)
+
 add_executable(veyra_software_renderer_snapshot_test tests/software_renderer_snapshot_test.cpp)
 target_link_libraries(veyra_software_renderer_snapshot_test PRIVATE veyra)
 add_test(NAME software_renderer_snapshot COMMAND veyra_software_renderer_snapshot_test)
@@ -572,8 +594,24 @@ if(VEYRA_BUILD_BENCH)
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scaled-image
  )
  add_test(
+  NAME software_renderer_linear_image_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --linear-image
+ )
+ add_test(
+  NAME software_renderer_faded_image_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --faded-image
+ )
+ add_test(
   NAME software_renderer_border_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --border
+ )
+ add_test(
+  NAME software_renderer_rounded_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --rounded
+ )
+ add_test(
+  NAME software_renderer_rounded_border_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --rounded-border
  )
  add_test(
   NAME software_renderer_line_benchmark_smoke

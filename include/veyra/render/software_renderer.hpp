@@ -22,8 +22,21 @@ struct FillRect {
     DisplayColor color;
 };
 
+struct FillRoundedRect {
+    LayoutRect bounds;
+    float radius{};
+    DisplayColor color;
+};
+
 struct StrokeRect {
     LayoutRect bounds;
+    float thickness{};
+    DisplayColor color;
+};
+
+struct StrokeRoundedRect {
+    LayoutRect bounds;
+    float radius{};
     float thickness{};
     DisplayColor color;
 };
@@ -108,15 +121,24 @@ struct SoftwareImage {
     std::span<const SoftwarePixel> pixels;
 };
 
+enum class SoftwareImageSampling : std::uint8_t {
+    nearest,
+    linear,
+};
+
 struct DrawImage {
     LayoutRect source;
     LayoutRect destination;
     const SoftwareImage* image{};
+    SoftwareImageSampling sampling{SoftwareImageSampling::nearest};
+    std::uint8_t opacity{255};
 };
 
 using DisplayCommand = std::variant<
     FillRect,
+    FillRoundedRect,
     StrokeRect,
+    StrokeRoundedRect,
     StrokeLine,
     DrawMask,
     FillPath,

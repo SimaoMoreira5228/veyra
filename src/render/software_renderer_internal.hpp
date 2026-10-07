@@ -14,6 +14,31 @@ inline bool valid_rect(const LayoutRect& rect) noexcept {
         std::isfinite(rect.height) && rect.width >= 0.0F && rect.height >= 0.0F;
 }
 
+bool valid_commands(
+    std::span<const DisplayCommand> commands,
+    std::size_t& maximum_clip_depth,
+    std::size_t& maximum_translation_depth,
+    std::size_t& maximum_path_intersections,
+    std::size_t& maximum_path_windings
+) noexcept;
+
+bool valid_translated_commands(
+    std::span<const DisplayCommand> commands,
+    std::span<LayoutPoint> translations
+) noexcept;
+
+void draw_rounded_rect(
+    const FillRoundedRect& command,
+    SoftwareSurface surface,
+    SoftwareClipRect clip
+) noexcept;
+
+void stroke_rounded_rect(
+    const StrokeRoundedRect& command,
+    SoftwareSurface surface,
+    SoftwareClipRect clip
+) noexcept;
+
 inline SoftwareClipRect intersect(SoftwareClipRect left, SoftwareClipRect right) noexcept {
     return {
         .left = std::max(left.left, right.left),
