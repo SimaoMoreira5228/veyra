@@ -36,6 +36,7 @@ add_library(veyra STATIC
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
+ src/render/software_polygon.cpp
  src/render/software_image.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
@@ -373,6 +374,14 @@ add_executable(veyra_software_renderer_line_test tests/software_renderer_line_te
 target_link_libraries(veyra_software_renderer_line_test PRIVATE veyra)
 add_test(NAME software_renderer_line_behavior COMMAND veyra_software_renderer_line_test)
 
+add_executable(veyra_software_renderer_translation_test tests/software_renderer_translation_test.cpp)
+target_link_libraries(veyra_software_renderer_translation_test PRIVATE veyra)
+add_test(NAME software_renderer_translation_behavior COMMAND veyra_software_renderer_translation_test)
+
+add_executable(veyra_software_renderer_polygon_test tests/software_renderer_polygon_test.cpp)
+target_link_libraries(veyra_software_renderer_polygon_test PRIVATE veyra)
+add_test(NAME software_renderer_polygon_behavior COMMAND veyra_software_renderer_polygon_test)
+
 add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
 add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
@@ -569,6 +578,14 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME software_renderer_line_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --line
+ )
+ add_test(
+  NAME software_renderer_translation_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --translated
+ )
+ add_test(
+  NAME software_renderer_polygon_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --polygon
  )
  add_test(NAME damage_tracker_benchmark_smoke COMMAND veyra_damage_tracker_bench)
  add_test(

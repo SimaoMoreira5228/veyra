@@ -26,10 +26,12 @@ struct Options {
     bool damage{};
     bool translucent{};
     bool mask{};
+    bool polygon{};
     bool image{};
     bool scaled_image{};
     bool border{};
     bool line{};
+    bool translated{};
 };
 
 std::size_t parse_size(const char* value) {
@@ -58,6 +60,10 @@ Options parse_options(int argc, char** argv) {
             options.mask = true;
             continue;
         }
+        if (argument == "--polygon") {
+            options.polygon = true;
+            continue;
+        }
         if (argument == "--image") {
             options.image = true;
             continue;
@@ -72,6 +78,10 @@ Options parse_options(int argc, char** argv) {
         }
         if (argument == "--line") {
             options.line = true;
+            continue;
+        }
+        if (argument == "--translated") {
+            options.translated = true;
             continue;
         }
         if (index + 1 >= argc) {
@@ -95,11 +105,12 @@ Options parse_options(int argc, char** argv) {
     }
 
     const auto special_modes = static_cast<unsigned int>(options.mask) +
-        static_cast<unsigned int>(options.image) + static_cast<unsigned int>(options.scaled_image) +
+        static_cast<unsigned int>(options.polygon) + static_cast<unsigned int>(options.image) +
+        static_cast<unsigned int>(options.scaled_image) +
         static_cast<unsigned int>(options.border) + static_cast<unsigned int>(options.line);
     if (special_modes > 1) {
         throw std::invalid_argument(
-            "choose one of --mask, --image, --scaled-image, --border, or --line"
+            "choose one of --mask, --polygon, --image, --scaled-image, --border, or --line"
         );
     }
     if (options.width == 0 || options.width > 4'096 || options.height == 0 ||
@@ -117,6 +128,16 @@ double percentile(const std::vector<double>& sorted_times, std::size_t percent) 
 }
 
 std::string_view scenario_name(const Options& options) noexcept {
+    if (options.polygon && options.translated) {
+        return options.damage ? "software_polygon_translated_damage"
+                              : "software_polygon_translated_full";
+    }
+    if (options.translated) {
+        return options.damage ? "software_translated_damage" : "software_translated_full";
+    }
+    if (options.polygon) {
+        return options.damage ? "software_polygon_damage" : "software_polygon_full";
+    }
     if (options.mask) {
         if (options.translucent) {
             return options.damage ? "software_mask_alpha_damage" : "software_mask_alpha_full";
@@ -158,7 +179,8 @@ std::string_view scenario_name(const Options& options) noexcept {
 }
 
 int run(const Options& options) {
-    std::vector<veyra::DisplayCommand> commands(options.commands);
+    std::vector<veyra::DisplayCommand> commands(options.commands + (options.translated ? 2 : 0));
+    std::vector<veyra::LayoutPoint> polygon_points(options.polygon ? options.commands * 4 : 0);
     constexpr auto mask_width = std::size_t{12};
     constexpr auto mask_height = std::size_t{18};
     std::array<std::uint8_t, mask_width * mask_height> coverage{};
@@ -199,12 +221,33 @@ int run(const Options& options) {
     const auto image_height = mask_height * image_scale;
     const auto columns = std::max<std::size_t>(1, options.width / (image_width + 4));
     for (std::size_t index = 0; index < options.commands; ++index) {
+        if (options.polygon) {
+            const auto top = index * options.height / options.commands;
+            const auto bottom = (index + 1) * options.height / options.commands;
+            const auto first_point = index * 4;
+            polygon_points[first_point] = {.x = 0.0F, .y = static_cast<float>(top)};
+            polygon_points[first_point + 1] = {
+                .x = static_cast<float>(options.width),
+                .y = static_cast<float>(top),
+            };
+            polygon_points[first_point + 2] = {
+                .x = static_cast<float>(options.width),
+                .y = static_cast<float>(bottom),
+            };
+            polygon_points[first_point + 3] = {.x = 0.0F, .y = static_cast<float>(bottom)};
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::FillPolygon{
+                .points =
+                    std::span<const veyra::LayoutPoint>(polygon_points).subspan(first_point, 4),
+                .color = color,
+            };
+            continue;
+        }
         if (options.mask) {
             const auto x = (index % columns) * (mask_width + 4);
             const auto y = (index / columns) * (mask_height + 4);
-            commands[index] = veyra::DrawMask{
-                .x = static_cast<std::int32_t>(x),
-                .y = static_cast<std::int32_t>(y),
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::DrawMask{
+                .x = static_cast<float>(x),
+                .y = static_cast<float>(y),
                 .mask = &mask,
                 .color = color,
             };
@@ -213,7 +256,7 @@ int run(const Options& options) {
         if (options.image || options.scaled_image) {
             const auto x = (index % columns) * (image_width + 4);
             const auto y = (index / columns) * (image_height + 4);
-            commands[index] = veyra::DrawImage{
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::DrawImage{
                 .source =
                     {
                         .width = static_cast<float>(image.width),
@@ -233,7 +276,7 @@ int run(const Options& options) {
         if (options.border) {
             const auto top = index * options.height / options.commands;
             const auto bottom = (index + 1) * options.height / options.commands;
-            commands[index] = veyra::StrokeRect{
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::StrokeRect{
                 .bounds =
                     {
                         .x = 0.0F,
@@ -251,7 +294,7 @@ int run(const Options& options) {
             const auto start_y = index * 53 % options.height;
             const auto end_x = std::min(options.width, start_x + std::size_t{96});
             const auto end_y = std::min(options.height, start_y + std::size_t{48});
-            commands[index] = veyra::StrokeLine{
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::StrokeLine{
                 .start =
                     {
                         .x = static_cast<float>(start_x),
@@ -270,7 +313,7 @@ int run(const Options& options) {
 
         const auto top = index * options.height / options.commands;
         const auto bottom = (index + 1) * options.height / options.commands;
-        commands[index] = veyra::FillRect{
+        commands[index + static_cast<std::size_t>(options.translated)] = veyra::FillRect{
             .bounds =
                 {
                     .x = 0.0F,
@@ -297,7 +340,20 @@ int run(const Options& options) {
         .stride = options.width,
         .pixels = pixels,
     };
-    const auto workspace = veyra::SoftwareRenderWorkspace{};
+    std::array<veyra::LayoutPoint, 1> translations{};
+    std::array<double, 4> polygon_intersections{};
+    if (options.translated) {
+        commands.front() = veyra::PushTranslation{
+            .offset = {.x = 0.25F, .y = -0.25F},
+        };
+        commands.back() = veyra::PopTranslation{};
+    }
+    const auto workspace = veyra::SoftwareRenderWorkspace{
+        .translations = options.translated ? std::span<veyra::LayoutPoint>(translations)
+                                           : std::span<veyra::LayoutPoint>{},
+        .polygon_intersections =
+            options.polygon ? std::span<double>(polygon_intersections) : std::span<double>{},
+    };
     const auto damage = veyra::LayoutRect{
         .x = static_cast<float>(options.width) / 4.0F,
         .y = static_cast<float>(options.height) / 4.0F,

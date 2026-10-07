@@ -172,6 +172,14 @@ inline BlitBounds blit_bounds(
 bool valid_image(const SoftwareImage& image) noexcept;
 bool valid_image_placement(const DrawImage& command) noexcept;
 void draw_image(const DrawImage& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept;
+bool valid_polygon(const FillPolygon& command) noexcept;
+void draw_polygon(
+    const FillPolygon& command,
+    LayoutPoint translation,
+    SoftwareSurface surface,
+    SoftwareClipRect clip,
+    std::span<double> intersections
+) noexcept;
 
 }
 

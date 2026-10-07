@@ -96,10 +96,12 @@ int run(const Options& options) {
     std::vector<double> semantic_timings;
     std::vector<double> anchor_timings;
     std::vector<double> scroll_chain_timings;
+    std::vector<double> reveal_timings;
     timings.reserve(options.queries);
     semantic_timings.reserve(options.queries);
     anchor_timings.reserve(options.queries);
     scroll_chain_timings.reserve(options.queries);
+    reveal_timings.reserve(options.queries);
     veyra::VirtualListRange range;
     veyra::VirtualListAnchor anchor;
     double restored_scroll_offset = 0.0;
@@ -142,11 +144,16 @@ int run(const Options& options) {
             ) != veyra::VirtualSemanticResult::complete) {
             throw std::runtime_error("virtual semantic query failed during warmup");
         }
+        double reveal_offset = 0.0;
+        if (!index.scroll_item_into_view(item_index, 720.0, scroll, reveal_offset)) {
+            throw std::runtime_error("virtual item reveal failed during warmup");
+        }
     }
 
     double checksum = 0.0;
     double semantic_checksum = 0.0;
     double anchor_checksum = 0.0;
+    double reveal_checksum = 0.0;
     auto child_scroll = veyra::ScrollAxis{};
     auto parent_scroll = veyra::ScrollAxis{};
     if (!child_scroll.set_extents(20'000.0, 720.0) ||
@@ -220,6 +227,18 @@ int run(const Options& options) {
         );
         semantic_checksum += static_cast<double>(semantic_item.index) + semantic_item.bounds.y;
 
+        double reveal_offset = 0.0;
+        const auto reveal_begin = Clock::now();
+        const auto revealed = index.scroll_item_into_view(item_index, 720.0, scroll, reveal_offset);
+        const auto reveal_end = Clock::now();
+        if (!revealed) {
+            throw std::runtime_error("virtual item reveal failed during measurement");
+        }
+        reveal_timings.push_back(
+            std::chrono::duration<double, std::nano>(reveal_end - reveal_begin).count()
+        );
+        reveal_checksum += reveal_offset;
+
         const auto delta = (query + options.warmup) % 2 == 0 ? 31.25 : -19.5;
         auto remaining_delta = delta;
         const auto scroll_begin = Clock::now();
@@ -240,6 +259,7 @@ int run(const Options& options) {
     std::sort(semantic_timings.begin(), semantic_timings.end());
     std::sort(anchor_timings.begin(), anchor_timings.end());
     std::sort(scroll_chain_timings.begin(), scroll_chain_timings.end());
+    std::sort(reveal_timings.begin(), reveal_timings.end());
     const auto build_ns = std::chrono::duration<double, std::nano>(build_end - build_begin).count();
     std::cout << "scenario,platform,compiler,build_config,items,warmup_queries,measured_queries,"
                  "build_ns,p50_ns,p95_ns,p99_ns,max_ns,total_extent,checksum\n"
@@ -267,6 +287,12 @@ int run(const Options& options) {
               << percentile(scroll_chain_timings, 95) << ',' << percentile(scroll_chain_timings, 99)
               << ',' << scroll_chain_timings.back() << ',' << child_scroll.content_extent() << ','
               << scroll_chain_checksum << '\n';
+    std::cout << "virtual_item_scroll_into_view," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << options.items << ','
+              << options.warmup << ',' << options.queries << ',' << build_ns << ','
+              << percentile(reveal_timings, 50) << ',' << percentile(reveal_timings, 95) << ','
+              << percentile(reveal_timings, 99) << ',' << reveal_timings.back() << ','
+              << index.total_extent() << ',' << reveal_checksum << '\n';
     return 0;
 }
 

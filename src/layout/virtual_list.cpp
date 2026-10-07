@@ -121,6 +121,45 @@ bool VirtualListIndex::restore_anchor(
     return true;
 }
 
+bool VirtualListIndex::scroll_item_into_view(
+    std::size_t item_index,
+    double viewport_extent,
+    double current_scroll_offset,
+    double& scroll_offset
+) const noexcept {
+    if (item_index >= extents_.size() || !std::isfinite(viewport_extent) || viewport_extent < 0.0 ||
+        !std::isfinite(current_scroll_offset) || current_scroll_offset < 0.0) {
+        return false;
+    }
+
+    const auto maximum_scroll_offset = std::max(0.0, total_extent_ - viewport_extent);
+    const auto current_offset = std::min(current_scroll_offset, maximum_scroll_offset);
+    const auto item_start = prefix_extent(item_index);
+    const auto item_extent = static_cast<double>(extents_[item_index]);
+    if (item_extent == 0.0) {
+        scroll_offset = current_offset;
+        return true;
+    }
+
+    const auto item_end = item_start + item_extent;
+    const auto visible_end = viewport_extent >= total_extent_ - current_offset
+        ? total_extent_
+        : current_offset + viewport_extent;
+    auto next_offset = current_offset;
+    if (item_extent > viewport_extent) {
+        if (viewport_extent == 0.0 || item_start >= visible_end || item_end <= current_offset) {
+            next_offset = item_start;
+        }
+    } else if (item_start < current_offset) {
+        next_offset = item_start;
+    } else if (item_end > visible_end) {
+        next_offset = item_end - viewport_extent;
+    }
+
+    scroll_offset = std::clamp(next_offset, 0.0, maximum_scroll_offset);
+    return true;
+}
+
 bool VirtualListIndex::visible_range(
     double scroll_offset,
     double viewport_extent,

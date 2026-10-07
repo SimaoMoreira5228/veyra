@@ -43,11 +43,22 @@ struct SoftwareMask {
 };
 
 struct DrawMask {
-    std::int32_t x{};
-    std::int32_t y{};
+    float x{};
+    float y{};
     const SoftwareMask* mask{};
     DisplayColor color;
 };
+
+struct FillPolygon {
+    std::span<const LayoutPoint> points;
+    DisplayColor color;
+};
+
+struct PushTranslation {
+    LayoutPoint offset;
+};
+
+struct PopTranslation {};
 
 struct PushClip {
     LayoutRect bounds;
@@ -75,8 +86,17 @@ struct DrawImage {
     const SoftwareImage* image{};
 };
 
-using DisplayCommand =
-    std::variant<FillRect, StrokeRect, StrokeLine, DrawMask, DrawImage, PushClip, PopClip>;
+using DisplayCommand = std::variant<
+    FillRect,
+    StrokeRect,
+    StrokeLine,
+    DrawMask,
+    FillPolygon,
+    DrawImage,
+    PushTranslation,
+    PopTranslation,
+    PushClip,
+    PopClip>;
 
 struct SoftwareSurface {
     std::size_t width{};
@@ -94,6 +114,8 @@ struct SoftwareClipRect {
 
 struct SoftwareRenderWorkspace {
     std::span<SoftwareClipRect> clips;
+    std::span<LayoutPoint> translations;
+    std::span<double> polygon_intersections;
 };
 
 enum class SoftwareRenderResult : std::uint8_t {

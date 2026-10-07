@@ -185,6 +185,74 @@ void check_restore_anchor_clamps_after_content_shrinks() {
     );
 }
 
+void check_scroll_item_into_view() {
+    std::array extents{10.0F, 20.0F, 30.0F, 50.0F, 0.0F};
+    std::array<double, 6> fenwick{};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "scroll target extents initialize the index");
+
+    auto scroll_offset = -1.0;
+    require(
+        index.scroll_item_into_view(1, 25.0, 0.0, scroll_offset),
+        "partly clipped rows can be revealed"
+    );
+    require(near(scroll_offset, 5.0), "a row below the viewport aligns its bottom edge");
+
+    require(
+        index.scroll_item_into_view(0, 25.0, 30.0, scroll_offset),
+        "rows above the viewport can be revealed"
+    );
+    require(near(scroll_offset, 0.0), "a row above the viewport aligns its top edge");
+
+    require(
+        index.scroll_item_into_view(2, 25.0, 0.0, scroll_offset),
+        "rows larger than the viewport can be revealed"
+    );
+    require(near(scroll_offset, 30.0), "an offscreen oversized row aligns at its start");
+    require(
+        index.scroll_item_into_view(3, 20.0, 65.0, scroll_offset),
+        "visible oversized rows keep their current position"
+    );
+    require(near(scroll_offset, 65.0), "an oversized visible row is not repeatedly moved");
+    require(
+        index.scroll_item_into_view(3, 0.0, 0.0, scroll_offset),
+        "zero-sized viewports can still target rows"
+    );
+    require(near(scroll_offset, 60.0), "zero-sized viewports align a row to its start");
+
+    require(
+        index.scroll_item_into_view(4, 20.0, 65.0, scroll_offset),
+        "collapsed rows can be queried"
+    );
+    require(near(scroll_offset, 65.0), "collapsed rows do not move the viewport");
+
+    require(
+        index.scroll_item_into_view(4, 20.0, 1'000.0, scroll_offset),
+        "stale offsets can be corrected after content changes"
+    );
+    require(near(scroll_offset, 90.0), "stale offsets clamp to the current scroll range");
+
+    const auto previous_offset = scroll_offset;
+    require(
+        !index.scroll_item_into_view(index.size(), 20.0, 0.0, scroll_offset),
+        "past-end item indices are rejected"
+    );
+    require(
+        !index.scroll_item_into_view(0, -1.0, 0.0, scroll_offset),
+        "negative viewport extents are rejected"
+    );
+    require(
+        !index.scroll_item_into_view(
+            0,
+            20.0,
+            std::numeric_limits<double>::infinity(),
+            scroll_offset
+        ),
+        "non-finite current offsets are rejected"
+    );
+    require(near(scroll_offset, previous_offset), "invalid requests leave output unchanged");
+}
+
 void check_reset_rejects_invalid_storage_and_extents() {
     veyra::VirtualListIndex index;
     std::array extents{5.0F, 10.0F};
@@ -288,6 +356,7 @@ int main() {
         check_measurement_updates_and_failures();
         check_scroll_anchor_after_measurement_changes();
         check_restore_anchor_clamps_after_content_shrinks();
+        check_scroll_item_into_view();
         check_reset_rejects_invalid_storage_and_extents();
         check_ranges_match_linear_reference();
     } catch (const std::exception& error) {

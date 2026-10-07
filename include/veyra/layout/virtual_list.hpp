@@ -41,6 +41,12 @@ class VirtualListIndex {
         double viewport_extent,
         double& scroll_offset
     ) const noexcept;
+    bool scroll_item_into_view(
+        std::size_t item_index,
+        double viewport_extent,
+        double current_scroll_offset,
+        double& scroll_offset
+    ) const noexcept;
     bool visible_range(
         double scroll_offset,
         double viewport_extent,

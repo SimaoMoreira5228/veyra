@@ -70,8 +70,14 @@ bool overlaps(SoftwareClipRect left, SoftwareClipRect right) noexcept {
         right.top < left.bottom;
 }
 
-bool valid_commands(std::span<const DisplayCommand> commands, std::size_t& maximum_depth) noexcept {
-    std::size_t depth = 0;
+bool valid_commands(
+    std::span<const DisplayCommand> commands,
+    std::size_t& maximum_clip_depth,
+    std::size_t& maximum_translation_depth,
+    std::size_t& maximum_polygon_points
+) noexcept {
+    std::size_t clip_depth = 0;
+    std::size_t translation_depth = 0;
     for (const auto& command : commands) {
         if (const auto* fill = std::get_if<FillRect>(&command)) {
             if (!valid_rect(fill->bounds)) {
@@ -100,6 +106,13 @@ bool valid_commands(std::span<const DisplayCommand> commands, std::size_t& maxim
             }
             continue;
         }
+        if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
+            if (!render_detail::valid_polygon(*polygon)) {
+                return false;
+            }
+            maximum_polygon_points = std::max(maximum_polygon_points, polygon->points.size());
+            continue;
+        }
         if (const auto* image = std::get_if<DrawImage>(&command)) {
             if (image->image == nullptr || !render_detail::valid_image(*image->image) ||
                 !render_detail::valid_image_placement(*image)) {
@@ -111,21 +124,96 @@ bool valid_commands(std::span<const DisplayCommand> commands, std::size_t& maxim
             if (!valid_rect(clip->bounds)) {
                 return false;
             }
-            ++depth;
-            maximum_depth = std::max(maximum_depth, depth);
+            ++clip_depth;
+            maximum_clip_depth = std::max(maximum_clip_depth, clip_depth);
             continue;
         }
         if (std::holds_alternative<PopClip>(command)) {
-            if (depth == 0) {
+            if (clip_depth == 0) {
                 return false;
             }
-            --depth;
+            --clip_depth;
+            continue;
+        }
+        if (const auto* translation = std::get_if<PushTranslation>(&command)) {
+            if (!std::isfinite(translation->offset.x) || !std::isfinite(translation->offset.y)) {
+                return false;
+            }
+            ++translation_depth;
+            maximum_translation_depth = std::max(maximum_translation_depth, translation_depth);
+            continue;
+        }
+        if (std::holds_alternative<PopTranslation>(command)) {
+            if (translation_depth == 0) {
+                return false;
+            }
+            --translation_depth;
             continue;
         }
         return false;
     }
 
-    return depth == 0;
+    return clip_depth == 0 && translation_depth == 0;
+}
+
+bool valid_translated_commands(
+    std::span<const DisplayCommand> commands,
+    std::span<LayoutPoint> translations
+) noexcept {
+    LayoutPoint offset{};
+    std::size_t depth = 0;
+    for (const auto& command : commands) {
+        if (const auto* translation = std::get_if<PushTranslation>(&command)) {
+            translations[depth++] = offset;
+            offset.x += translation->offset.x;
+            offset.y += translation->offset.y;
+            if (!std::isfinite(offset.x) || !std::isfinite(offset.y)) {
+                return false;
+            }
+            continue;
+        }
+        if (std::holds_alternative<PopTranslation>(command)) {
+            offset = translations[--depth];
+            continue;
+        }
+
+        const auto finite = [&offset](float x, float y) {
+            return std::isfinite(x + offset.x) && std::isfinite(y + offset.y);
+        };
+        if (const auto* fill = std::get_if<FillRect>(&command)) {
+            if (!finite(fill->bounds.x, fill->bounds.y)) {
+                return false;
+            }
+        } else if (const auto* stroke = std::get_if<StrokeRect>(&command)) {
+            if (!finite(stroke->bounds.x, stroke->bounds.y)) {
+                return false;
+            }
+        } else if (const auto* line = std::get_if<StrokeLine>(&command)) {
+            if (!finite(line->start.x, line->start.y) || !finite(line->end.x, line->end.y)) {
+                return false;
+            }
+        } else if (const auto* mask = std::get_if<DrawMask>(&command)) {
+            if (!finite(mask->x, mask->y)) {
+                return false;
+            }
+        } else if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
+            for (const auto point : polygon->points) {
+                if (!finite(point.x, point.y)) {
+                    return false;
+                }
+            }
+        } else if (const auto* image = std::get_if<DrawImage>(&command)) {
+            if (!finite(image->destination.x, image->destination.y)) {
+                return false;
+            }
+        } else if (const auto* clip = std::get_if<PushClip>(&command)) {
+            if (!finite(clip->bounds.x, clip->bounds.y)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 void fill_pixels(
@@ -355,37 +443,124 @@ void stroke_line(
 
 void draw_mask(const DrawMask& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept {
     const auto& mask = *command.mask;
-    const auto bounds = blit_bounds(command.x, command.y, mask.width, mask.height, surface, clip);
-    if (bounds.destination.left >= bounds.destination.right ||
-        bounds.destination.top >= bounds.destination.bottom || command.color.alpha == 0) {
+    if (command.color.alpha == 0 || mask.width == 0 || mask.height == 0) {
         return;
     }
 
-    for (auto destination_y = bounds.destination.top; destination_y < bounds.destination.bottom;
-         ++destination_y) {
-        const auto mask_y = bounds.source_top + destination_y - bounds.destination.top;
+    const auto integer_position = command.x == std::floor(command.x) &&
+        command.y == std::floor(command.y) &&
+        static_cast<double>(command.x) >= std::numeric_limits<std::int32_t>::min() &&
+        static_cast<double>(command.x) <= std::numeric_limits<std::int32_t>::max() &&
+        static_cast<double>(command.y) >= std::numeric_limits<std::int32_t>::min() &&
+        static_cast<double>(command.y) <= std::numeric_limits<std::int32_t>::max();
+    if (integer_position) {
+        const auto bounds = blit_bounds(
+            static_cast<std::int32_t>(command.x),
+            static_cast<std::int32_t>(command.y),
+            mask.width,
+            mask.height,
+            surface,
+            clip
+        );
+        for (auto destination_y = bounds.destination.top; destination_y < bounds.destination.bottom;
+             ++destination_y) {
+            const auto mask_y = bounds.source_top + destination_y - bounds.destination.top;
+            const auto destination_row = destination_y * surface.stride;
+            const auto mask_row = mask_y * mask.stride;
+            for (auto destination_x = bounds.destination.left;
+                 destination_x < bounds.destination.right;
+                 ++destination_x) {
+                const auto mask_x = bounds.source_left + destination_x - bounds.destination.left;
+                const auto coverage = mask.coverage[mask_row + mask_x];
+                if (coverage == 0) {
+                    continue;
+                }
+                const auto alpha = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(command.color.alpha) * coverage + 127) / 255
+                );
+                auto& destination = surface.pixels[destination_row + destination_x];
+                destination = composite(
+                    DisplayColor{
+                        .red = command.color.red,
+                        .green = command.color.green,
+                        .blue = command.color.blue,
+                        .alpha = alpha,
+                    },
+                    destination
+                );
+            }
+        }
+        return;
+    }
+
+    const auto maximum_x = static_cast<double>(surface.width);
+    const auto maximum_y = static_cast<double>(surface.height);
+    const auto left =
+        floor_coordinate(std::clamp(static_cast<double>(command.x), 0.0, maximum_x), surface.width);
+    const auto top = floor_coordinate(
+        std::clamp(static_cast<double>(command.y), 0.0, maximum_y),
+        surface.height
+    );
+    const auto right = ceil_coordinate(
+        std::clamp(
+            static_cast<double>(command.x) + static_cast<double>(mask.width),
+            0.0,
+            maximum_x
+        ),
+        surface.width
+    );
+    const auto bottom = ceil_coordinate(
+        std::clamp(
+            static_cast<double>(command.y) + static_cast<double>(mask.height),
+            0.0,
+            maximum_y
+        ),
+        surface.height
+    );
+    const auto bounds = intersect(
+        SoftwareClipRect{.left = left, .top = top, .right = right, .bottom = bottom},
+        clip
+    );
+    if (bounds.left >= bounds.right || bounds.top >= bounds.bottom) {
+        return;
+    }
+
+    auto mask_y = static_cast<std::size_t>(std::clamp(
+        std::floor(static_cast<double>(bounds.top) + 0.5 - command.y),
+        0.0,
+        static_cast<double>(mask.height - 1)
+    ));
+    for (auto destination_y = bounds.top; destination_y < bounds.bottom; ++destination_y) {
         const auto destination_row = destination_y * surface.stride;
         const auto mask_row = mask_y * mask.stride;
-        for (auto destination_x = bounds.destination.left; destination_x < bounds.destination.right;
-             ++destination_x) {
-            const auto mask_x = bounds.source_left + destination_x - bounds.destination.left;
+        auto mask_x = static_cast<std::size_t>(std::clamp(
+            std::floor(static_cast<double>(bounds.left) + 0.5 - command.x),
+            0.0,
+            static_cast<double>(mask.width - 1)
+        ));
+        for (auto destination_x = bounds.left; destination_x < bounds.right; ++destination_x) {
             const auto coverage = mask.coverage[mask_row + mask_x];
-            if (coverage == 0) {
-                continue;
+            if (coverage != 0) {
+                const auto alpha = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(command.color.alpha) * coverage + 127) / 255
+                );
+                auto& destination = surface.pixels[destination_row + destination_x];
+                destination = composite(
+                    DisplayColor{
+                        .red = command.color.red,
+                        .green = command.color.green,
+                        .blue = command.color.blue,
+                        .alpha = alpha,
+                    },
+                    destination
+                );
             }
-            const auto alpha = static_cast<std::uint8_t>(
-                (static_cast<std::uint32_t>(command.color.alpha) * coverage + 127) / 255
-            );
-            auto& destination = surface.pixels[destination_row + destination_x];
-            destination = composite(
-                DisplayColor{
-                    .red = command.color.red,
-                    .green = command.color.green,
-                    .blue = command.color.blue,
-                    .alpha = alpha,
-                },
-                destination
-            );
+            if (mask_x + 1 < mask.width) {
+                ++mask_x;
+            }
+        }
+        if (mask_y + 1 < mask.height) {
+            ++mask_y;
         }
     }
 }
@@ -397,37 +572,77 @@ void render_commands(
     SoftwareClipRect initial_clip
 ) noexcept {
     auto current_clip = initial_clip;
-    std::size_t depth = 0;
+    LayoutPoint translation{};
+    std::size_t clip_depth = 0;
+    std::size_t translation_depth = 0;
     for (const auto& command : commands) {
         if (const auto* fill = std::get_if<FillRect>(&command)) {
-            fill_rect(*fill, surface, current_clip);
+            auto translated = *fill;
+            translated.bounds.x += translation.x;
+            translated.bounds.y += translation.y;
+            fill_rect(translated, surface, current_clip);
             continue;
         }
         if (const auto* stroke = std::get_if<StrokeRect>(&command)) {
-            stroke_rect(*stroke, surface, current_clip);
+            auto translated = *stroke;
+            translated.bounds.x += translation.x;
+            translated.bounds.y += translation.y;
+            stroke_rect(translated, surface, current_clip);
             continue;
         }
         if (const auto* line = std::get_if<StrokeLine>(&command)) {
-            stroke_line(*line, surface, current_clip);
+            auto translated = *line;
+            translated.start.x += translation.x;
+            translated.start.y += translation.y;
+            translated.end.x += translation.x;
+            translated.end.y += translation.y;
+            stroke_line(translated, surface, current_clip);
             continue;
         }
         if (const auto* mask = std::get_if<DrawMask>(&command)) {
-            draw_mask(*mask, surface, current_clip);
+            auto translated = *mask;
+            translated.x += translation.x;
+            translated.y += translation.y;
+            draw_mask(translated, surface, current_clip);
+            continue;
+        }
+        if (const auto* polygon = std::get_if<FillPolygon>(&command)) {
+            render_detail::draw_polygon(
+                *polygon,
+                translation,
+                surface,
+                current_clip,
+                workspace.polygon_intersections
+            );
             continue;
         }
         if (const auto* image = std::get_if<DrawImage>(&command)) {
-            render_detail::draw_image(*image, surface, current_clip);
+            auto translated = *image;
+            translated.destination.x += translation.x;
+            translated.destination.y += translation.y;
+            render_detail::draw_image(translated, surface, current_clip);
+            continue;
+        }
+        if (const auto* push = std::get_if<PushTranslation>(&command)) {
+            workspace.translations[translation_depth++] = translation;
+            translation.x += push->offset.x;
+            translation.y += push->offset.y;
+            continue;
+        }
+        if (std::holds_alternative<PopTranslation>(command)) {
+            translation = workspace.translations[--translation_depth];
             continue;
         }
         if (const auto* clip = std::get_if<PushClip>(&command)) {
-            workspace.clips[depth] = current_clip;
-            ++depth;
+            workspace.clips[clip_depth++] = current_clip;
+            auto translated = clip->bounds;
+            translated.x += translation.x;
+            translated.y += translation.y;
             current_clip =
-                intersect(current_clip, pixel_bounds(clip->bounds, surface.width, surface.height));
+                intersect(current_clip, pixel_bounds(translated, surface.width, surface.height));
             continue;
         }
-        --depth;
-        current_clip = workspace.clips[depth];
+        current_clip = workspace.clips[--clip_depth];
     }
 }
 
@@ -442,12 +657,25 @@ SoftwareRenderResult render(
         return SoftwareRenderResult::invalid_surface;
     }
 
-    std::size_t maximum_depth = 0;
-    if (!valid_commands(commands, maximum_depth)) {
+    std::size_t maximum_clip_depth = 0;
+    std::size_t maximum_translation_depth = 0;
+    std::size_t maximum_polygon_points = 0;
+    if (!valid_commands(
+            commands,
+            maximum_clip_depth,
+            maximum_translation_depth,
+            maximum_polygon_points
+        )) {
         return SoftwareRenderResult::invalid_input;
     }
-    if (workspace.clips.size() < maximum_depth) {
+    if (workspace.clips.size() < maximum_clip_depth ||
+        workspace.translations.size() < maximum_translation_depth ||
+        workspace.polygon_intersections.size() < maximum_polygon_points) {
         return SoftwareRenderResult::insufficient_workspace;
+    }
+    if (maximum_translation_depth != 0 &&
+        !valid_translated_commands(commands, workspace.translations)) {
+        return SoftwareRenderResult::invalid_input;
     }
     for (std::size_t index = 0; index < damage_regions.size(); ++index) {
         if (!valid_rect(damage_regions[index])) {

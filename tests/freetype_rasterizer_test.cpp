@@ -361,8 +361,8 @@ void check_bitmap_cache_render_path() {
     const veyra::SoftwareRenderWorkspace workspace{.clips = clips};
     const std::array<veyra::DisplayCommand, 1> commands{
         veyra::DrawMask{
-            .x = 1 + glyph->bearing_x,
-            .y = 3 - glyph->bearing_y,
+            .x = static_cast<float>(1 + glyph->bearing_x),
+            .y = static_cast<float>(3 - glyph->bearing_y),
             .mask = &glyph->mask,
             .color = {.red = 240, .green = 10, .blue = 20, .alpha = 255},
         },
