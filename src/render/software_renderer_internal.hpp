@@ -19,12 +19,21 @@ bool valid_commands(
     std::size_t& maximum_clip_depth,
     std::size_t& maximum_translation_depth,
     std::size_t& maximum_path_intersections,
-    std::size_t& maximum_path_windings
+    std::size_t& maximum_path_windings,
+    bool& uses_polyline
 ) noexcept;
 
 bool valid_translated_commands(
     std::span<const DisplayCommand> commands,
     std::span<LayoutPoint> translations
+) noexcept;
+
+void stroke_polyline(
+    const StrokePolyline& command,
+    LayoutPoint translation,
+    SoftwareSurface surface,
+    SoftwareClipRect clip,
+    std::span<std::uint8_t> coverage_row
 ) noexcept;
 
 void draw_rounded_rect(

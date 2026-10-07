@@ -23,10 +23,12 @@ bool valid_commands(
     std::size_t& maximum_clip_depth,
     std::size_t& maximum_translation_depth,
     std::size_t& maximum_path_intersections,
-    std::size_t& maximum_path_windings
+    std::size_t& maximum_path_windings,
+    bool& uses_polyline
 ) noexcept {
     std::size_t clip_depth = 0;
     std::size_t translation_depth = 0;
+    uses_polyline = false;
     for (const auto& command : commands) {
         if (const auto* fill = std::get_if<FillRect>(&command)) {
             if (!valid_rect(fill->bounds)) {
@@ -62,6 +64,21 @@ bool valid_commands(
                 !std::isfinite(line->thickness) || line->thickness < 0.0F) {
                 return false;
             }
+            continue;
+        }
+        if (const auto* polyline = std::get_if<StrokePolyline>(&command)) {
+            if (polyline->points.size() < 2 || !std::isfinite(polyline->thickness) ||
+                polyline->thickness < 0.0F) {
+                return false;
+            }
+            for (const auto point : polyline->points) {
+                if (!std::isfinite(point.x) || !std::isfinite(point.y)) {
+                    return false;
+                }
+            }
+            uses_polyline = uses_polyline ||
+                (polyline->points.size() > 2 && polyline->thickness > 0.0F &&
+                 polyline->color.alpha != 0);
             continue;
         }
         if (const auto* mask = std::get_if<DrawMask>(&command)) {
@@ -169,6 +186,12 @@ bool valid_translated_commands(
         } else if (const auto* line = std::get_if<StrokeLine>(&command)) {
             if (!finite(line->start.x, line->start.y) || !finite(line->end.x, line->end.y)) {
                 return false;
+            }
+        } else if (const auto* polyline = std::get_if<StrokePolyline>(&command)) {
+            for (const auto point : polyline->points) {
+                if (!finite(point.x, point.y)) {
+                    return false;
+                }
             }
         } else if (const auto* mask = std::get_if<DrawMask>(&command)) {
             if (!finite(mask->x, mask->y)) {

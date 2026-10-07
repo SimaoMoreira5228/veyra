@@ -37,6 +37,7 @@ struct Options {
     bool rounded{};
     bool rounded_border{};
     bool line{};
+    bool polyline{};
     bool translated{};
 };
 
@@ -110,6 +111,10 @@ Options parse_options(int argc, char** argv) {
             options.line = true;
             continue;
         }
+        if (argument == "--polyline") {
+            options.polyline = true;
+            continue;
+        }
         if (argument == "--translated") {
             options.translated = true;
             continue;
@@ -141,12 +146,13 @@ Options parse_options(int argc, char** argv) {
         static_cast<unsigned int>(options.linear_image) +
         static_cast<unsigned int>(options.faded_image) + static_cast<unsigned int>(options.border) +
         static_cast<unsigned int>(options.rounded) +
-        static_cast<unsigned int>(options.rounded_border) + static_cast<unsigned int>(options.line);
+        static_cast<unsigned int>(options.rounded_border) +
+        static_cast<unsigned int>(options.line) + static_cast<unsigned int>(options.polyline);
     if (special_modes > 1) {
         throw std::invalid_argument(
             "choose one of --mask, --path, --curve, --winding, --image, --scaled-image, "
             "--linear-image, --faded-image, "
-            "--border, --rounded, --rounded-border, or --line"
+            "--border, --rounded, --rounded-border, --line, or --polyline"
         );
     }
     if (options.width == 0 || options.width > 4'096 || options.height == 0 ||
@@ -164,6 +170,10 @@ double percentile(const std::vector<double>& sorted_times, std::size_t percent) 
 }
 
 std::string_view scenario_name(const Options& options) noexcept {
+    if (options.polyline && options.translated) {
+        return options.damage ? "software_polyline_translated_damage"
+                              : "software_polyline_translated_full";
+    }
     if ((options.path || options.curve || options.winding) && options.translated) {
         if (options.curve) {
             return options.damage ? "software_curve_translated_damage"
@@ -238,6 +248,9 @@ std::string_view scenario_name(const Options& options) noexcept {
         }
         return options.damage ? "software_line_damage" : "software_line_full";
     }
+    if (options.polyline) {
+        return options.damage ? "software_polyline_damage" : "software_polyline_full";
+    }
     if (options.translucent) {
         return options.damage ? "software_rgba_damage" : "software_rgba_full";
     }
@@ -246,6 +259,7 @@ std::string_view scenario_name(const Options& options) noexcept {
 
 int run(const Options& options) {
     std::vector<veyra::DisplayCommand> commands(options.commands + (options.translated ? 2 : 0));
+    std::vector<veyra::LayoutPoint> polyline_points(options.polyline ? options.commands * 4 : 0);
     const auto path_mode = options.path || options.curve || options.winding;
     const auto path_segments_per_command = options.curve ? std::size_t{2} : std::size_t{3};
     std::vector<veyra::SoftwarePathSegment> path_segments(
@@ -293,6 +307,31 @@ int run(const Options& options) {
     const auto image_height = mask_height * image_scale;
     const auto columns = std::max<std::size_t>(1, options.width / (image_width + 4));
     for (std::size_t index = 0; index < options.commands; ++index) {
+        if (options.polyline) {
+            const auto top = index * options.height / options.commands;
+            const auto bottom = (index + 1) * options.height / options.commands;
+            const auto first_point = index * 4;
+            polyline_points[first_point] = {.y = static_cast<float>(top)};
+            polyline_points[first_point + 1] = {
+                .x = static_cast<float>(options.width) / 3.0F,
+                .y = static_cast<float>(bottom),
+            };
+            polyline_points[first_point + 2] = {
+                .x = static_cast<float>(options.width) * 2.0F / 3.0F,
+                .y = static_cast<float>(top),
+            };
+            polyline_points[first_point + 3] = {
+                .x = static_cast<float>(options.width),
+                .y = static_cast<float>(bottom),
+            };
+            commands[index + static_cast<std::size_t>(options.translated)] = veyra::StrokePolyline{
+                .points =
+                    std::span<const veyra::LayoutPoint>(polyline_points).subspan(first_point, 4),
+                .thickness = 1.5F,
+                .color = color,
+            };
+            continue;
+        }
         if (path_mode) {
             const auto top = index * options.height / options.commands;
             const auto bottom = (index + 1) * options.height / options.commands;
@@ -486,6 +525,7 @@ int run(const Options& options) {
     std::array<veyra::LayoutPoint, 1> translations{};
     std::array<double, 5> path_intersections{};
     std::array<std::int8_t, 5> path_windings{};
+    std::vector<std::uint8_t> stroke_coverage(options.polyline ? options.width : 0);
     if (options.translated) {
         commands.front() = veyra::PushTranslation{
             .offset = {.x = 0.25F, .y = -0.25F},
@@ -499,6 +539,7 @@ int run(const Options& options) {
             path_mode ? std::span<double>(path_intersections) : std::span<double>{},
         .path_windings =
             options.winding ? std::span<std::int8_t>(path_windings) : std::span<std::int8_t>{},
+        .stroke_coverage = stroke_coverage,
     };
     const auto damage = veyra::LayoutRect{
         .x = static_cast<float>(options.width) / 4.0F,

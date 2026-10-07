@@ -48,6 +48,13 @@ struct StrokeLine {
     DisplayColor color;
 };
 
+struct StrokePolyline {
+    std::span<const LayoutPoint> points;
+    float thickness{};
+    DisplayColor color;
+    bool closed{};
+};
+
 struct SoftwareMask {
     std::size_t width{};
     std::size_t height{};
@@ -140,6 +147,7 @@ using DisplayCommand = std::variant<
     StrokeRect,
     StrokeRoundedRect,
     StrokeLine,
+    StrokePolyline,
     DrawMask,
     FillPath,
     DrawImage,
@@ -167,6 +175,7 @@ struct SoftwareRenderWorkspace {
     std::span<LayoutPoint> translations;
     std::span<double> path_intersections;
     std::span<std::int8_t> path_windings;
+    std::span<std::uint8_t> stroke_coverage;
 };
 
 enum class SoftwareRenderResult : std::uint8_t {

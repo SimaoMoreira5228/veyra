@@ -38,6 +38,7 @@ add_library(veyra STATIC
  src/render/damage_tracker.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
+ src/render/software_polyline.cpp
  src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
  src/text/glyph_mask_cache.cpp
@@ -616,6 +617,10 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME software_renderer_line_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --line
+ )
+ add_test(
+  NAME software_renderer_polyline_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --polyline
  )
  add_test(
   NAME software_renderer_translation_benchmark_smoke
