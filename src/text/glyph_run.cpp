@@ -185,8 +185,18 @@ GlyphRunResult build_color_glyph_draw_commands(
 
         image_views[index] = cached->image;
         commands[index] = DrawImage{
-            .x = draw_x,
-            .y = draw_y,
+            .source =
+                {
+                    .width = static_cast<float>(image_views[index].width),
+                    .height = static_cast<float>(image_views[index].height),
+                },
+            .destination =
+                {
+                    .x = static_cast<float>(draw_x),
+                    .y = static_cast<float>(draw_y),
+                    .width = static_cast<float>(image_views[index].width),
+                    .height = static_cast<float>(image_views[index].height),
+                },
             .image = &image_views[index],
         };
         command_count = index + 1;
@@ -296,8 +306,18 @@ GlyphRunResult build_mixed_glyph_draw_commands(
             };
         } else {
             commands[index] = DrawImage{
-                .x = draw_x,
-                .y = draw_y,
+                .source =
+                    {
+                        .width = static_cast<float>(image_views[index].width),
+                        .height = static_cast<float>(image_views[index].height),
+                    },
+                .destination =
+                    {
+                        .x = static_cast<float>(draw_x),
+                        .y = static_cast<float>(draw_y),
+                        .width = static_cast<float>(image_views[index].width),
+                        .height = static_cast<float>(image_views[index].height),
+                    },
                 .image = &image_views[index],
             };
         }

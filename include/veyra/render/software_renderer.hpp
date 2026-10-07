@@ -70,8 +70,8 @@ struct SoftwareImage {
 };
 
 struct DrawImage {
-    std::int32_t x{};
-    std::int32_t y{};
+    LayoutRect source;
+    LayoutRect destination;
     const SoftwareImage* image{};
 };
 

@@ -100,6 +100,48 @@ void check_updates_and_generation_changes() {
     require(queue.pending() == 0, "reset cancels queued requests");
 }
 
+void check_cancel_pending_request() {
+    auto storage = std::array<veyra::FileThumbnailRequest, 2>{};
+    auto queue = veyra::FileThumbnailQueue(storage);
+    const auto first_id = veyra::FileId{1, 31};
+    const auto retained_id = veyra::FileId{1, 32};
+    require(
+        queue.submit({.file_id = first_id}, image_path("stale.png"), 5) ==
+            veyra::FileThumbnailQueueResult::queued,
+        "stale work enters the queue before it leaves the visible range"
+    );
+    require(
+        queue.submit({.file_id = retained_id}, image_path("visible.png"), 1) ==
+            veyra::FileThumbnailQueueResult::queued,
+        "visible work remains queued"
+    );
+
+    require(queue.cancel(first_id), "pending work can be canceled by filesystem identity");
+    require(!queue.cancel(first_id), "canceling absent work reports no change");
+    require(queue.pending() == 1, "canceling work frees exactly one queue slot");
+    require(
+        queue.submit({.file_id = veyra::FileId{1, 33}}, image_path("replacement.png"), 2) ==
+            veyra::FileThumbnailQueueResult::queued,
+        "a new request can use the freed queue slot"
+    );
+
+    const auto first = queue.wait_next({});
+    require(
+        first && first->key.file_id == retained_id,
+        "remaining visible work keeps its priority"
+    );
+    require(
+        !queue.cancel(retained_id),
+        "a request already handed to a worker is no longer pending"
+    );
+
+    const auto second = queue.wait_next({});
+    require(
+        second && second->key.file_id == veyra::FileId{1, 33},
+        "the replacement request remains queued"
+    );
+}
+
 void check_worker_wait_and_stop() {
     auto storage = std::array<veyra::FileThumbnailRequest, 1>{};
     auto queue = veyra::FileThumbnailQueue(storage);
@@ -154,6 +196,7 @@ int main() {
     try {
         check_priority_and_capacity();
         check_updates_and_generation_changes();
+        check_cancel_pending_request();
         check_worker_wait_and_stop();
         check_invalid_paths_and_empty_storage();
     } catch (const std::exception& error) {

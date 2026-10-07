@@ -160,7 +160,7 @@ std::uint64_t scan(
     return checksum;
 }
 
-std::uint64_t schedule_thumbnails(
+std::uint64_t queue_thumbnails(
     veyra::FileThumbnailQueue& queue,
     std::span<const veyra::FileThumbnailKey> keys,
     std::span<const std::filesystem::path> paths
@@ -176,7 +176,15 @@ std::uint64_t schedule_thumbnails(
             throw std::runtime_error("thumbnail queue rejected benchmark work");
         }
     }
+    return generation;
+}
 
+std::uint64_t schedule_thumbnails(
+    veyra::FileThumbnailQueue& queue,
+    std::span<const veyra::FileThumbnailKey> keys,
+    std::span<const std::filesystem::path> paths
+) {
+    const auto generation = queue_thumbnails(queue, keys, paths);
     auto checksum = std::uint64_t{0};
     for (std::size_t index = 0; index < keys.size(); ++index) {
         const auto request = queue.wait_next({});
@@ -207,12 +215,23 @@ int run(const Options& options) {
     auto thumbnail_keys = std::array<veyra::FileThumbnailKey, thumbnail_count>{};
     auto thumbnail_paths = std::array<std::filesystem::path, thumbnail_count>{};
     auto thumbnail_checksum = std::uint64_t{0};
+    auto thumbnail_cancel_checksum = std::uint64_t{0};
     for (std::size_t index = 0; index < thumbnail_count; ++index) {
         thumbnail_keys[index].file_id = {1, index + 1};
         thumbnail_paths[index] = fixture.path / ("thumbnail_" + std::to_string(index));
     }
     for (std::size_t index = 0; index < options.warmup; ++index) {
         thumbnail_checksum += schedule_thumbnails(thumbnail_queue, thumbnail_keys, thumbnail_paths);
+    }
+    constexpr auto thumbnail_cancellation_count = thumbnail_count / 2;
+    for (std::size_t index = 0; index < options.warmup; ++index) {
+        queue_thumbnails(thumbnail_queue, thumbnail_keys, thumbnail_paths);
+        for (std::size_t request = 0; request < thumbnail_cancellation_count; ++request) {
+            if (!thumbnail_queue.cancel(thumbnail_keys[request].file_id)) {
+                throw std::runtime_error("thumbnail queue did not cancel benchmark work");
+            }
+        }
+        thumbnail_cancel_checksum += thumbnail_queue.pending();
     }
 
     auto times = std::vector<double>(options.queries);
@@ -233,6 +252,21 @@ int run(const Options& options) {
     }
     std::sort(thumbnail_times.begin(), thumbnail_times.end());
 
+    auto thumbnail_cancel_times = std::vector<double>(options.queries);
+    for (auto& elapsed : thumbnail_cancel_times) {
+        queue_thumbnails(thumbnail_queue, thumbnail_keys, thumbnail_paths);
+        const auto begin = Clock::now();
+        for (std::size_t request = 0; request < thumbnail_cancellation_count; ++request) {
+            if (!thumbnail_queue.cancel(thumbnail_keys[request].file_id)) {
+                throw std::runtime_error("thumbnail queue did not cancel benchmark work");
+            }
+        }
+        const auto end = Clock::now();
+        elapsed = std::chrono::duration<double, std::micro>(end - begin).count();
+        thumbnail_cancel_checksum += thumbnail_queue.pending();
+    }
+    std::sort(thumbnail_cancel_times.begin(), thumbnail_cancel_times.end());
+
     std::cout << "scenario,platform,compiler,build_config,entries,setup_ms,warmup_queries,"
                  "measured_queries,p50_us,p95_us,p99_us,max_us,checksum\n";
     std::cout << "directory_enumeration," << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER
@@ -246,6 +280,13 @@ int run(const Options& options) {
               << percentile(thumbnail_times, 50) << ',' << percentile(thumbnail_times, 95) << ','
               << percentile(thumbnail_times, 99) << ',' << thumbnail_times.back() << ','
               << thumbnail_checksum << '\n';
+    std::cout << "thumbnail_queue_pending_cancellation," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << thumbnail_count
+              << ",0," << options.warmup << ',' << options.queries << ','
+              << percentile(thumbnail_cancel_times, 50) << ','
+              << percentile(thumbnail_cancel_times, 95) << ','
+              << percentile(thumbnail_cancel_times, 99) << ',' << thumbnail_cancel_times.back()
+              << ',' << thumbnail_cancel_checksum << '\n';
     return 0;
 }
 

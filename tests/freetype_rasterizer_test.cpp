@@ -234,7 +234,19 @@ void check_color_bitmap_conversion_and_rendering() {
         .pixels = surface_pixels,
     };
     const std::array<veyra::DisplayCommand, 1> commands{
-        veyra::DrawImage{.image = &glyph.image},
+        veyra::DrawImage{
+            .source =
+                {
+                    .width = static_cast<float>(glyph.image.width),
+                    .height = static_cast<float>(glyph.image.height),
+                },
+            .destination =
+                {
+                    .width = static_cast<float>(glyph.image.width),
+                    .height = static_cast<float>(glyph.image.height),
+                },
+            .image = &glyph.image,
+        },
     };
     require(
         veyra::render_software(commands, surface, {}) == veyra::SoftwareRenderResult::complete,

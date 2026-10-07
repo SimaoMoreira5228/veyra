@@ -27,6 +27,7 @@ struct Options {
     bool translucent{};
     bool mask{};
     bool image{};
+    bool scaled_image{};
     bool border{};
     bool line{};
 };
@@ -61,6 +62,10 @@ Options parse_options(int argc, char** argv) {
             options.image = true;
             continue;
         }
+        if (argument == "--scaled-image") {
+            options.scaled_image = true;
+            continue;
+        }
         if (argument == "--border") {
             options.border = true;
             continue;
@@ -90,10 +95,12 @@ Options parse_options(int argc, char** argv) {
     }
 
     const auto special_modes = static_cast<unsigned int>(options.mask) +
-        static_cast<unsigned int>(options.image) + static_cast<unsigned int>(options.border) +
-        static_cast<unsigned int>(options.line);
+        static_cast<unsigned int>(options.image) + static_cast<unsigned int>(options.scaled_image) +
+        static_cast<unsigned int>(options.border) + static_cast<unsigned int>(options.line);
     if (special_modes > 1) {
-        throw std::invalid_argument("choose one of --mask, --image, --border, or --line");
+        throw std::invalid_argument(
+            "choose one of --mask, --image, --scaled-image, --border, or --line"
+        );
     }
     if (options.width == 0 || options.width > 4'096 || options.height == 0 ||
         options.height > 4'096 || options.commands == 0 || options.commands > 100'000 ||
@@ -115,6 +122,14 @@ std::string_view scenario_name(const Options& options) noexcept {
             return options.damage ? "software_mask_alpha_damage" : "software_mask_alpha_full";
         }
         return options.damage ? "software_mask_damage" : "software_mask_full";
+    }
+    if (options.scaled_image) {
+        if (options.translucent) {
+            return options.damage ? "software_image_scaled_alpha_damage"
+                                  : "software_image_scaled_alpha_full";
+        }
+        return options.damage ? "software_image_scaled_nearest_damage"
+                              : "software_image_scaled_nearest_full";
     }
     if (options.image) {
         if (options.translucent) {
@@ -179,7 +194,10 @@ int run(const Options& options) {
         .blue = 210,
         .alpha = static_cast<std::uint8_t>(options.translucent ? 160 : 255),
     };
-    const auto columns = std::max<std::size_t>(1, options.width / (mask_width + 4));
+    const auto image_scale = options.scaled_image ? std::size_t{2} : std::size_t{1};
+    const auto image_width = mask_width * image_scale;
+    const auto image_height = mask_height * image_scale;
+    const auto columns = std::max<std::size_t>(1, options.width / (image_width + 4));
     for (std::size_t index = 0; index < options.commands; ++index) {
         if (options.mask) {
             const auto x = (index % columns) * (mask_width + 4);
@@ -192,12 +210,22 @@ int run(const Options& options) {
             };
             continue;
         }
-        if (options.image) {
-            const auto x = (index % columns) * (mask_width + 4);
-            const auto y = (index / columns) * (mask_height + 4);
+        if (options.image || options.scaled_image) {
+            const auto x = (index % columns) * (image_width + 4);
+            const auto y = (index / columns) * (image_height + 4);
             commands[index] = veyra::DrawImage{
-                .x = static_cast<std::int32_t>(x),
-                .y = static_cast<std::int32_t>(y),
+                .source =
+                    {
+                        .width = static_cast<float>(image.width),
+                        .height = static_cast<float>(image.height),
+                    },
+                .destination =
+                    {
+                        .x = static_cast<float>(x),
+                        .y = static_cast<float>(y),
+                        .width = static_cast<float>(image_width),
+                        .height = static_cast<float>(image_height),
+                    },
                 .image = &image,
             };
             continue;

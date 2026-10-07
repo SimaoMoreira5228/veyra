@@ -1,5 +1,7 @@
 #include "veyra/render/software_renderer.hpp"
 
+#include "software_renderer_internal.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -7,10 +9,13 @@
 namespace veyra {
 namespace {
 
-bool valid_rect(const LayoutRect& rect) noexcept {
-    return std::isfinite(rect.x) && std::isfinite(rect.y) && std::isfinite(rect.width) &&
-        std::isfinite(rect.height) && rect.width >= 0.0F && rect.height >= 0.0F;
-}
+using render_detail::blit_bounds;
+using render_detail::ceil_coordinate;
+using render_detail::composite;
+using render_detail::floor_coordinate;
+using render_detail::intersect;
+using render_detail::pixel_bounds;
+using render_detail::valid_rect;
 
 bool valid_surface(const SoftwareSurface& surface) noexcept {
     if (surface.stride < surface.width ||
@@ -31,60 +36,6 @@ bool valid_mask(const SoftwareMask& mask) noexcept {
     return mask.coverage.size() >= mask.height * mask.stride;
 }
 
-bool valid_image(const SoftwareImage& image) noexcept {
-    if (image.stride < image.width ||
-        (image.height != 0 &&
-         image.stride > std::numeric_limits<std::size_t>::max() / image.height)) {
-        return false;
-    }
-
-    return image.pixels.size() >= image.height * image.stride;
-}
-
-SoftwareClipRect intersect(SoftwareClipRect left, SoftwareClipRect right) noexcept {
-    return {
-        .left = std::max(left.left, right.left),
-        .top = std::max(left.top, right.top),
-        .right = std::min(left.right, right.right),
-        .bottom = std::min(left.bottom, right.bottom),
-    };
-}
-
-std::size_t floor_coordinate(double value, std::size_t limit) noexcept {
-    if (value >= static_cast<double>(limit)) {
-        return limit;
-    }
-    return static_cast<std::size_t>(std::floor(value));
-}
-
-std::size_t ceil_coordinate(double value, std::size_t limit) noexcept {
-    if (value >= static_cast<double>(limit)) {
-        return limit;
-    }
-    return static_cast<std::size_t>(std::ceil(value));
-}
-
-SoftwareClipRect
-pixel_bounds(const LayoutRect& rect, std::size_t width, std::size_t height) noexcept {
-    if (rect.width == 0.0F || rect.height == 0.0F) {
-        return {};
-    }
-
-    const auto maximum_x = static_cast<double>(width);
-    const auto maximum_y = static_cast<double>(height);
-    const auto left = std::clamp(static_cast<double>(rect.x), 0.0, maximum_x);
-    const auto top = std::clamp(static_cast<double>(rect.y), 0.0, maximum_y);
-    const auto right = std::clamp(static_cast<double>(rect.x) + rect.width, 0.0, maximum_x);
-    const auto bottom = std::clamp(static_cast<double>(rect.y) + rect.height, 0.0, maximum_y);
-
-    return {
-        .left = floor_coordinate(left, width),
-        .top = floor_coordinate(top, height),
-        .right = ceil_coordinate(right, width),
-        .bottom = ceil_coordinate(bottom, height),
-    };
-}
-
 SoftwareClipRect pixel_interior_bounds(
     double x,
     double y,
@@ -99,10 +50,12 @@ SoftwareClipRect pixel_interior_bounds(
     const auto top = std::clamp(y, 0.0, maximum_y);
     const auto right = std::clamp(x + rectangle_width, 0.0, maximum_x);
     const auto bottom = std::clamp(y + rectangle_height, 0.0, maximum_y);
-    const auto interior_left = ceil_coordinate(left, width);
-    const auto interior_top = ceil_coordinate(top, height);
-    const auto interior_right = std::max(interior_left, floor_coordinate(right, width));
-    const auto interior_bottom = std::max(interior_top, floor_coordinate(bottom, height));
+    const auto interior_left = render_detail::ceil_coordinate(left, width);
+    const auto interior_top = render_detail::ceil_coordinate(top, height);
+    const auto interior_right =
+        std::max(interior_left, render_detail::floor_coordinate(right, width));
+    const auto interior_bottom =
+        std::max(interior_top, render_detail::floor_coordinate(bottom, height));
 
     return {
         .left = interior_left,
@@ -148,7 +101,8 @@ bool valid_commands(std::span<const DisplayCommand> commands, std::size_t& maxim
             continue;
         }
         if (const auto* image = std::get_if<DrawImage>(&command)) {
-            if (image->image == nullptr || !valid_image(*image->image)) {
+            if (image->image == nullptr || !render_detail::valid_image(*image->image) ||
+                !render_detail::valid_image_placement(*image)) {
                 return false;
             }
             continue;
@@ -172,69 +126,6 @@ bool valid_commands(std::span<const DisplayCommand> commands, std::size_t& maxim
     }
 
     return depth == 0;
-}
-
-SoftwarePixel composite(DisplayColor source, SoftwarePixel destination) noexcept {
-    if (source.alpha == 255) {
-        return {
-            .red = source.red,
-            .green = source.green,
-            .blue = source.blue,
-            .alpha = 255,
-        };
-    }
-    if (source.alpha == 0) {
-        return destination;
-    }
-    if (destination.alpha == 0) {
-        return {
-            .red = source.red,
-            .green = source.green,
-            .blue = source.blue,
-            .alpha = source.alpha,
-        };
-    }
-    if (destination.alpha == 255) {
-        const auto inverse_source_alpha = 255 - source.alpha;
-        const auto blend_channel =
-            [source,
-             inverse_source_alpha](std::uint8_t source_channel, std::uint8_t destination_channel) {
-                const auto channel_weight =
-                    static_cast<std::uint32_t>(source_channel) * source.alpha +
-                    static_cast<std::uint32_t>(destination_channel) * inverse_source_alpha;
-                return static_cast<std::uint8_t>((channel_weight + 127) / 255);
-            };
-        return {
-            .red = blend_channel(source.red, destination.red),
-            .green = blend_channel(source.green, destination.green),
-            .blue = blend_channel(source.blue, destination.blue),
-            .alpha = 255,
-        };
-    }
-
-    const auto source_weight = static_cast<std::uint32_t>(source.alpha) * 255;
-    const auto destination_weight =
-        static_cast<std::uint32_t>(destination.alpha) * (255 - source.alpha);
-    const auto alpha_weight = source_weight + destination_weight;
-    if (alpha_weight == 0) {
-        return {};
-    }
-
-    const auto blend_channel =
-        [source_weight,
-         destination_weight,
-         alpha_weight](std::uint8_t source_channel, std::uint8_t destination_channel) {
-            const auto channel_weight = static_cast<std::uint32_t>(source_channel) * source_weight +
-                static_cast<std::uint32_t>(destination_channel) * destination_weight;
-            return static_cast<std::uint8_t>((channel_weight + alpha_weight / 2) / alpha_weight);
-        };
-
-    return {
-        .red = blend_channel(source.red, destination.red),
-        .green = blend_channel(source.green, destination.green),
-        .blue = blend_channel(source.blue, destination.blue),
-        .alpha = static_cast<std::uint8_t>((alpha_weight + 127) / 255),
-    };
 }
 
 void fill_pixels(
@@ -462,54 +353,6 @@ void stroke_line(
     }
 }
 
-struct BlitBounds {
-    std::size_t source_left{};
-    std::size_t source_top{};
-    SoftwareClipRect destination;
-};
-
-BlitBounds blit_bounds(
-    std::int32_t x_coordinate,
-    std::int32_t y_coordinate,
-    std::size_t source_width,
-    std::size_t source_height,
-    SoftwareSurface surface,
-    SoftwareClipRect clip
-) noexcept {
-    const auto x = static_cast<std::int64_t>(x_coordinate);
-    const auto y = static_cast<std::int64_t>(y_coordinate);
-    auto source_left = x < 0 ? static_cast<std::size_t>(-x) : 0;
-    auto source_top = y < 0 ? static_cast<std::size_t>(-y) : 0;
-    auto left = x < 0 ? 0 : static_cast<std::size_t>(x);
-    auto top = y < 0 ? 0 : static_cast<std::size_t>(y);
-    source_left = std::min(source_left, source_width);
-    source_top = std::min(source_top, source_height);
-    left = std::min(left, surface.width);
-    top = std::min(top, surface.height);
-    auto right = left + std::min(source_width - source_left, surface.width - left);
-    auto bottom = top + std::min(source_height - source_top, surface.height - top);
-    if (left < clip.left) {
-        source_left += clip.left - left;
-        left = clip.left;
-    }
-    if (top < clip.top) {
-        source_top += clip.top - top;
-        top = clip.top;
-    }
-    right = std::min(right, clip.right);
-    bottom = std::min(bottom, clip.bottom);
-    return {
-        .source_left = source_left,
-        .source_top = source_top,
-        .destination = {
-            .left = left,
-            .top = top,
-            .right = right,
-            .bottom = bottom,
-        },
-    };
-}
-
 void draw_mask(const DrawMask& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept {
     const auto& mask = *command.mask;
     const auto bounds = blit_bounds(command.x, command.y, mask.width, mask.height, surface, clip);
@@ -547,43 +390,6 @@ void draw_mask(const DrawMask& command, SoftwareSurface surface, SoftwareClipRec
     }
 }
 
-void draw_image(const DrawImage& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept {
-    const auto& image = *command.image;
-    const auto bounds = blit_bounds(command.x, command.y, image.width, image.height, surface, clip);
-    if (bounds.destination.left >= bounds.destination.right ||
-        bounds.destination.top >= bounds.destination.bottom) {
-        return;
-    }
-
-    for (auto destination_y = bounds.destination.top; destination_y < bounds.destination.bottom;
-         ++destination_y) {
-        const auto image_y = bounds.source_top + destination_y - bounds.destination.top;
-        const auto destination_row = destination_y * surface.stride;
-        const auto image_row = image_y * image.stride;
-        for (auto destination_x = bounds.destination.left; destination_x < bounds.destination.right;
-             ++destination_x) {
-            const auto image_x = bounds.source_left + destination_x - bounds.destination.left;
-            const auto source = image.pixels[image_row + image_x];
-            if (source.alpha == 255) {
-                surface.pixels[destination_row + destination_x] = source;
-                continue;
-            }
-            if (source.alpha == 0) {
-                continue;
-            }
-            surface.pixels[destination_row + destination_x] = composite(
-                DisplayColor{
-                    .red = source.red,
-                    .green = source.green,
-                    .blue = source.blue,
-                    .alpha = source.alpha,
-                },
-                surface.pixels[destination_row + destination_x]
-            );
-        }
-    }
-}
-
 void render_commands(
     std::span<const DisplayCommand> commands,
     SoftwareSurface surface,
@@ -610,7 +416,7 @@ void render_commands(
             continue;
         }
         if (const auto* image = std::get_if<DrawImage>(&command)) {
-            draw_image(*image, surface, current_clip);
+            render_detail::draw_image(*image, surface, current_clip);
             continue;
         }
         if (const auto* clip = std::get_if<PushClip>(&command)) {

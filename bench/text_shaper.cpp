@@ -307,7 +307,8 @@ int run(const Options& options) {
         if (draw == nullptr) {
             throw std::runtime_error("color glyph draw list emitted an unexpected command");
         }
-        checksum += static_cast<std::uint32_t>(draw->x) + static_cast<std::uint32_t>(draw->y);
+        checksum += static_cast<std::uint32_t>(draw->destination.x) +
+            static_cast<std::uint32_t>(draw->destination.y);
     }
 
     std::cout << "shaped_color_glyph_draw_list," << VEYRA_BUILD_PLATFORM << ','

@@ -3,6 +3,16 @@
 #include <utility>
 
 namespace veyra {
+namespace {
+
+void clear_thumbnail_request(FileThumbnailRequest& request) noexcept {
+    request.path.clear();
+    request.key = {};
+    request.priority = 0;
+    request.generation = 0;
+}
+
+}
 
 FileThumbnailQueue::FileThumbnailQueue(std::span<FileThumbnailRequest> storage) noexcept :
     storage_(storage) {
@@ -81,6 +91,24 @@ FileThumbnailQueueResult FileThumbnailQueue::submit(
     return FileThumbnailQueueResult::replaced_lower_priority;
 }
 
+bool FileThumbnailQueue::cancel(FileId file_id) noexcept {
+    std::lock_guard lock(mutex_);
+    auto index = std::size_t{0};
+    while (index < count_ && storage_[index].key.file_id != file_id) {
+        ++index;
+    }
+    if (index == count_) {
+        return false;
+    }
+
+    --count_;
+    if (index != count_) {
+        storage_[index] = std::move(storage_[count_]);
+    }
+    clear_thumbnail_request(storage_[count_]);
+    return true;
+}
+
 std::optional<FileThumbnailRequest>
 FileThumbnailQueue::wait_next(const std::stop_token& stop_token) {
     std::unique_lock lock(mutex_);
@@ -97,10 +125,7 @@ FileThumbnailQueue::wait_next(const std::stop_token& stop_token) {
     if (next_index != count_) {
         storage_[next_index] = std::move(storage_[count_]);
     }
-    storage_[count_].path.clear();
-    storage_[count_].key = {};
-    storage_[count_].priority = 0;
-    storage_[count_].generation = 0;
+    clear_thumbnail_request(storage_[count_]);
     return request;
 }
 
@@ -116,10 +141,7 @@ std::size_t FileThumbnailQueue::pending() const noexcept {
 
 void FileThumbnailQueue::clear() noexcept {
     for (std::size_t index = 0; index < count_; ++index) {
-        storage_[index].path.clear();
-        storage_[index].key = {};
-        storage_[index].priority = 0;
-        storage_[index].generation = 0;
+        clear_thumbnail_request(storage_[index]);
     }
     count_ = 0;
 }

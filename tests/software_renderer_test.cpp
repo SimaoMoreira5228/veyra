@@ -439,7 +439,17 @@ void check_image_alpha_clipping_and_stride() {
     };
     const std::array<veyra::DisplayCommand, 1> commands{
         veyra::DrawImage{
-            .x = -1,
+            .source =
+                {
+                    .width = 4.0F,
+                    .height = static_cast<float>(height),
+                },
+            .destination =
+                {
+                    .x = -1.0F,
+                    .width = 4.0F,
+                    .height = static_cast<float>(height),
+                },
             .image = &image,
         },
     };

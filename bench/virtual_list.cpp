@@ -1,4 +1,5 @@
 #include "veyra/core/semantics.hpp"
+#include "veyra/layout/scroll_axis.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -94,9 +95,11 @@ int run(const Options& options) {
     std::vector<double> timings;
     std::vector<double> semantic_timings;
     std::vector<double> anchor_timings;
+    std::vector<double> scroll_chain_timings;
     timings.reserve(options.queries);
     semantic_timings.reserve(options.queries);
     anchor_timings.reserve(options.queries);
+    scroll_chain_timings.reserve(options.queries);
     veyra::VirtualListRange range;
     veyra::VirtualListAnchor anchor;
     double restored_scroll_offset = 0.0;
@@ -144,6 +147,24 @@ int run(const Options& options) {
     double checksum = 0.0;
     double semantic_checksum = 0.0;
     double anchor_checksum = 0.0;
+    auto child_scroll = veyra::ScrollAxis{};
+    auto parent_scroll = veyra::ScrollAxis{};
+    if (!child_scroll.set_extents(20'000.0, 720.0) ||
+        !parent_scroll.set_extents(100'000.0, 1'080.0) ||
+        !child_scroll.set_offset(child_scroll.maximum_offset() - 17.0)) {
+        throw std::runtime_error("nested scroll axes could not be initialized");
+    }
+    auto scroll_chain_checksum = 0.0;
+    for (std::size_t query = 0; query < options.warmup; ++query) {
+        const auto delta = query % 2 == 0 ? 31.25 : -19.5;
+        auto remaining_delta = delta;
+        if (!child_scroll.scroll_by(remaining_delta, remaining_delta) ||
+            !parent_scroll.scroll_by(remaining_delta, remaining_delta)) {
+            throw std::runtime_error("nested scroll chain failed during warmup");
+        }
+        scroll_chain_checksum += child_scroll.offset() + parent_scroll.offset() + remaining_delta;
+    }
+
     for (std::size_t query = 0; query < options.queries; ++query) {
         const auto scroll = scroll_offset(query + options.warmup, index.total_extent());
         const auto begin = Clock::now();
@@ -198,11 +219,27 @@ int run(const Options& options) {
             std::chrono::duration<double, std::nano>(semantic_end - semantic_begin).count()
         );
         semantic_checksum += static_cast<double>(semantic_item.index) + semantic_item.bounds.y;
+
+        const auto delta = (query + options.warmup) % 2 == 0 ? 31.25 : -19.5;
+        auto remaining_delta = delta;
+        const auto scroll_begin = Clock::now();
+        const auto child_scrolled = child_scroll.scroll_by(remaining_delta, remaining_delta);
+        const auto parent_scrolled =
+            child_scrolled && parent_scroll.scroll_by(remaining_delta, remaining_delta);
+        const auto scroll_end = Clock::now();
+        if (!parent_scrolled) {
+            throw std::runtime_error("nested scroll chain failed during measurement");
+        }
+        scroll_chain_timings.push_back(
+            std::chrono::duration<double, std::nano>(scroll_end - scroll_begin).count()
+        );
+        scroll_chain_checksum += child_scroll.offset() + parent_scroll.offset() + remaining_delta;
     }
 
     std::sort(timings.begin(), timings.end());
     std::sort(semantic_timings.begin(), semantic_timings.end());
     std::sort(anchor_timings.begin(), anchor_timings.end());
+    std::sort(scroll_chain_timings.begin(), scroll_chain_timings.end());
     const auto build_ns = std::chrono::duration<double, std::nano>(build_end - build_begin).count();
     std::cout << "scenario,platform,compiler,build_config,items,warmup_queries,measured_queries,"
                  "build_ns,p50_ns,p95_ns,p99_ns,max_ns,total_extent,checksum\n"
@@ -224,6 +261,12 @@ int run(const Options& options) {
               << percentile(anchor_timings, 50) << ',' << percentile(anchor_timings, 95) << ','
               << percentile(anchor_timings, 99) << ',' << anchor_timings.back() << ','
               << index.total_extent() << ',' << anchor_checksum << '\n';
+    std::cout << "nested_scroll_delta_chaining," << VEYRA_BUILD_PLATFORM << ','
+              << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ",2," << options.warmup << ','
+              << options.queries << ",0," << percentile(scroll_chain_timings, 50) << ','
+              << percentile(scroll_chain_timings, 95) << ',' << percentile(scroll_chain_timings, 99)
+              << ',' << scroll_chain_timings.back() << ',' << child_scroll.content_extent() << ','
+              << scroll_chain_checksum << '\n';
     return 0;
 }
 

@@ -67,8 +67,8 @@ void check_display_list_snapshot() {
         },
         veyra::PopClip{},
         veyra::DrawImage{
-            .x = 3,
-            .y = 1,
+            .source = {.width = 1.0F, .height = 1.0F},
+            .destination = {.x = 3.0F, .y = 1.0F, .width = 1.0F, .height = 1.0F},
             .image = &image,
         },
     };

@@ -412,11 +412,11 @@ void check_color_glyph_draw_list() {
     const auto* first = std::get_if<veyra::DrawImage>(&commands[0]);
     const auto* second = std::get_if<veyra::DrawImage>(&commands[1]);
     require(
-        first != nullptr && first->x == 10 && first->y == 16,
+        first != nullptr && first->destination.x == 10 && first->destination.y == 16,
         "first color glyph is positioned"
     );
     require(
-        second != nullptr && second->x == 13 && second->y == 17,
+        second != nullptr && second->destination.x == 13 && second->destination.y == 17,
         "next color glyph follows run"
     );
     require(
@@ -479,7 +479,7 @@ void check_color_glyph_draw_list() {
         "mask glyph keeps its shaped position"
     );
     require(
-        image_draw != nullptr && image_draw->x == 13 && image_draw->y == 17,
+        image_draw != nullptr && image_draw->destination.x == 13 && image_draw->destination.y == 17,
         "color glyph advances from the preceding mask glyph"
     );
 

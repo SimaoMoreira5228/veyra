@@ -30,10 +30,13 @@ add_library(veyra STATIC
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
+ src/layout/image_fit.cpp
  src/layout/measure.cpp
+ src/layout/scroll_axis.cpp
  src/layout/stack.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
+ src/render/software_image.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/text_edit_history.cpp
@@ -98,6 +101,10 @@ if(VEYRA_WITH_FILESYSTEM)
    "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
    "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+  )
+  add_test(
+   NAME directory_enumerator_benchmark_smoke
+   COMMAND veyra_directory_enumerator_bench --entries 64 --warmup 0 --queries 1
   )
  endif()
 endif()
@@ -342,9 +349,17 @@ add_executable(veyra_virtual_list_test tests/virtual_list_test.cpp)
 target_link_libraries(veyra_virtual_list_test PRIVATE veyra)
 add_test(NAME virtual_list_behavior COMMAND veyra_virtual_list_test)
 
+add_executable(veyra_scroll_axis_test tests/scroll_axis_test.cpp)
+target_link_libraries(veyra_scroll_axis_test PRIVATE veyra)
+add_test(NAME scroll_axis_behavior COMMAND veyra_scroll_axis_test)
+
 add_executable(veyra_layout_measure_test tests/layout_measure_test.cpp)
 target_link_libraries(veyra_layout_measure_test PRIVATE veyra)
 add_test(NAME layout_measure_behavior COMMAND veyra_layout_measure_test)
+
+add_executable(veyra_image_fit_test tests/image_fit_test.cpp)
+target_link_libraries(veyra_image_fit_test PRIVATE veyra)
+add_test(NAME image_fit_behavior COMMAND veyra_image_fit_test)
 
 add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
 target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
@@ -542,6 +557,10 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME software_renderer_image_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --image
+ )
+ add_test(
+  NAME software_renderer_scaled_image_benchmark_smoke
+  COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scaled-image
  )
  add_test(
   NAME software_renderer_border_benchmark_smoke

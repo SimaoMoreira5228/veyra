@@ -42,6 +42,7 @@ class FileThumbnailQueue {
     std::uint64_t reset() noexcept;
     FileThumbnailQueueResult
     submit(FileThumbnailKey key, std::filesystem::path path, std::uint32_t priority);
+    bool cancel(FileId file_id) noexcept;
     std::optional<FileThumbnailRequest> wait_next(const std::stop_token& stop_token);
     bool is_current(std::uint64_t generation) const noexcept;
     std::size_t pending() const noexcept;
