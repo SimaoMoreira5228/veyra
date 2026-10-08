@@ -21,6 +21,20 @@ struct Options {
     std::size_t warmup{1'000};
 };
 
+struct ItemIdLookupContext {
+    std::size_t item_count{};
+};
+
+bool find_item_index(void* context, std::uint64_t item_id, std::size_t& item_index) noexcept {
+    const auto item_count = static_cast<ItemIdLookupContext*>(context)->item_count;
+    if (item_id == 0 || item_id > item_count) {
+        return false;
+    }
+
+    item_index = static_cast<std::size_t>(item_id - 1);
+    return true;
+}
+
 std::size_t parse_size(const char* value) {
     const std::string_view text(value);
     std::size_t parsed = 0;
@@ -80,11 +94,14 @@ std::size_t item_index_for_query(std::size_t query, std::size_t item_count) {
 
 int run(const Options& options) {
     std::vector<float> extents(options.items);
+    std::vector<std::uint64_t> item_ids(options.items);
     for (std::size_t index = 0; index < extents.size(); ++index) {
         extents[index] = 18.0F + static_cast<float>(index % 13);
+        item_ids[index] = static_cast<std::uint64_t>(index) + 1;
     }
     std::vector<double> fenwick(options.items + 1);
     veyra::VirtualListIndex index;
+    auto lookup_context = ItemIdLookupContext{options.items};
 
     const auto build_begin = Clock::now();
     if (!index.reset(extents, fenwick)) {
@@ -123,8 +140,14 @@ int run(const Options& options) {
         if (!index.visible_range(scroll, 720.0, 2, range)) {
             throw std::runtime_error("virtual range query failed during warmup");
         }
-        if (!index.capture_anchor(scroll, 720.0, anchor) ||
-            !index.restore_anchor(anchor, 720.0, restored_scroll_offset)) {
+        if (!index.capture_anchor(item_ids, scroll, 720.0, anchor) ||
+            !index.restore_anchor(
+                anchor,
+                720.0,
+                find_item_index,
+                &lookup_context,
+                restored_scroll_offset
+            )) {
             throw std::runtime_error("virtual scroll anchor failed during warmup");
         }
 
@@ -185,9 +208,15 @@ int run(const Options& options) {
         checksum += static_cast<double>(range.first_item + range.last_item) + range.first_offset;
 
         const auto anchor_begin = Clock::now();
-        const auto anchor_captured = index.capture_anchor(scroll, 720.0, anchor);
-        const auto anchor_restored =
-            anchor_captured && index.restore_anchor(anchor, 720.0, restored_scroll_offset);
+        const auto anchor_captured = index.capture_anchor(item_ids, scroll, 720.0, anchor);
+        const auto anchor_restored = anchor_captured &&
+            index.restore_anchor(
+                anchor,
+                720.0,
+                find_item_index,
+                &lookup_context,
+                restored_scroll_offset
+            );
         const auto anchor_end = Clock::now();
         if (!anchor_restored) {
             throw std::runtime_error("virtual scroll anchor failed during measurement");
@@ -196,8 +225,9 @@ int run(const Options& options) {
         anchor_timings.push_back(
             std::chrono::duration<double, std::nano>(anchor_end - anchor_begin).count()
         );
-        anchor_checksum += static_cast<double>(anchor.item_index) + anchor.item_offset +
-            restored_scroll_offset + static_cast<double>(anchor.pinned_to_end);
+        anchor_checksum += static_cast<double>(anchor.item_index) +
+            static_cast<double>(anchor.item_id) + anchor.item_offset + restored_scroll_offset +
+            static_cast<double>(anchor.pinned_to_end);
 
         const auto item_index = item_index_for_query(query + options.warmup, options.items);
         double item_offset = 0.0;

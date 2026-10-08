@@ -20,6 +20,21 @@ bool near(double actual, double expected) {
     return std::abs(actual - expected) < 0.001;
 }
 
+struct ItemIdLookupContext {
+    std::span<const std::uint64_t> item_ids;
+};
+
+bool find_item_index(void* context, std::uint64_t item_id, std::size_t& item_index) noexcept {
+    const auto& ids = static_cast<ItemIdLookupContext*>(context)->item_ids;
+    for (std::size_t index = 0; index < ids.size(); ++index) {
+        if (ids[index] == item_id) {
+            item_index = index;
+            return true;
+        }
+    }
+    return false;
+}
+
 void check_variable_extent_queries() {
     std::array extents{10.0F, 20.0F, 0.0F, 15.0F, 5.0F};
     std::array<double, 6> fenwick{};
@@ -183,6 +198,68 @@ void check_restore_anchor_clamps_after_content_shrinks() {
         near(restored_offset, 35.0),
         "restored offset stays within the shorter list's scrollable range"
     );
+}
+
+void check_stable_anchor_survives_prepend() {
+    std::array extents{10.0F, 20.0F, 30.0F, 40.0F};
+    std::array<double, 5> fenwick{};
+    std::array<std::uint64_t, 4> item_ids{101, 102, 103, 104};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "stable-anchor extents initialize the index");
+
+    veyra::VirtualListAnchor anchor;
+    require(
+        index.capture_anchor(item_ids, 35.0, 20.0, anchor),
+        "stable anchor captures its message ID"
+    );
+    require(
+        anchor.item_index == 2 && anchor.item_id == 103 && near(anchor.item_offset, 5.0),
+        "stable anchor stores identity and local row offset"
+    );
+
+    std::array prepended_extents{5.0F, 10.0F, 20.0F, 30.0F, 40.0F};
+    std::array<double, 6> prepended_fenwick{};
+    std::array<std::uint64_t, 5> prepended_ids{99, 101, 102, 103, 104};
+    require(index.reset(prepended_extents, prepended_fenwick), "prepended rows rebuild the index");
+
+    auto lookup_context = ItemIdLookupContext{prepended_ids};
+    auto restored_offset = -1.0;
+    require(
+        index.restore_anchor(anchor, 20.0, find_item_index, &lookup_context, restored_offset),
+        "stable anchor resolves after prepend"
+    );
+    require(
+        near(restored_offset, 40.0),
+        "prepend keeps the anchored row at the same viewport position"
+    );
+
+    const auto previous_offset = restored_offset;
+    std::array<std::uint64_t, 2> ids_without_anchor{99, 101};
+    lookup_context.item_ids = ids_without_anchor;
+    require(
+        !index.restore_anchor(anchor, 20.0, find_item_index, &lookup_context, restored_offset),
+        "a removed anchor ID fails lookup"
+    );
+    require(near(restored_offset, previous_offset), "missing IDs leave scroll output unchanged");
+}
+
+void check_stable_anchor_rejects_invalid_ids() {
+    std::array extents{10.0F, 20.0F};
+    std::array<double, 3> fenwick{};
+    std::array<std::uint64_t, 2> item_ids{0, 202};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "invalid-ID extents initialize the index");
+
+    veyra::VirtualListAnchor anchor{.item_id = 777};
+    require(!index.capture_anchor(item_ids, 5.0, 0.0, anchor), "zero IDs cannot anchor rows");
+    require(anchor.item_id == 777, "failed stable capture leaves its output unchanged");
+
+    std::array<std::uint64_t, 1> short_ids{201};
+    require(
+        !index.capture_anchor(short_ids, 5.0, 0.0, anchor),
+        "identity storage must match the row count"
+    );
+    require(anchor.item_id == 777, "mismatched identity storage leaves output unchanged");
 }
 
 void check_scroll_item_into_view() {
@@ -356,6 +433,8 @@ int main() {
         check_measurement_updates_and_failures();
         check_scroll_anchor_after_measurement_changes();
         check_restore_anchor_clamps_after_content_shrinks();
+        check_stable_anchor_survives_prepend();
+        check_stable_anchor_rejects_invalid_ids();
         check_scroll_item_into_view();
         check_reset_rejects_invalid_storage_and_extents();
         check_ranges_match_linear_reference();

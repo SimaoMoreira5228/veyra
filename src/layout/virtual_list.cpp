@@ -93,6 +93,31 @@ bool VirtualListIndex::capture_anchor(
     return true;
 }
 
+bool VirtualListIndex::capture_anchor(
+    std::span<const std::uint64_t> item_ids,
+    double scroll_offset,
+    double viewport_extent,
+    VirtualListAnchor& anchor
+) const noexcept {
+    if (item_ids.size() != extents_.size()) {
+        return false;
+    }
+
+    auto candidate = VirtualListAnchor{};
+    if (!capture_anchor(scroll_offset, viewport_extent, candidate)) {
+        return false;
+    }
+    if (!candidate.pinned_to_end) {
+        if (candidate.item_index >= item_ids.size() || item_ids[candidate.item_index] == 0) {
+            return false;
+        }
+        candidate.item_id = item_ids[candidate.item_index];
+    }
+
+    anchor = candidate;
+    return true;
+}
+
 bool VirtualListIndex::restore_anchor(
     const VirtualListAnchor& anchor,
     double viewport_extent,
@@ -119,6 +144,30 @@ bool VirtualListIndex::restore_anchor(
     const auto maximum_scroll_offset = std::max(0.0, total_extent_ - viewport_extent);
     scroll_offset = std::min(restored_offset, maximum_scroll_offset);
     return true;
+}
+
+bool VirtualListIndex::restore_anchor(
+    const VirtualListAnchor& anchor,
+    double viewport_extent,
+    VirtualListItemIndexLookup lookup,
+    void* context,
+    double& scroll_offset
+) const noexcept {
+    if (anchor.pinned_to_end) {
+        return restore_anchor(anchor, viewport_extent, scroll_offset);
+    }
+    if (anchor.item_id == 0 || lookup == nullptr) {
+        return false;
+    }
+
+    auto item_index = std::size_t{0};
+    if (!lookup(context, anchor.item_id, item_index)) {
+        return false;
+    }
+
+    auto resolved_anchor = anchor;
+    resolved_anchor.item_index = item_index;
+    return restore_anchor(resolved_anchor, viewport_extent, scroll_offset);
 }
 
 bool VirtualListIndex::scroll_item_into_view(
