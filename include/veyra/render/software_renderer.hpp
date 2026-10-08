@@ -2,6 +2,7 @@
 #define VEYRA_RENDER_SOFTWARE_RENDERER_HPP
 
 #include "veyra/layout/geometry.hpp"
+#include "veyra/style/color.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,12 +11,7 @@
 
 namespace veyra {
 
-struct DisplayColor {
-    std::uint8_t red{};
-    std::uint8_t green{};
-    std::uint8_t blue{};
-    std::uint8_t alpha{255};
-};
+using DisplayColor = Srgba8;
 
 struct FillRect {
     LayoutRect bounds;

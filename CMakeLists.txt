@@ -54,6 +54,24 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp)
+target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_link_libraries(veyra_behaviors PUBLIC veyra)
+target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
+
+add_library(veyra_style STATIC src/style/theme.cpp)
+target_include_directories(veyra_style PUBLIC
+ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_compile_features(veyra_style PUBLIC cxx_std_23)
+
+add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp)
+target_include_directories(veyra_widgets_basic PUBLIC
+ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(veyra_widgets_basic PUBLIC veyra_behaviors veyra_style)
+target_compile_features(veyra_widgets_basic PUBLIC cxx_std_23)
+
 enable_testing()
 
 set(veyra_build_config "$<CONFIG>")
@@ -310,6 +328,18 @@ add_test(NAME file_thumbnail_cache_behavior COMMAND veyra_file_thumbnail_cache_t
 add_executable(veyra_chat_row_height_cache_test tests/chat_row_height_cache_test.cpp)
 target_link_libraries(veyra_chat_row_height_cache_test PRIVATE veyra)
 add_test(NAME chat_row_height_cache_behavior COMMAND veyra_chat_row_height_cache_test)
+
+add_executable(veyra_pressable_test tests/pressable_test.cpp)
+target_link_libraries(veyra_pressable_test PRIVATE veyra_behaviors)
+add_test(NAME pressable_behavior COMMAND veyra_pressable_test)
+
+add_executable(veyra_theme_test tests/theme_test.cpp)
+target_link_libraries(veyra_theme_test PRIVATE veyra_style)
+add_test(NAME theme_tokens_behavior COMMAND veyra_theme_test)
+
+add_executable(veyra_button_appearance_test tests/button_appearance_test.cpp)
+target_link_libraries(veyra_button_appearance_test PRIVATE veyra_widgets_basic)
+add_test(NAME button_appearance_behavior COMMAND veyra_button_appearance_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
