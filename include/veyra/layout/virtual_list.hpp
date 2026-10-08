@@ -21,11 +21,8 @@ struct VirtualListAnchor {
     std::uint64_t item_id{};
 };
 
-using VirtualListItemIndexLookup = bool (*)(
-    void* context,
-    std::uint64_t item_id,
-    std::size_t& item_index
-) noexcept;
+using VirtualListItemIndexLookup =
+    bool (*)(void* context, std::uint64_t item_id, std::size_t& item_index) noexcept;
 
 class VirtualListIndex {
     std::span<float> extents_;

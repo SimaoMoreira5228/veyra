@@ -13,10 +13,8 @@ enum class FileShellAction : std::uint8_t {
     trash,
 };
 
-std::error_code perform_file_shell_action(
-    FileShellAction action,
-    const std::filesystem::path& path
-) noexcept;
+std::error_code
+perform_file_shell_action(FileShellAction action, const std::filesystem::path& path) noexcept;
 
 }
 

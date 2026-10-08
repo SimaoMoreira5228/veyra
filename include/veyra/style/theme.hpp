@@ -31,6 +31,8 @@ enum class ColorToken : std::uint8_t {
     action_pressed,
     action_disabled,
     text_disabled,
+    toggle_checked,
+    toggle_on_checked,
     count,
 };
 
@@ -70,6 +72,8 @@ inline constexpr auto color_action_hovered = ColorToken::action_hovered;
 inline constexpr auto color_action_pressed = ColorToken::action_pressed;
 inline constexpr auto color_action_disabled = ColorToken::action_disabled;
 inline constexpr auto color_text_disabled = ColorToken::text_disabled;
+inline constexpr auto color_toggle_checked = ColorToken::toggle_checked;
+inline constexpr auto color_toggle_on_checked = ColorToken::toggle_on_checked;
 
 inline constexpr auto space_none = SpaceToken::none;
 inline constexpr auto space_extra_small = SpaceToken::extra_small;

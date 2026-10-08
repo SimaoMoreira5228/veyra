@@ -49,12 +49,11 @@ add_library(veyra STATIC
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
- src/engines.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -65,7 +64,7 @@ target_include_directories(veyra_style PUBLIC
 )
 target_compile_features(veyra_style PUBLIC cxx_std_23)
 
-add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp)
+add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp)
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
@@ -306,12 +305,24 @@ if(VEYRA_WITH_SDL3)
  set_tests_properties(sdl3_window_behavior PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 endif()
 
-foreach(paradigm arena reactive ecs)
- if(VEYRA_PARADIGM STREQUAL "all" OR VEYRA_PARADIGM STREQUAL paradigm)
-  string(TOUPPER "${paradigm}" upper)
-  target_compile_definitions(veyra PRIVATE "VEYRA_${upper}=1")
- endif()
-endforeach()
+if(VEYRA_PARADIGM STREQUAL "all")
+ target_sources(veyra PRIVATE
+  src/paradigms/arena.cpp
+  src/paradigms/reactive.cpp
+  src/paradigms/ecs.cpp
+  src/paradigms/registry.cpp
+ )
+ target_compile_definitions(veyra PUBLIC VEYRA_ARENA=1 VEYRA_REACTIVE=1 VEYRA_ECS=1)
+elseif(VEYRA_PARADIGM STREQUAL "arena")
+ target_sources(veyra PRIVATE src/paradigms/arena.cpp)
+ target_compile_definitions(veyra PUBLIC VEYRA_ARENA=1)
+elseif(VEYRA_PARADIGM STREQUAL "reactive")
+ target_sources(veyra PRIVATE src/paradigms/reactive.cpp)
+ target_compile_definitions(veyra PUBLIC VEYRA_REACTIVE=1)
+elseif(VEYRA_PARADIGM STREQUAL "ecs")
+ target_sources(veyra PRIVATE src/paradigms/ecs.cpp)
+ target_compile_definitions(veyra PUBLIC VEYRA_ECS=1)
+endif()
 
 add_executable(veyra_engine_test tests/engine_test.cpp)
 target_link_libraries(veyra_engine_test PRIVATE veyra)
@@ -340,6 +351,14 @@ add_test(NAME theme_tokens_behavior COMMAND veyra_theme_test)
 add_executable(veyra_button_appearance_test tests/button_appearance_test.cpp)
 target_link_libraries(veyra_button_appearance_test PRIVATE veyra_widgets_basic)
 add_test(NAME button_appearance_behavior COMMAND veyra_button_appearance_test)
+
+add_executable(veyra_toggle_test tests/toggle_test.cpp)
+target_link_libraries(veyra_toggle_test PRIVATE veyra_behaviors)
+add_test(NAME toggle_behavior COMMAND veyra_toggle_test)
+
+add_executable(veyra_toggle_appearance_test tests/toggle_appearance_test.cpp)
+target_link_libraries(veyra_toggle_appearance_test PRIVATE veyra_widgets_basic)
+add_test(NAME toggle_appearance_behavior COMMAND veyra_toggle_appearance_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)

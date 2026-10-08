@@ -17,7 +17,8 @@ constexpr std::uint16_t known_states = static_cast<std::uint16_t>(SemanticState:
     static_cast<std::uint16_t>(SemanticState::busy) |
     static_cast<std::uint16_t>(SemanticState::read_only) |
     static_cast<std::uint16_t>(SemanticState::required) |
-    static_cast<std::uint16_t>(SemanticState::invalid) | focused_state | focusable_state;
+    static_cast<std::uint16_t>(SemanticState::invalid) | focused_state | focusable_state |
+    static_cast<std::uint16_t>(SemanticState::mixed);
 
 constexpr std::uint16_t known_actions = static_cast<std::uint16_t>(SemanticAction::activate) |
     static_cast<std::uint16_t>(SemanticAction::increment) |
@@ -51,6 +52,8 @@ bool valid_role(SemanticRole role) noexcept {
     case SemanticRole::menu_item:
     case SemanticRole::dialog:
     case SemanticRole::window:
+    case SemanticRole::switch_:
+    case SemanticRole::radio:
         return true;
     }
     return false;

@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -137,16 +138,16 @@ TimingSummary summarize(std::vector<FrameTiming>& timings, double FrameTiming::*
     };
 }
 
+template <typename EngineT>
 void run_engine(
-    std::string_view name,
+    std::string_view label,
     const Options& options,
     const std::vector<veyra::Update>& updates
 ) {
-    auto engine = veyra::create_engine(name);
-    engine->reset(options.items);
+    EngineT engine;
+    engine.reset(options.items);
 
-    std::vector<veyra::Rect> draw;
-    draw.reserve(options.visible);
+    std::vector<veyra::Rect> draw(options.visible);
     std::vector<FrameTiming> timings;
     timings.reserve(options.frames);
     std::uint64_t invalidations = 0;
@@ -157,8 +158,8 @@ void run_engine(
         const auto offset = frame * options.updates;
         const auto batch = std::span<const veyra::Update>(updates).subspan(offset, options.updates);
 
-        engine->apply(batch);
-        engine->frame(first, options.visible, draw);
+        engine.apply(batch);
+        engine.frame(first, options.visible, draw);
     }
 
     for (std::size_t frame = 0; frame < options.frames; ++frame) {
@@ -167,10 +168,10 @@ void run_engine(
         const auto batch = std::span<const veyra::Update>(updates).subspan(offset, options.updates);
 
         const auto update_begin = Clock::now();
-        engine->apply(batch);
+        engine.apply(batch);
         const auto update_end = Clock::now();
         const auto frame_begin = Clock::now();
-        const auto stats = engine->frame(first, options.visible, draw);
+        const auto stats = engine.frame(first, options.visible, draw);
         const auto frame_end = Clock::now();
 
         timings.push_back({
@@ -186,7 +187,7 @@ void run_engine(
     const auto frame_summary = summarize(timings, &FrameTiming::frame_us);
     const auto total_summary = summarize(timings, &FrameTiming::total_us);
 
-    std::cout << "random_updates_visible_suffix," << name << ',' << VEYRA_BUILD_PLATFORM << ','
+    std::cout << "random_updates_visible_suffix," << label << ',' << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ','
               << std::thread::hardware_concurrency() << ',' << options.seed << ',' << options.items
               << ',' << options.warmup << ',' << options.frames << ',' << options.updates << ','
@@ -194,8 +195,35 @@ void run_engine(
               << ',' << update_summary.p95 << ',' << update_summary.p99 << ',' << update_summary.max
               << ',' << frame_summary.p50 << ',' << frame_summary.p95 << ',' << frame_summary.p99
               << ',' << frame_summary.max << ',' << total_summary.p50 << ',' << total_summary.p95
-              << ',' << total_summary.p99 << ',' << total_summary.max << ',' << engine->checksum()
+              << ',' << total_summary.p99 << ',' << total_summary.max << ',' << engine.checksum()
               << ',' << invalidations << ',' << rectangles << '\n';
+}
+
+void run_named(
+    std::string_view name,
+    const Options& options,
+    const std::vector<veyra::Update>& updates
+) {
+#ifdef VEYRA_ARENA
+    if (name == "arena") {
+        run_engine<veyra::ArenaEngine>(name, options, updates);
+        return;
+    }
+#endif
+#ifdef VEYRA_REACTIVE
+    if (name == "reactive") {
+        run_engine<veyra::ReactiveEngine>(name, options, updates);
+        return;
+    }
+#endif
+#ifdef VEYRA_ECS
+    if (name == "ecs") {
+        run_engine<veyra::EcsEngine>(name, options, updates);
+        return;
+    }
+#endif
+
+    throw std::invalid_argument("unknown paradigm: " + std::string(name));
 }
 
 }
@@ -212,10 +240,10 @@ int main(int argc, char** argv) {
                      "total_max_us,checksum,invalidations,rects\n";
         if (options.paradigm == "all") {
             for (const auto name : veyra::available_engines()) {
-                run_engine(name, options, updates);
+                run_named(name, options, updates);
             }
         } else {
-            run_engine(options.paradigm, options, updates);
+            run_named(options.paradigm, options, updates);
         }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

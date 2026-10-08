@@ -31,6 +31,8 @@ enum class SemanticRole : std::uint8_t {
     menu_item,
     dialog,
     window,
+    switch_,
+    radio,
 };
 
 enum class SemanticState : std::uint16_t {
@@ -44,6 +46,7 @@ enum class SemanticState : std::uint16_t {
     invalid = 1U << 7U,
     focused = 1U << 8U,
     focusable = 1U << 9U,
+    mixed = 1U << 10U,
 };
 
 enum class SemanticAction : std::uint16_t {
