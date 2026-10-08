@@ -38,12 +38,13 @@ int run() {
     std::uint64_t checksum = 0;
     for (std::size_t update = 0; update < update_count; ++update) {
         const auto begin = Clock::now();
-        timeline.advance(elapsed_per_update);
+        const auto changed = timeline.advance(elapsed_per_update);
         const auto frame_index = timeline.current_frame_index();
         const auto until_next_frame = timeline.time_until_next_frame_ms();
         const auto end = Clock::now();
         timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
-        checksum += frame_index + until_next_frame.value_or(0);
+        checksum +=
+            frame_index + until_next_frame.value_or(0) + static_cast<std::uint64_t>(changed);
     }
 
     std::sort(timings.begin(), timings.end());

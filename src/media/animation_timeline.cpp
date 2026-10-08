@@ -52,15 +52,16 @@ void AnimationTimeline::reset() noexcept {
     finished_ = false;
 }
 
-void AnimationTimeline::advance(std::uint64_t elapsed_ms, bool visible) noexcept {
+bool AnimationTimeline::advance(std::uint64_t elapsed_ms, bool visible) noexcept {
     if (!valid_ || finished_ || !visible || elapsed_ms == 0) {
-        return;
+        return false;
     }
 
+    const auto previous_frame_index = frame_index_;
     const auto until_loop_end = total_duration_ms_ - elapsed_in_loop_ms_;
     if (elapsed_ms < until_loop_end) {
         advance_within_loop(elapsed_ms);
-        return;
+        return frame_index_ != previous_frame_index;
     }
 
     elapsed_ms -= until_loop_end;
@@ -68,7 +69,7 @@ void AnimationTimeline::advance(std::uint64_t elapsed_ms, bool visible) noexcept
         ++completed_plays_;
         if (completed_plays_ == play_count_) {
             finish();
-            return;
+            return frame_index_ != previous_frame_index;
         }
     }
 
@@ -83,13 +84,14 @@ void AnimationTimeline::advance(std::uint64_t elapsed_ms, bool visible) noexcept
             const auto remaining_plays = play_count_ - completed_plays_;
             if (complete_loops >= remaining_plays) {
                 finish();
-                return;
+                return frame_index_ != previous_frame_index;
             }
             completed_plays_ += static_cast<std::uint32_t>(complete_loops);
         }
     }
 
     advance_within_loop(elapsed_ms);
+    return frame_index_ != previous_frame_index;
 }
 
 void AnimationTimeline::advance_within_loop(std::uint64_t elapsed_ms) noexcept {

@@ -1,6 +1,9 @@
 #include "veyra/core/frame_scheduler.hpp"
+#include "veyra/media/animation_timeline.hpp"
 
+#include <array>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -77,6 +80,34 @@ void check_immediate_frame_preserves_future_deadline() {
     require(!scheduler.frame_due(deadline), "coalesced work does not schedule a second frame");
 }
 
+void check_animation_deadlines_request_only_changed_frames() {
+    const std::array<std::uint32_t, 2> durations{10, 20};
+    veyra::AnimationTimeline timeline(durations, 1);
+    veyra::FrameScheduler scheduler;
+    const auto start = veyra::FrameScheduler::Deadline{};
+
+    scheduler.set_deadline(start + 10ms);
+    require(!scheduler.frame_due(start + 9ms), "animation does not wake before its first frame");
+
+    const auto first_deadline = start + 10ms;
+    require(scheduler.consume_frame(first_deadline), "first animation deadline is consumed");
+    require(timeline.advance(10), "first animation deadline selects a new frame");
+    scheduler.request_immediate();
+    scheduler.set_deadline(first_deadline + 20ms);
+    require(scheduler.consume_frame(first_deadline), "changed frame requests an immediate render");
+    require(
+        scheduler.deadline() == first_deadline + 20ms,
+        "rendering a changed frame keeps the next animation deadline"
+    );
+
+    const auto final_deadline = first_deadline + 20ms;
+    require(scheduler.consume_frame(final_deadline), "final animation deadline is consumed");
+    require(!timeline.advance(20), "finishing on the shown frame needs no redraw");
+    require(timeline.finished(), "timeline marks the finite animation finished");
+    scheduler.set_deadline(std::nullopt);
+    require(!scheduler.frame_due(final_deadline), "finished animation leaves the loop idle");
+}
+
 }
 
 int main() {
@@ -84,6 +115,7 @@ int main() {
         check_idle_and_immediate_requests();
         check_deadlines_and_replacement();
         check_immediate_frame_preserves_future_deadline();
+        check_animation_deadlines_request_only_changed_frames();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

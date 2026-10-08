@@ -1,3 +1,4 @@
+#include "veyra/chat/message_change_queue.hpp"
 #include "veyra/chat/row_height_cache.hpp"
 #include "veyra/layout/virtual_list.hpp"
 
@@ -203,6 +204,9 @@ void check_invalid_inputs_and_storage() {
 void check_edit_remeasurement_preserves_scroll_anchor() {
     std::array<veyra::ChatRowHeightCacheSlot, 16> slots{};
     auto cache = veyra::ChatRowHeightCache(slots);
+    auto change_storage = std::array<veyra::ChatMessageChange, 4>{};
+    auto changes = veyra::ChatMessageChangeQueue(change_storage);
+    auto pending_changes = std::array<veyra::ChatMessageChange, 2>{};
     std::array extents{10.0F, 20.0F, 30.0F, 40.0F};
     std::array<double, 5> fenwick{};
     std::array<std::uint64_t, 4> message_ids{101, 102, 103, 104};
@@ -234,8 +238,18 @@ void check_edit_remeasurement_preserves_scroll_anchor() {
 
     const auto edited_message_id = message_ids[0];
     require(
-        cache.invalidate_message(edited_message_id) == 1,
-        "editing a message invalidates its prior row height"
+        changes.try_push({veyra::ChatMessageChangeKind::edited, edited_message_id}) ==
+            veyra::ChatMessageChangeQueueResult::queued,
+        "edit notification enters the bounded message queue"
+    );
+    const auto change_count = changes.try_pop_batch(pending_changes);
+    require(
+        change_count == 1 && pending_changes[0].kind == veyra::ChatMessageChangeKind::edited,
+        "the UI drains the edit notification in its frame batch"
+    );
+    require(
+        cache.invalidate_message(pending_changes[0].message_id) == 1,
+        "the queued edit invalidates its prior row height"
     );
 
     const auto edited_key = veyra::ChatRowHeightKey{

@@ -18,6 +18,7 @@ if(NOT VEYRA_PARADIGM IN_LIST valid_paradigms)
 endif()
 
 add_library(veyra STATIC
+ src/chat/message_change_queue.cpp
  src/chat/row_height_cache.cpp
  src/files/file_list.cpp
  src/media/animation_frame_cache.cpp
@@ -310,6 +311,11 @@ add_executable(veyra_chat_row_height_cache_test tests/chat_row_height_cache_test
 target_link_libraries(veyra_chat_row_height_cache_test PRIVATE veyra)
 add_test(NAME chat_row_height_cache_behavior COMMAND veyra_chat_row_height_cache_test)
 
+find_package(Threads REQUIRED)
+add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
+target_link_libraries(veyra_chat_message_change_queue_test PRIVATE veyra Threads::Threads)
+add_test(NAME chat_message_change_queue_behavior COMMAND veyra_chat_message_change_queue_test)
+
 add_executable(veyra_node_id_pool_test tests/node_id_pool_test.cpp)
 target_link_libraries(veyra_node_id_pool_test PRIVATE veyra)
 add_test(NAME node_id_pool_behavior COMMAND veyra_node_id_pool_test)
@@ -467,6 +473,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_animation_timeline_bench PRIVATE veyra)
  add_executable(veyra_chat_row_height_cache_bench bench/chat_row_height_cache.cpp)
  target_link_libraries(veyra_chat_row_height_cache_bench PRIVATE veyra)
+ add_executable(veyra_chat_message_change_queue_bench bench/chat_message_change_queue.cpp)
+ target_link_libraries(veyra_chat_message_change_queue_bench PRIVATE veyra Threads::Threads)
  add_executable(veyra_file_list_bench bench/file_list.cpp)
  target_link_libraries(veyra_file_list_bench PRIVATE veyra)
  target_compile_definitions(veyra_bench PRIVATE
@@ -535,6 +543,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_chat_row_height_cache_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_chat_message_change_queue_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -666,6 +679,10 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME chat_row_height_cache_benchmark_smoke
   COMMAND veyra_chat_row_height_cache_bench
+ )
+ add_test(
+  NAME chat_message_change_queue_benchmark_smoke
+  COMMAND veyra_chat_message_change_queue_bench --events 10000
  )
  add_test(
   NAME text_editor_buffer_benchmark_smoke

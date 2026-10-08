@@ -20,7 +20,7 @@ class AnimationTimeline {
     std::size_t current_frame_index() const noexcept;
     std::optional<std::uint32_t> time_until_next_frame_ms() const noexcept;
     void reset() noexcept;
-    void advance(std::uint64_t elapsed_ms, bool visible = true) noexcept;
+    bool advance(std::uint64_t elapsed_ms, bool visible = true) noexcept;
 
   private:
     std::span<const std::uint32_t> frame_durations_ms_;
