@@ -13,6 +13,8 @@ namespace veyra {
 struct ShapedRunCacheKey {
     std::uint64_t font_id{};
     std::uint64_t style_id{};
+    std::int32_t font_scale_x{};
+    std::int32_t font_scale_y{};
 };
 
 struct ShapedRunCacheSlot {

@@ -19,6 +19,8 @@ std::uint64_t hash_run(ShapedRunCacheKey key, std::string_view text) noexcept {
     };
     add_value(key.font_id);
     add_value(key.style_id);
+    add_value(static_cast<std::uint64_t>(key.font_scale_x));
+    add_value(static_cast<std::uint64_t>(key.font_scale_y));
     add_value(static_cast<std::uint64_t>(text.size()));
     for (const auto byte : text) {
         hash = (hash ^ static_cast<std::uint8_t>(byte)) * fnv_prime;
@@ -80,7 +82,8 @@ ShapedRunCacheResult ShapedRunCache::find(
     const auto index = static_cast<std::size_t>(hash % slots_.size());
     const auto& slot = slots_[index];
     if (!slot.occupied || slot.hash != hash || slot.key.font_id != key.font_id ||
-        slot.key.style_id != key.style_id || slot.text_length != text.size() ||
+        slot.key.style_id != key.style_id || slot.key.font_scale_x != key.font_scale_x ||
+        slot.key.font_scale_y != key.font_scale_y || slot.text_length != text.size() ||
         (!text.empty() &&
          std::memcmp(text_for_slot(index).data(), text.data(), text.size()) != 0)) {
         return ShapedRunCacheResult::miss;

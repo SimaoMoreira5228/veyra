@@ -118,6 +118,73 @@ void check_lookup_and_invalidation() {
     );
 }
 
+void check_font_scale_invalidates() {
+    std::array<veyra::ShapedRunCacheSlot, 4> slots{};
+    std::array<char, 128> text_storage{};
+    std::array<veyra::ShapedGlyph, 32> glyph_storage{};
+    veyra::ShapedRunCache cache(slots, text_storage, glyph_storage, 32, 8);
+    const veyra::ShapedRunCacheKey unscaled{.font_id = 4, .style_id = 9};
+    const veyra::ShapedRunCacheKey scaled{
+        .font_id = 4,
+        .style_id = 9,
+        .font_scale_x = 2048,
+        .font_scale_y = 2048,
+    };
+    const std::array<veyra::ShapedGlyph, 2> glyphs{
+        veyra::ShapedGlyph{.id = 21, .cluster = 0, .x_advance = 500},
+        veyra::ShapedGlyph{.id = 22, .cluster = 1, .x_advance = 300},
+    };
+    const std::array<veyra::ShapedGlyph, 2> rescaled_glyphs{
+        veyra::ShapedGlyph{.id = 21, .cluster = 0, .x_advance = 1000},
+        veyra::ShapedGlyph{.id = 22, .cluster = 1, .x_advance = 600},
+    };
+    std::array<veyra::ShapedGlyph, 2> output{};
+    std::size_t glyph_count = 0;
+
+    require(
+        cache.insert(unscaled, "ab", glyphs) == veyra::ShapedRunCacheResult::stored,
+        "unscaled run enters the cache"
+    );
+    require(
+        cache.find(scaled, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::miss,
+        "a font scale change misses instead of serving stale advances"
+    );
+    require(glyph_count == 0, "a scale miss resets the output count");
+
+    const veyra::ShapedRunCacheKey wide{
+        .font_id = 4,
+        .style_id = 9,
+        .font_scale_x = 2048,
+        .font_scale_y = 1024,
+    };
+    require(
+        cache.find(wide, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::miss,
+        "a single-axis scale change misses as well"
+    );
+
+    require(
+        cache.find(unscaled, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::hit,
+        "original run still hits under its own scale"
+    );
+    require(
+        output[0].x_advance == 500 && output[1].x_advance == 300,
+        "original hit keeps its own advances"
+    );
+
+    require(
+        cache.insert(scaled, "ab", rescaled_glyphs) == veyra::ShapedRunCacheResult::stored,
+        "rescaled run enters the cache"
+    );
+    require(
+        cache.find(scaled, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::hit,
+        "rescaled run hits under its own scale"
+    );
+    require(
+        output[0].x_advance == 1000 && output[1].x_advance == 600,
+        "rescaled hit returns rescaled advances"
+    );
+}
+
 void check_workspace_limits_and_empty_runs() {
     std::array<veyra::ShapedRunCacheSlot, 1> slots{};
     std::array<char, 2> short_text_storage{};
@@ -150,6 +217,7 @@ void check_workspace_limits_and_empty_runs() {
 int main() {
     try {
         check_lookup_and_invalidation();
+        check_font_scale_invalidates();
         check_workspace_limits_and_empty_runs();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

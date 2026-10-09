@@ -29,6 +29,7 @@ add_library(veyra STATIC
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
  src/core/semantics.cpp
+ src/layout/breakpoints.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
@@ -454,6 +455,10 @@ add_executable(veyra_scroll_axis_test tests/scroll_axis_test.cpp)
 target_link_libraries(veyra_scroll_axis_test PRIVATE veyra)
 add_test(NAME scroll_axis_behavior COMMAND veyra_scroll_axis_test)
 
+add_executable(veyra_breakpoint_test tests/breakpoint_test.cpp)
+target_link_libraries(veyra_breakpoint_test PRIVATE veyra)
+add_test(NAME breakpoint_behavior COMMAND veyra_breakpoint_test)
+
 add_executable(veyra_viewport_test tests/viewport_test.cpp)
 target_link_libraries(veyra_viewport_test PRIVATE veyra)
 add_test(NAME viewport_behavior COMMAND veyra_viewport_test)
@@ -509,6 +514,10 @@ add_test(NAME software_renderer_path_behavior COMMAND veyra_software_renderer_pa
 add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
 add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
+
+add_executable(veyra_printing_test tests/printing_test.cpp)
+target_link_libraries(veyra_printing_test PRIVATE veyra)
+add_test(NAME printing_behavior COMMAND veyra_printing_test)
 
 add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)

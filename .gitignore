@@ -2,3 +2,7 @@ local/
 build/
 .vscode/
 .opencode/
+*.pdf
+*.ps
+*.eps
+*.prn
