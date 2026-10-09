@@ -30,6 +30,7 @@ add_library(veyra STATIC
  src/core/node_tree.cpp
  src/core/semantics.cpp
  src/layout/breakpoints.cpp
+ src/layout/container_queries.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
@@ -55,7 +56,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -366,6 +367,14 @@ add_executable(veyra_selection_test tests/selection_test.cpp)
 target_link_libraries(veyra_selection_test PRIVATE veyra_behaviors)
 add_test(NAME selection_behavior COMMAND veyra_selection_test)
 
+add_executable(veyra_tabs_test tests/tabs_test.cpp)
+target_link_libraries(veyra_tabs_test PRIVATE veyra_behaviors)
+add_test(NAME tabs_behavior COMMAND veyra_tabs_test)
+
+add_executable(veyra_menu_test tests/menu_test.cpp)
+target_link_libraries(veyra_menu_test PRIVATE veyra_behaviors)
+add_test(NAME menu_behavior COMMAND veyra_menu_test)
+
 add_executable(veyra_disclosure_test tests/disclosure_test.cpp)
 target_link_libraries(veyra_disclosure_test PRIVATE veyra_behaviors)
 add_test(NAME disclosure_behavior COMMAND veyra_disclosure_test)
@@ -458,6 +467,10 @@ add_test(NAME scroll_axis_behavior COMMAND veyra_scroll_axis_test)
 add_executable(veyra_breakpoint_test tests/breakpoint_test.cpp)
 target_link_libraries(veyra_breakpoint_test PRIVATE veyra)
 add_test(NAME breakpoint_behavior COMMAND veyra_breakpoint_test)
+
+add_executable(veyra_container_query_test tests/container_query_test.cpp)
+target_link_libraries(veyra_container_query_test PRIVATE veyra)
+add_test(NAME container_query_behavior COMMAND veyra_container_query_test)
 
 add_executable(veyra_viewport_test tests/viewport_test.cpp)
 target_link_libraries(veyra_viewport_test PRIVATE veyra)
