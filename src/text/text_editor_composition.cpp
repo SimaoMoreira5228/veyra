@@ -21,6 +21,10 @@ TextComposition TextEditorBuffer::composition() const noexcept {
     };
 }
 
+bool TextEditorBuffer::has_composition() const noexcept {
+    return composition_active_;
+}
+
 TextEditResult TextEditorBuffer::commit_composition() noexcept {
     if (initialization_result_ != TextEditResult::complete) {
         return initialization_result_;

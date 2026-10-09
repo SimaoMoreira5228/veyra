@@ -47,6 +47,7 @@ enum class SemanticState : std::uint16_t {
     focused = 1U << 8U,
     focusable = 1U << 9U,
     mixed = 1U << 10U,
+    modal = 1U << 11U,
 };
 
 enum class SemanticAction : std::uint16_t {

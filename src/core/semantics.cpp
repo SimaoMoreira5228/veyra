@@ -18,7 +18,8 @@ constexpr std::uint16_t known_states = static_cast<std::uint16_t>(SemanticState:
     static_cast<std::uint16_t>(SemanticState::read_only) |
     static_cast<std::uint16_t>(SemanticState::required) |
     static_cast<std::uint16_t>(SemanticState::invalid) | focused_state | focusable_state |
-    static_cast<std::uint16_t>(SemanticState::mixed);
+    static_cast<std::uint16_t>(SemanticState::mixed) |
+    static_cast<std::uint16_t>(SemanticState::modal);
 
 constexpr std::uint16_t known_actions = static_cast<std::uint16_t>(SemanticAction::activate) |
     static_cast<std::uint16_t>(SemanticAction::increment) |

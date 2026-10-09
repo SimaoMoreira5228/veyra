@@ -130,6 +130,7 @@ class TextEditorBuffer {
         TextSelection selection
     ) noexcept;
     TextComposition composition() const noexcept;
+    bool has_composition() const noexcept;
     TextEditResult commit_composition() noexcept;
     void cancel_composition() noexcept;
 

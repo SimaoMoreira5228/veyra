@@ -53,7 +53,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -64,7 +64,7 @@ target_include_directories(veyra_style PUBLIC
 )
 target_compile_features(veyra_style PUBLIC cxx_std_23)
 
-add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp)
+add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp src/widgets/basic/textfield.cpp)
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
@@ -356,9 +356,25 @@ add_executable(veyra_toggle_test tests/toggle_test.cpp)
 target_link_libraries(veyra_toggle_test PRIVATE veyra_behaviors)
 add_test(NAME toggle_behavior COMMAND veyra_toggle_test)
 
+add_executable(veyra_selection_test tests/selection_test.cpp)
+target_link_libraries(veyra_selection_test PRIVATE veyra_behaviors)
+add_test(NAME selection_behavior COMMAND veyra_selection_test)
+
+add_executable(veyra_overlay_test tests/overlay_test.cpp)
+target_link_libraries(veyra_overlay_test PRIVATE veyra_behaviors)
+add_test(NAME overlay_behavior COMMAND veyra_overlay_test)
+
 add_executable(veyra_toggle_appearance_test tests/toggle_appearance_test.cpp)
 target_link_libraries(veyra_toggle_appearance_test PRIVATE veyra_widgets_basic)
 add_test(NAME toggle_appearance_behavior COMMAND veyra_toggle_appearance_test)
+
+add_executable(veyra_editable_text_test tests/editable_text_test.cpp)
+target_link_libraries(veyra_editable_text_test PRIVATE veyra_behaviors)
+add_test(NAME editable_text_behavior COMMAND veyra_editable_text_test)
+
+add_executable(veyra_textfield_appearance_test tests/textfield_appearance_test.cpp)
+target_link_libraries(veyra_textfield_appearance_test PRIVATE veyra_widgets_basic)
+add_test(NAME textfield_appearance_behavior COMMAND veyra_textfield_appearance_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)

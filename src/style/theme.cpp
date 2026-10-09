@@ -17,6 +17,7 @@ constexpr std::array default_colors{
     Srgba8{.red = 99, .green = 104, .blue = 116},
     Srgba8{.red = 57, .green = 120, .blue = 216},
     Srgba8{.red = 255, .green = 255, .blue = 255},
+    Srgba8{.red = 176, .green = 0, .blue = 32},
 };
 
 constexpr std::array default_spaces{
