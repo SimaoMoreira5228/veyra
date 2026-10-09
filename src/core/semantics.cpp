@@ -19,7 +19,9 @@ constexpr std::uint16_t known_states = static_cast<std::uint16_t>(SemanticState:
     static_cast<std::uint16_t>(SemanticState::required) |
     static_cast<std::uint16_t>(SemanticState::invalid) | focused_state | focusable_state |
     static_cast<std::uint16_t>(SemanticState::mixed) |
-    static_cast<std::uint16_t>(SemanticState::modal);
+    static_cast<std::uint16_t>(SemanticState::modal) |
+    static_cast<std::uint16_t>(SemanticState::sorted_ascending) |
+    static_cast<std::uint16_t>(SemanticState::sorted_descending);
 
 constexpr std::uint16_t known_actions = static_cast<std::uint16_t>(SemanticAction::activate) |
     static_cast<std::uint16_t>(SemanticAction::increment) |
@@ -55,6 +57,9 @@ bool valid_role(SemanticRole role) noexcept {
     case SemanticRole::window:
     case SemanticRole::switch_:
     case SemanticRole::radio:
+    case SemanticRole::column_header:
+    case SemanticRole::scrollbar:
+    case SemanticRole::spinbutton:
         return true;
     }
     return false;

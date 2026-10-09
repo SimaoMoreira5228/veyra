@@ -36,6 +36,7 @@ add_library(veyra STATIC
  src/layout/measure.cpp
  src/layout/scroll_axis.cpp
  src/layout/stack.cpp
+ src/layout/viewport.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
  src/render/software_command_validation.cpp
@@ -53,7 +54,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -356,6 +357,10 @@ add_executable(veyra_toggle_test tests/toggle_test.cpp)
 target_link_libraries(veyra_toggle_test PRIVATE veyra_behaviors)
 add_test(NAME toggle_behavior COMMAND veyra_toggle_test)
 
+add_executable(veyra_range_test tests/range_test.cpp)
+target_link_libraries(veyra_range_test PRIVATE veyra_behaviors)
+add_test(NAME range_behavior COMMAND veyra_range_test)
+
 add_executable(veyra_selection_test tests/selection_test.cpp)
 target_link_libraries(veyra_selection_test PRIVATE veyra_behaviors)
 add_test(NAME selection_behavior COMMAND veyra_selection_test)
@@ -367,6 +372,10 @@ add_test(NAME disclosure_behavior COMMAND veyra_disclosure_test)
 add_executable(veyra_tree_cursor_test tests/tree_cursor_test.cpp)
 target_link_libraries(veyra_tree_cursor_test PRIVATE veyra_behaviors)
 add_test(NAME tree_cursor_behavior COMMAND veyra_tree_cursor_test)
+
+add_executable(veyra_datagrid_test tests/datagrid_test.cpp)
+target_link_libraries(veyra_datagrid_test PRIVATE veyra_behaviors)
+add_test(NAME datagrid_behavior COMMAND veyra_datagrid_test)
 
 add_executable(veyra_overlay_test tests/overlay_test.cpp)
 target_link_libraries(veyra_overlay_test PRIVATE veyra_behaviors)
@@ -444,6 +453,10 @@ add_test(NAME virtual_list_behavior COMMAND veyra_virtual_list_test)
 add_executable(veyra_scroll_axis_test tests/scroll_axis_test.cpp)
 target_link_libraries(veyra_scroll_axis_test PRIVATE veyra)
 add_test(NAME scroll_axis_behavior COMMAND veyra_scroll_axis_test)
+
+add_executable(veyra_viewport_test tests/viewport_test.cpp)
+target_link_libraries(veyra_viewport_test PRIVATE veyra)
+add_test(NAME viewport_behavior COMMAND veyra_viewport_test)
 
 add_executable(veyra_layout_measure_test tests/layout_measure_test.cpp)
 target_link_libraries(veyra_layout_measure_test PRIVATE veyra)

@@ -33,6 +33,9 @@ enum class SemanticRole : std::uint8_t {
     window,
     switch_,
     radio,
+    column_header,
+    scrollbar,
+    spinbutton,
 };
 
 enum class SemanticState : std::uint16_t {
@@ -48,6 +51,8 @@ enum class SemanticState : std::uint16_t {
     focusable = 1U << 9U,
     mixed = 1U << 10U,
     modal = 1U << 11U,
+    sorted_ascending = 1U << 12U,
+    sorted_descending = 1U << 13U,
 };
 
 enum class SemanticAction : std::uint16_t {
