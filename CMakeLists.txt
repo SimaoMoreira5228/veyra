@@ -53,7 +53,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -360,9 +360,21 @@ add_executable(veyra_selection_test tests/selection_test.cpp)
 target_link_libraries(veyra_selection_test PRIVATE veyra_behaviors)
 add_test(NAME selection_behavior COMMAND veyra_selection_test)
 
+add_executable(veyra_disclosure_test tests/disclosure_test.cpp)
+target_link_libraries(veyra_disclosure_test PRIVATE veyra_behaviors)
+add_test(NAME disclosure_behavior COMMAND veyra_disclosure_test)
+
+add_executable(veyra_tree_cursor_test tests/tree_cursor_test.cpp)
+target_link_libraries(veyra_tree_cursor_test PRIVATE veyra_behaviors)
+add_test(NAME tree_cursor_behavior COMMAND veyra_tree_cursor_test)
+
 add_executable(veyra_overlay_test tests/overlay_test.cpp)
 target_link_libraries(veyra_overlay_test PRIVATE veyra_behaviors)
 add_test(NAME overlay_behavior COMMAND veyra_overlay_test)
+
+add_executable(veyra_drag_drop_test tests/drag_drop_test.cpp)
+target_link_libraries(veyra_drag_drop_test PRIVATE veyra_behaviors)
+add_test(NAME drag_drop_behavior COMMAND veyra_drag_drop_test)
 
 add_executable(veyra_toggle_appearance_test tests/toggle_appearance_test.cpp)
 target_link_libraries(veyra_toggle_appearance_test PRIVATE veyra_widgets_basic)
