@@ -369,6 +369,98 @@ void check_overflow_at_capacity() {
     require(menu.depth() == veyra::MenuController::kCapacity, "overflow keeps the stack");
 }
 
+void check_closed_menu_and_stale_contents() {
+    auto menu = veyra::MenuController{};
+    const auto items = root_items();
+    std::span<const veyra::MenuItem> no_children{};
+
+    require(
+        menu.open_root_at(0, items, 1) == veyra::MenuResult::ignored,
+        "anchored open rejects a null menu id"
+    );
+    require(
+        menu.open_submenu(6, items, no_children) == veyra::MenuResult::ignored,
+        "drilling with no open menu is ignored"
+    );
+    require(
+        menu.move(veyra::MenuMove::next, items) == veyra::MenuResult::ignored,
+        "roving with no open menu is ignored"
+    );
+    require(
+        menu.activate(items, no_children).result == veyra::MenuResult::ignored,
+        "activating with no open menu is ignored"
+    );
+
+    std::array<veyra::MenuItem, 2> blocked{{
+        {.id = 13, .kind = veyra::MenuItemKind::separator},
+        {.id = 14, .kind = veyra::MenuItemKind::command, .disabled = true},
+    }};
+    menu.open_root(51, blocked);
+    require(
+        menu.move(veyra::MenuMove::prev, blocked) == veyra::MenuResult::ignored,
+        "backward roving with nothing selectable is ignored"
+    );
+    require(
+        menu.press_right(blocked, no_children).result == veyra::MenuResult::ignored,
+        "right with no active item is ignored"
+    );
+
+    menu.open_root(40, items);
+    std::array<veyra::MenuItem, 1> swapped{{
+        {.id = 9, .kind = veyra::MenuItemKind::command},
+    }};
+    require(
+        menu.press_right(swapped, no_children).result == veyra::MenuResult::ignored,
+        "right against swapped contents is ignored"
+    );
+    require(
+        menu.activate(swapped, no_children).result == veyra::MenuResult::ignored,
+        "activate against swapped contents is ignored"
+    );
+    require(menu.active().id == 1, "rejected calls keep the armed item");
+
+    std::array<veyra::MenuItem, 1> retired{{
+        {.id = 1, .kind = veyra::MenuItemKind::command, .disabled = true},
+    }};
+    require(
+        menu.activate(retired, no_children).result == veyra::MenuResult::ignored,
+        "activate on a retired item is ignored"
+    );
+
+    std::array<veyra::MenuItem, 2> stale{{
+        {.id = 1, .kind = veyra::MenuItemKind::command, .disabled = true},
+        {.id = 2, .kind = veyra::MenuItemKind::separator},
+    }};
+    require(
+        menu.move(veyra::MenuMove::next, stale) == veyra::MenuResult::ignored,
+        "roving a span with nothing selectable is ignored"
+    );
+
+    menu.open_root(40, items);
+    menu.hover(6, items);
+    std::array<veyra::MenuItem, 1> retired_submenu{{
+        {.id = 6, .kind = veyra::MenuItemKind::submenu, .disabled = true, .has_children = true},
+    }};
+    require(
+        menu.open_submenu(6, retired_submenu, no_children) == veyra::MenuResult::ignored,
+        "drilling a disabled submenu is rejected"
+    );
+    require(
+        menu.press_right(retired_submenu, no_children).result == veyra::MenuResult::ignored,
+        "right on a disabled submenu goes nowhere"
+    );
+    require(menu.depth() == 1, "rejected submenu calls leave the stack alone");
+
+    std::array<veyra::MenuItem, 1> bare{{
+        {.id = 70, .kind = veyra::MenuItemKind::submenu},
+    }};
+    menu.open_root(42, bare);
+    require(
+        menu.activate(bare, no_children).result == veyra::MenuResult::ignored,
+        "activate on a childless submenu is ignored"
+    );
+}
+
 void check_semantics() {
     auto menu = veyra::MenuController{};
     const auto items = root_items();
@@ -462,6 +554,7 @@ int main() {
         check_outside_and_close_all();
         check_context_invocation_anchor();
         check_overflow_at_capacity();
+        check_closed_menu_and_stale_contents();
         check_semantics();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

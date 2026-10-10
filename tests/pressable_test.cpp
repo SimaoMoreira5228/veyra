@@ -51,6 +51,10 @@ void check_pointer_activation_and_cancellation() {
 
     control.pointer_down(1, true);
     require(
+        control.pointer_cancel(99) == veyra::PressableResult::ignored && control.state().pressed,
+        "cancellation for a foreign pointer is ignored and keeps the press"
+    );
+    require(
         control.pointer_down(2, true) == veyra::PressableResult::ignored &&
             control.pointer_up(2, true, true) == veyra::PressableResult::ignored,
         "another pointer cannot take over an active press"
@@ -63,6 +67,15 @@ void check_pointer_activation_and_cancellation() {
 
 void check_keyboard_activation_and_focus_loss() {
     auto control = veyra::PressableController{};
+    require(
+        control.set_focused(true) == veyra::PressableResult::handled,
+        "focus can be reflected into the controller"
+    );
+    require(
+        control.key_up(veyra::PressableKey::enter) == veyra::PressableResult::ignored,
+        "Enter release without an armed press is ignored"
+    );
+    control.set_focused(false);
     require(
         control.key_down(veyra::PressableKey::space) == veyra::PressableResult::ignored,
         "unfocused controls ignore keyboard activation"
@@ -119,6 +132,14 @@ void check_disabled_state_and_semantics() {
         control.state().disabled && !control.state().hovered && !control.state().pressed &&
             !control.state().focused,
         "disabling clears transient state"
+    );
+    require(
+        control.pointer_enter() == veyra::PressableResult::ignored && !control.state().hovered,
+        "a disabled control ignores hover"
+    );
+    require(
+        control.pointer_leave() == veyra::PressableResult::ignored,
+        "leaving without hover reports no change"
     );
     require(
         control.pointer_up(1, true, true) == veyra::PressableResult::ignored,

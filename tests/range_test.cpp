@@ -121,6 +121,16 @@ void check_non_finite_rejection() {
         "a NaN configure value is rejected"
     );
     require(
+        !control.configure({.minimum = 0.0, .maximum = 100.0, .step = kQuietNan, .value = 0.0}),
+        "a NaN step is rejected"
+    );
+    require(
+        !control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .value = 0.0, .page_step = kInfinity}
+        ),
+        "an infinite page step is rejected"
+    );
+    require(
         control.state().minimum == before.minimum && control.state().maximum == before.maximum &&
             control.state().value == before.value,
         "rejected configures leave the whole domain untouched"

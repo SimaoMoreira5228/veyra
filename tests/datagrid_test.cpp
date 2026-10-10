@@ -60,6 +60,17 @@ void check_replace_and_order() {
         "replacing with an identical spec reports no change"
     );
 
+    std::array<veyra::DataGridColumn, 3> wider{kSpec[0], kSpec[1], kSpec[2]};
+    wider[0].width = 150.0F;
+    require(
+        grid.set_columns(wider) == DataGridResult::changed && grid.column_width(1) == 150.0F,
+        "replacing with a changed width reports a change"
+    );
+    require(
+        grid.set_columns(kSpec) == DataGridResult::changed,
+        "restoring the fixture spec reports a change"
+    );
+
     std::array<veyra::DataGridColumn, 3> back{};
     require(grid.copy_columns(back) == 3, "copy_columns fills the caller buffer");
     require(
@@ -135,6 +146,17 @@ void check_replace_rejects_bad_specs() {
     require(
         grid.set_columns(negative) == DataGridResult::ignored,
         "a negative minimum rejects the whole replace"
+    );
+
+    std::array<veyra::DataGridColumn, 1> indefinite{{
+        {.id = 9,
+         .width = std::numeric_limits<float>::quiet_NaN(),
+         .min_width = 10.0F,
+         .max_width = 100.0F},
+    }};
+    require(
+        grid.set_columns(indefinite) == DataGridResult::ignored && grid.column_count() == 3,
+        "a NaN width rejects the whole replace"
     );
 }
 
@@ -223,6 +245,7 @@ void check_hide_and_show() {
         "repeating the same flag reports no change"
     );
     require(grid.set_hidden(99, true) == DataGridResult::ignored, "an unknown id is ignored");
+    require(!grid.column_hidden(99), "an unknown column reports no hidden flag");
 
     std::array<std::uint64_t, 3> visible{};
     require(grid.copy_visible_columns(visible) == 2, "two columns stay visible");
@@ -378,6 +401,9 @@ void check_arrow_moves() {
     require_move(grid, DataGridMove::home, DataGridResult::handled, 20, 1);
     require_move(grid, DataGridMove::end, DataGridResult::moved, 20, 3);
     require_move(grid, DataGridMove::end, DataGridResult::handled, 20, 3);
+
+    grid.set_cursor(40, 2, kRows);
+    require_move(grid, DataGridMove::down, DataGridResult::handled, 40, 2);
 }
 
 void check_moves_skip_hidden_columns() {
@@ -420,6 +446,10 @@ void check_hide_snaps_focus_left() {
         grid.move_cursor(DataGridMove::left, kRows, 2).result == DataGridResult::ignored,
         "moves with no visible columns are ignored"
     );
+    require(
+        grid.begin_edit(kRows).result == DataGridResult::ignored,
+        "edit with no visible columns is ignored"
+    );
 }
 
 void check_page_and_tab_moves() {
@@ -437,6 +467,15 @@ void check_page_and_tab_moves() {
         grid.move_cursor(DataGridMove::page_down, kRows, 0).result == DataGridResult::ignored,
         "a zero page step rejects the call"
     );
+    require(
+        grid.move_cursor(DataGridMove::page_up, kRows, 0).result == DataGridResult::ignored,
+        "a zero page step rejects paging up too"
+    );
+
+    grid.set_cursor(10, 1, kRows);
+    require_move(grid, DataGridMove::next, DataGridResult::moved, 10, 2);
+    grid.set_cursor(10, 3, kRows);
+    require_move(grid, DataGridMove::prev, DataGridResult::moved, 10, 2);
 
     grid.set_cursor(10, 3, kRows);
     require_move(grid, DataGridMove::next, DataGridResult::moved, 20, 1);

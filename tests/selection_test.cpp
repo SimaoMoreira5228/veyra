@@ -176,6 +176,31 @@ void check_range_extension() {
             single.contains(40),
         "single-select range extension collapses to the target id"
     );
+
+    auto repeated = veyra::SelectionController{};
+    repeated.configure({.mode = veyra::SelectionMode::multiple});
+    std::array<std::uint64_t, 4> doubled{10, 20, 20, 30};
+    repeated.select(10);
+    require(
+        repeated.extend_range(doubled, 30) == veyra::SelectionResult::changed &&
+            repeated.count() == 3 && repeated.contains(10) && repeated.contains(20) &&
+            repeated.contains(30),
+        "a span repeating an id selects it once"
+    );
+
+    auto crowded = veyra::SelectionController{};
+    crowded.configure({.mode = veyra::SelectionMode::multiple});
+    std::array<std::uint64_t, veyra::SelectionController::kCapacity + 2> flood{};
+    for (std::size_t i = 0; i < flood.size(); ++i) {
+        flood[i] = static_cast<std::uint64_t>(i + 1);
+    }
+    crowded.select(1);
+    const std::size_t held = crowded.count();
+    require(
+        crowded.extend_range(flood, flood.back()) == veyra::SelectionResult::overflow &&
+            crowded.count() == held && crowded.contains(1),
+        "a range wider than capacity overflows without touching the set"
+    );
 }
 
 void check_select_all_and_overflow() {
@@ -198,7 +223,7 @@ void check_select_all_and_overflow() {
         "select-all has no meaning in single-select mode"
     );
 
-    std::array<std::uint64_t, veyra::SelectionController::kCapacity + 1> too_many{};
+    std::array<std::uint64_t, veyra::SelectionController::kCapacity + 2> too_many{};
     for (std::size_t i = 0; i < too_many.size(); ++i) {
         too_many[i] = static_cast<std::uint64_t>(i + 1);
     }
@@ -207,6 +232,10 @@ void check_select_all_and_overflow() {
         control.select_all(too_many) == veyra::SelectionResult::overflow &&
             control.count() == before,
         "an over-capacity select-all is rejected without touching the set"
+    );
+    require(
+        control.select_all({}) == veyra::SelectionResult::handled && control.count() == before,
+        "an empty select-all reports no change and keeps the set"
     );
 
     auto full = veyra::SelectionController{};
@@ -247,6 +276,14 @@ void check_disabled_rejects_mutation() {
         "rejected mutations leave the selection untouched"
     );
     require(control.state().disabled, "disabled state is observable");
+
+    auto disabled_node = veyra::SemanticNodeData{};
+    require(control.write_item_semantics(1, "Row", disabled_node), "disabled rows still write");
+    require(
+        veyra::has_state(disabled_node.states, veyra::SemanticState::disabled) &&
+            disabled_node.actions == 0,
+        "a disabled row keeps its record but offers no actions"
+    );
 
     require(control.set_disabled(false), "enabling reports a state change");
     require(
@@ -342,6 +379,19 @@ void check_radio_mutual_exclusion() {
         "a group with zero members ignores selection and movement"
     );
 
+    auto fresh_next = veyra::RadioGroup{};
+    require(
+        fresh_next.move(veyra::RadioMove::next, members) == veyra::SelectionResult::changed &&
+            fresh_next.selected() == 101,
+        "movement without a check starts at the first member"
+    );
+    auto fresh_prev = veyra::RadioGroup{};
+    require(
+        fresh_prev.move(veyra::RadioMove::prev, members) == veyra::SelectionResult::changed &&
+            fresh_prev.selected() == 103,
+        "backward movement without a check starts at the last member"
+    );
+
     auto solo = veyra::RadioGroup{};
     std::array<std::uint64_t, 1> one{7};
     require(
@@ -381,6 +431,7 @@ void check_radio_movement_and_semantics() {
     );
 
     auto node = veyra::SemanticNodeData{};
+    require(!group.write_semantics(21, {}, node), "an empty radio name is rejected");
     require(group.write_semantics(21, "Size", node), "a named radio writes semantics");
     require(
         node.role == veyra::SemanticRole::radio && node.label == "Size" &&
@@ -400,6 +451,14 @@ void check_radio_movement_and_semantics() {
             group.move(veyra::RadioMove::next, members) == veyra::SelectionResult::ignored &&
             group.selected() == 21,
         "a disabled group rejects selection and movement"
+    );
+
+    auto disabled_radio = veyra::SemanticNodeData{};
+    require(group.write_semantics(21, "Size", disabled_radio), "disabled radios still write");
+    require(
+        veyra::has_state(disabled_radio.states, veyra::SemanticState::disabled) &&
+            disabled_radio.actions == 0,
+        "a disabled radio keeps its record but offers no actions"
     );
 }
 

@@ -157,6 +157,14 @@ void check_negotiation_and_precedence() {
         "move wins the intersection once the target accepts it"
     );
 
+    const veyra::DragFeedback linked = drag.move_target(21, veyra::DragAction::link);
+    require(
+        linked.result == veyra::DragResult::moved && linked.accepts &&
+            linked.negotiated == veyra::DragAction::link,
+        "link is negotiated when it is the only shared action"
+    );
+    drag.move_target(21, veyra::DragAction::move | veyra::DragAction::copy);
+
     const veyra::DragState state = drag.state();
     require(
         state.over_target && state.target == 21 &&
@@ -281,6 +289,10 @@ void check_keyboard_drag() {
         "a keyboard drag starts armed with no threshold to cross"
     );
     require(drag.dragging() && drag.state().pointer == 0, "a keyboard drag owns no pointer");
+    require(
+        drag.begin_keyboard(12, veyra::DragAction::copy) == veyra::DragResult::ignored,
+        "a second keyboard drag cannot hijack a live gesture"
+    );
 
     require(
         drag.update(7, at(5.0F, 0.0F)) == veyra::DragResult::ignored,
@@ -302,6 +314,10 @@ void check_keyboard_drag() {
 
 void check_pending_gates_negotiation() {
     auto drag = veyra::DragDropController{};
+    require(
+        drag.update(7, at(5.0F, 0.0F)) == veyra::DragResult::ignored,
+        "updates with no gesture are ignored"
+    );
     drag.begin(11, veyra::DragAction::move, 7, at(0.0F, 0.0F), 4.0F);
 
     require(

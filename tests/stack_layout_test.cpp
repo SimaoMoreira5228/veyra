@@ -42,6 +42,29 @@ void check_center_and_z_order() {
     );
 }
 
+void check_end_alignment() {
+    const std::array items{
+        veyra::StackItem{.width = 20.0F, .height = 10.0F},
+        veyra::StackItem{.width = 10.0F, .height = 20.0F},
+    };
+    std::array<veyra::LayoutRect, 2> output{};
+    const auto container = veyra::StackContainer{
+        .width = 100.0F,
+        .height = 80.0F,
+        .padding = {.top = 10.0F, .right = 10.0F, .bottom = 10.0F, .left = 10.0F},
+        .align_x = veyra::StackAlignment::end,
+        .align_y = veyra::StackAlignment::end,
+    };
+
+    const auto result = veyra::layout_stack(container, items, output);
+    require(result == veyra::StackLayoutResult::complete, "end-aligned stack completes");
+    require(near(output[0].x, 70.0F) && near(output[0].y, 60.0F), "first item hugs the far edges");
+    require(
+        near(output[1].x, 80.0F) && near(output[1].y, 50.0F),
+        "second item bounds hug the far edges independently"
+    );
+}
+
 void check_stretch_and_overflow() {
     const std::array items{
         veyra::StackItem{.width = 20.0F, .height = 10.0F, .min_width = 30.0F},
@@ -95,6 +118,13 @@ void check_invalid_input_and_capacity() {
     result = veyra::layout_stack(container, items, output);
     require(result == veyra::StackLayoutResult::insufficient_output, "short output is rejected");
     require(near(output[0].x, 7.0F), "short output leaves supplied storage unchanged");
+
+    const auto indefinite = veyra::StackContainer{.width = -1.0F, .height = 40.0F};
+    result = veyra::layout_stack(indefinite, items, output);
+    require(
+        result == veyra::StackLayoutResult::invalid_input,
+        "negative container extents are rejected"
+    );
 }
 
 }
@@ -102,6 +132,7 @@ void check_invalid_input_and_capacity() {
 int main() {
     try {
         check_center_and_z_order();
+        check_end_alignment();
         check_stretch_and_overflow();
         check_invalid_input_and_capacity();
     } catch (const std::exception& error) {

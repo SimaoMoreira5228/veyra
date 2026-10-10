@@ -193,6 +193,88 @@ void check_mixed_opt_in_and_collapse() {
     );
 }
 
+void check_hover_capture_and_keyboard_edges() {
+    auto control = veyra::ToggleController{};
+    require(
+        control.pointer_leave() == veyra::ToggleResult::ignored,
+        "leaving without hover reports no change"
+    );
+    require(
+        control.pointer_enter() == veyra::ToggleResult::handled &&
+            control.pointer_leave() == veyra::ToggleResult::handled && !control.state().hovered,
+        "a hovered control clears hover on leave"
+    );
+    require(
+        control.pointer_down(1, false) == veyra::ToggleResult::ignored,
+        "non-primary pointer presses are ignored"
+    );
+
+    control.pointer_down(1, true);
+    require(
+        control.pointer_cancel(99) == veyra::ToggleResult::ignored && control.state().pressed,
+        "cancellation for a foreign pointer is ignored and keeps the press"
+    );
+    require(
+        control.pointer_cancel(1) == veyra::ToggleResult::handled && !control.state().pressed,
+        "cancellation by the owner clears the press without toggling"
+    );
+    require(control.value() == veyra::ToggleValue::unchecked, "cancelled press keeps the value");
+
+    control.set_focused(true);
+    const auto enter = control.key_down(veyra::ToggleKey::enter);
+    require(enter.result == veyra::ToggleResult::changed, "Enter toggles on the first key-down");
+    require(
+        control.key_down(veyra::ToggleKey::enter).result == veyra::ToggleResult::handled,
+        "a repeated Enter key-down does not toggle again"
+    );
+    require(
+        control.key_up(veyra::ToggleKey::enter).result == veyra::ToggleResult::handled,
+        "Enter release clears its armed state"
+    );
+
+    auto untouched = veyra::ToggleController{};
+    untouched.set_focused(true);
+    require(
+        untouched.key_up(veyra::ToggleKey::enter).result == veyra::ToggleResult::ignored,
+        "Enter release without an armed press is ignored"
+    );
+
+    auto idle = veyra::ToggleController{};
+    require(
+        idle.request_value(veyra::ToggleValue::checked).result == veyra::ToggleResult::changed,
+        "requests commit while enabled"
+    );
+    require(idle.set_disabled(true), "disabling reports a state change");
+    require(
+        idle.request_value(veyra::ToggleValue::unchecked).result == veyra::ToggleResult::ignored &&
+            idle.value() == veyra::ToggleValue::checked,
+        "value requests are ignored while disabled"
+    );
+    require(
+        idle.pointer_enter() == veyra::ToggleResult::ignored && !idle.state().hovered,
+        "a disabled toggle ignores hover"
+    );
+
+    auto kinded = veyra::ToggleController{};
+    require(kinded.set_kind(veyra::ToggleKind::toggle_switch), "the widget kind can switch");
+    require(kinded.kind() == veyra::ToggleKind::toggle_switch, "the configured kind reads back");
+    require(
+        !kinded.set_kind(veyra::ToggleKind::toggle_switch),
+        "repeating the widget kind reports no change"
+    );
+
+    auto opted = veyra::ToggleController{};
+    require(
+        opted.configure({.allow_mixed = true}),
+        "configuration alone can opt into mixed values"
+    );
+    require(opted.mixed_allowed(), "the mixed opt-in reads back");
+    require(
+        opted.request_value(veyra::ToggleValue::mixed).result == veyra::ToggleResult::changed,
+        "mixed commits once configured in"
+    );
+}
+
 void check_disabled_during_armed_and_semantics() {
     auto control = veyra::ToggleController{};
     control.set_focused(true);
@@ -252,6 +334,7 @@ int main() {
         check_keyboard_and_focus_loss();
         check_controlled_mode_and_migration();
         check_mixed_opt_in_and_collapse();
+        check_hover_capture_and_keyboard_edges();
         check_disabled_during_armed_and_semantics();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

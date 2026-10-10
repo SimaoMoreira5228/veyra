@@ -176,6 +176,11 @@ void check_scroll_anchor_after_measurement_changes() {
         near(restored_offset, previous_offset),
         "failed anchor restore leaves output unchanged"
     );
+    require(
+        !index.restore_anchor(anchor, -1.0, restored_offset),
+        "negative viewports are rejected"
+    );
+    require(near(restored_offset, previous_offset), "rejected viewports leave output unchanged");
 }
 
 void check_restore_anchor_clamps_after_content_shrinks() {
@@ -241,6 +246,19 @@ void check_stable_anchor_survives_prepend() {
         "a removed anchor ID fails lookup"
     );
     require(near(restored_offset, previous_offset), "missing IDs leave scroll output unchanged");
+    require(
+        !index.restore_anchor(anchor, 20.0, nullptr, &lookup_context, restored_offset),
+        "a null lookup cannot resolve rows"
+    );
+    require(near(restored_offset, previous_offset), "null lookups leave scroll output unchanged");
+
+    auto anonymous = anchor;
+    anonymous.item_id = 0;
+    require(
+        !index.restore_anchor(anonymous, 20.0, find_item_index, &lookup_context, restored_offset),
+        "an anonymous anchor cannot resolve rows"
+    );
+    require(near(restored_offset, previous_offset), "anonymous anchors leave output unchanged");
 }
 
 void check_stable_anchor_rejects_invalid_ids() {
@@ -260,6 +278,13 @@ void check_stable_anchor_rejects_invalid_ids() {
         "identity storage must match the row count"
     );
     require(anchor.item_id == 777, "mismatched identity storage leaves output unchanged");
+
+    std::array<std::uint64_t, 2> full_ids{201, 202};
+    require(
+        !index.capture_anchor(full_ids, index.total_extent() + 1.0, 0.0, anchor),
+        "scroll offsets past the list cannot anchor rows"
+    );
+    require(anchor.item_id == 777, "out-of-range capture leaves output unchanged");
 }
 
 void check_scroll_item_into_view() {

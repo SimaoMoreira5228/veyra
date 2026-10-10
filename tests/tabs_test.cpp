@@ -174,6 +174,14 @@ void check_manual_mode_switch_abandons_cursor() {
 void check_wrap_policy() {
     auto tabs = veyra::TabsController{};
     std::array<std::uint64_t, 3> members{51, 52, 53};
+
+    require(
+        tabs.move_cursor(veyra::TabsMove::prev, members, no_disabled()) ==
+                veyra::TabsResult::changed &&
+            tabs.cursor() == 53,
+        "prev without a cursor starts at the last tab"
+    );
+
     tabs.select(53, members, no_disabled());
 
     require(
@@ -238,6 +246,13 @@ void check_disabled_skipping() {
         "roving with every tab disabled is ignored"
     );
     require(
+        tabs.move_cursor(veyra::TabsMove::first, members, all_blocked) ==
+                veyra::TabsResult::ignored &&
+            tabs.move_cursor(veyra::TabsMove::last, members, all_blocked) ==
+                veyra::TabsResult::ignored,
+        "jumps with every tab disabled are ignored"
+    );
+    require(
         tabs.activate(members, all_blocked) == veyra::TabsResult::ignored,
         "committing onto a disabled cursor is ignored"
     );
@@ -288,6 +303,27 @@ void check_close_fallback() {
         missing.result == veyra::TabsResult::ignored && missing.closing == 99 &&
             !missing.has_fallback,
         "closing an id outside the members is ignored"
+    );
+
+    auto dupes = veyra::TabsController{};
+    std::array<std::uint64_t, 3> doubled{71, 71, 72};
+    dupes.select(71, doubled, no_disabled());
+    veyra::TabsClose deduped = dupes.close_request(71, doubled, no_disabled());
+    require(
+        deduped.result == veyra::TabsResult::changed && deduped.has_fallback &&
+            deduped.fallback == 72 && dupes.selected() == 72,
+        "a duplicated member id never becomes the fallback"
+    );
+
+    auto twins = veyra::TabsController{};
+    std::array<std::uint64_t, 2> paired{72, 71};
+    std::array<std::uint64_t, 1> retired{72};
+    twins.select(71, paired, no_disabled());
+    veyra::TabsClose self_only = twins.close_request(71, paired, retired);
+    require(
+        self_only.result == veyra::TabsResult::changed && !self_only.has_fallback &&
+            !twins.has_selected() && !twins.has_cursor(),
+        "closing with only a disabled neighbor clears the selection"
     );
 }
 

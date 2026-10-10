@@ -589,6 +589,222 @@ void check_utf8_character_offsets() {
     );
 }
 
+void check_utf8_encoding_boundaries() {
+    std::array<char, 16> storage{};
+    veyra::TextEditorBuffer buffer(storage, "safe");
+    require(buffer.cursor() == 4, "boundary buffer starts after its text");
+
+    const std::array<std::uint8_t, 3> e0_overlong{0xe0, 0x80, 0xaf};
+    const std::string_view e0_overlong_text(
+        reinterpret_cast<const char*>(e0_overlong.data()),
+        e0_overlong.size()
+    );
+    require(
+        buffer.insert(e0_overlong_text) == veyra::TextEditResult::invalid_utf8,
+        "three-byte overlong encodings are rejected"
+    );
+    require(copied_text(buffer) == "safe", "overlong input leaves text unchanged");
+    require(buffer.cursor() == 4, "overlong input leaves the cursor alone");
+    require(buffer.selection().length == 0, "overlong input leaves the selection alone");
+
+    require(
+        buffer.insert("\xE0\xA0\x80") == veyra::TextEditResult::complete,
+        "the three-byte lower boundary is accepted"
+    );
+    require(copied_text(buffer) == "safe\xE0\xA0\x80", "the lowest three-byte character is stored");
+
+    std::array<char, 8> max_storage{};
+    veyra::TextEditorBuffer max_init(max_storage, "\xF4\x8F\xBF\xBF");
+    require(
+        max_init.initialization_result() == veyra::TextEditResult::complete,
+        "U+10FFFF is accepted during initialization"
+    );
+    require(max_init.size() == 4, "the maximum character occupies four bytes");
+
+    const std::array<std::uint8_t, 4> beyond_max{0xf4, 0x90, 0x80, 0x80};
+    const std::string_view beyond_max_text(
+        reinterpret_cast<const char*>(beyond_max.data()),
+        beyond_max.size()
+    );
+    require(
+        buffer.insert(beyond_max_text) == veyra::TextEditResult::invalid_utf8,
+        "encodings beyond U+10FFFF are rejected"
+    );
+    require(
+        copied_text(buffer) == "safe\xE0\xA0\x80",
+        "beyond-maximum input leaves text unchanged"
+    );
+
+    const std::array<std::uint8_t, 2> truncated{0xe2, 0x82};
+    const std::string_view truncated_text(
+        reinterpret_cast<const char*>(truncated.data()),
+        truncated.size()
+    );
+    require(
+        buffer.insert(truncated_text) == veyra::TextEditResult::invalid_utf8,
+        "truncated sequences are rejected on insert"
+    );
+    require(copied_text(buffer) == "safe\xE0\xA0\x80", "truncated input leaves text unchanged");
+    std::array<char, 4> truncated_storage{};
+    veyra::TextEditorBuffer truncated_init(truncated_storage, "\xC2");
+    require(
+        truncated_init.initialization_result() == veyra::TextEditResult::invalid_utf8,
+        "truncated sequences are rejected during initialization"
+    );
+    require(truncated_init.size() == 0, "truncated initialization exposes no text");
+
+    const std::array<std::uint8_t, 3> bad_third{0xe2, 0x82, 0x28};
+    const std::string_view bad_third_text(
+        reinterpret_cast<const char*>(bad_third.data()),
+        bad_third.size()
+    );
+    require(
+        buffer.insert(bad_third_text) == veyra::TextEditResult::invalid_utf8,
+        "invalid third bytes are rejected"
+    );
+    const std::array<std::uint8_t, 4> bad_fourth{0xf0, 0x90, 0x28, 0x8c};
+    const std::string_view bad_fourth_text(
+        reinterpret_cast<const char*>(bad_fourth.data()),
+        bad_fourth.size()
+    );
+    require(
+        buffer.insert(bad_fourth_text) == veyra::TextEditResult::invalid_utf8,
+        "invalid fourth bytes are rejected"
+    );
+    require(
+        copied_text(buffer) == "safe\xE0\xA0\x80",
+        "bad continuation input leaves text unchanged"
+    );
+
+    const std::array<std::uint8_t, 3> surrogate{0xed, 0xa0, 0x80};
+    const std::string_view surrogate_text(
+        reinterpret_cast<const char*>(surrogate.data()),
+        surrogate.size()
+    );
+    require(
+        buffer.insert(surrogate_text) == veyra::TextEditResult::invalid_utf8,
+        "surrogate encodings are rejected on insert"
+    );
+    require(copied_text(buffer) == "safe\xE0\xA0\x80", "surrogate input leaves text unchanged");
+
+    std::size_t byte_offset = 99;
+    require(
+        veyra::utf8_byte_offset("\xFF", 0, byte_offset) == veyra::TextEditResult::invalid_utf8 &&
+            byte_offset == 0,
+        "character offsets reject invalid UTF-8"
+    );
+    const std::string_view supplementary("A\xF0\x90\x8D\x88Z");
+    require(
+        veyra::utf8_byte_offset(supplementary, 1, byte_offset) == veyra::TextEditResult::complete &&
+            byte_offset == 1,
+        "character offsets map before a four-byte character"
+    );
+    require(
+        veyra::utf8_byte_offset(supplementary, 2, byte_offset) == veyra::TextEditResult::complete &&
+            byte_offset == 5,
+        "character offsets skip a four-byte character"
+    );
+    require(
+        veyra::utf8_byte_offset(supplementary, 3, byte_offset) == veyra::TextEditResult::complete &&
+            byte_offset == supplementary.size(),
+        "character offsets map after a four-byte character"
+    );
+}
+
+void check_aliasing_guards_cover_both_spans() {
+    std::array<char, 16> storage{};
+    std::array<char, 64> history{};
+    veyra::TextEditorBuffer buffer(storage, "A\xc2\xa2Z", history);
+    require(
+        buffer.set_cursor(1) == veyra::TextEditResult::complete,
+        "aliasing selection starts before the multibyte character"
+    );
+    require(
+        buffer.set_cursor(3, true) == veyra::TextEditResult::complete,
+        "aliasing selection covers the multibyte character"
+    );
+
+    std::size_t length = 99;
+    require(
+        buffer.copy_selection(history, length) == veyra::TextEditResult::overlapping_output,
+        "selection copy rejects history storage as output"
+    );
+    require(length == 2, "history-overlapping selection copy reports its length");
+    require(copied_text(buffer) == "A\xc2\xa2Z", "rejected selection copy leaves text unchanged");
+    require(
+        buffer.cursor() == 3 && buffer.selection().start == 1 && buffer.selection().length == 2,
+        "rejected selection copy leaves cursor and selection alone"
+    );
+
+    history[0] = 'X';
+    const std::string_view history_text(history.data(), 1);
+    require(
+        buffer.insert(history_text) == veyra::TextEditResult::overlapping_input,
+        "insert rejects a source inside history storage"
+    );
+    require(copied_text(buffer) == "A\xc2\xa2Z", "history-sourced insert leaves text unchanged");
+    require(
+        buffer.cursor() == 3 && buffer.selection().start == 1 && buffer.selection().length == 2,
+        "history-sourced insert leaves cursor and selection alone"
+    );
+
+    std::array<char, 8> composition_storage{};
+    require(
+        buffer.update_composition(composition_storage, history_text, 1, {}) ==
+            veyra::TextEditResult::overlapping_input,
+        "composition rejects preedit text inside history storage"
+    );
+    require(!buffer.has_composition(), "rejected preedit text leaves no live composition");
+    require(
+        copied_text(buffer) == "A\xc2\xa2Z",
+        "rejected preedit text leaves committed text unchanged"
+    );
+
+    const auto committed_prefix = buffer.text_before_cursor().substr(0, 1);
+    require(
+        buffer.update_composition(composition_storage, committed_prefix, 1, {}) ==
+            veyra::TextEditResult::overlapping_input,
+        "composition rejects preedit text aliasing committed text"
+    );
+    require(!buffer.has_composition(), "aliased preedit text leaves no live composition");
+
+    const auto history_scratch = std::span<char>(history).subspan(8, 8);
+    require(
+        buffer.update_composition(history_scratch, "ok", 2, {}) ==
+            veyra::TextEditResult::overlapping_input,
+        "composition rejects scratch storage inside history storage"
+    );
+    require(!buffer.has_composition(), "aliased scratch storage leaves no live composition");
+
+    composition_storage[0] = 'o';
+    composition_storage[1] = 'k';
+    const std::string_view scratch_text(composition_storage.data(), 2);
+    require(
+        buffer.update_composition(composition_storage, scratch_text, 2, {}) ==
+            veyra::TextEditResult::overlapping_input,
+        "composition rejects preedit text inside its own scratch"
+    );
+    require(!buffer.has_composition(), "self-aliased preedit leaves no live composition");
+    require(
+        copied_text(buffer) == "A\xc2\xa2Z",
+        "rejected composition leaves committed text unchanged"
+    );
+}
+
+void check_cancel_without_composition_is_a_noop() {
+    std::array<char, 16> storage{};
+    veyra::TextEditorBuffer buffer(storage, "hello");
+    require(
+        buffer.set_cursor(2) == veyra::TextEditResult::complete,
+        "cancel-noop cursor moves inside the text"
+    );
+    buffer.cancel_composition();
+    require(!buffer.has_composition(), "cancel without preedit leaves no composition");
+    require(copied_text(buffer) == "hello", "cancel without preedit leaves text unchanged");
+    require(buffer.cursor() == 2, "cancel without preedit leaves the cursor alone");
+    require(buffer.selection().length == 0, "cancel without preedit leaves the selection alone");
+}
+
 }
 
 int main() {
@@ -603,6 +819,9 @@ int main() {
         check_composition_commit_and_cancel();
         check_composition_capacity_failure();
         check_utf8_character_offsets();
+        check_utf8_encoding_boundaries();
+        check_aliasing_guards_cover_both_spans();
+        check_cancel_without_composition_is_a_noop();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

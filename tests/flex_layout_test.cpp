@@ -57,6 +57,43 @@ void check_unrepresentable_coordinates() {
     );
 }
 
+void check_justification_places_leftover_space() {
+    const std::array items{
+        veyra::FlexItem{.basis = 20.0F, .min_main = 20.0F, .max_main = 20.0F, .cross_size = 10.0F},
+        veyra::FlexItem{.basis = 20.0F, .min_main = 20.0F, .max_main = 20.0F, .cross_size = 10.0F},
+    };
+    std::array<veyra::LayoutRect, 2> output{};
+    auto container = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 30.0F,
+        .justify_content = veyra::FlexJustify::center,
+    };
+
+    auto result = veyra::layout_flex(container, items, output);
+    require(result == veyra::FlexLayoutResult::complete, "centered justification completes");
+    require(
+        near(output[0].x, 30.0F) && near(output[1].x, 50.0F),
+        "center splits leftover space before the first item"
+    );
+
+    container.justify_content = veyra::FlexJustify::end;
+    result = veyra::layout_flex(container, items, output);
+    require(result == veyra::FlexLayoutResult::complete, "end justification completes");
+    require(
+        near(output[0].x, 60.0F) && near(output[1].x, 80.0F),
+        "end pushes leftover space before the first item"
+    );
+
+    container.justify_content = veyra::FlexJustify::start;
+    container.align_items = veyra::FlexAlign::end;
+    result = veyra::layout_flex(container, items, output);
+    require(result == veyra::FlexLayoutResult::complete, "end cross alignment completes");
+    require(
+        near(output[0].y, 20.0F) && near(output[1].y, 20.0F),
+        "end drops items to the cross-axis edge"
+    );
+}
+
 void check_growth_shrink_and_justification() {
     const std::array items{
         veyra::FlexItem{
@@ -179,6 +216,13 @@ void check_overflow_and_invalid_inputs() {
     result = veyra::layout_flex(container, items, short_output);
     require(result == veyra::FlexLayoutResult::insufficient_output, "short output is rejected");
     require(near(short_output[0].x, 7.0F), "short output remains unchanged");
+
+    const auto indefinite = veyra::FlexContainer{
+        .width = std::numeric_limits<float>::quiet_NaN(),
+        .height = 10.0F,
+    };
+    result = veyra::layout_flex(indefinite, items, output);
+    require(result == veyra::FlexLayoutResult::invalid_input, "NaN extents are rejected");
 }
 
 void check_measured_layout_and_child_constraints() {
@@ -303,6 +347,29 @@ void check_measured_overflow_and_capacity() {
     require(
         !veyra::flex_item_constraints(container, invalid_styles[0], constraints),
         "invalid item styles cannot produce child constraints"
+    );
+
+    const auto indefinite = veyra::FlexContainer{
+        .width = std::numeric_limits<float>::quiet_NaN(),
+        .height = 15.0F,
+    };
+    result = veyra::layout_flex_measured(indefinite, styles, intrinsic, resolved, output);
+    require(
+        result == veyra::FlexLayoutResult::invalid_input,
+        "measured layout rejects NaN extents"
+    );
+
+    const std::array indefinite_intrinsic{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 20.0F, .preferred = 25.0F, .max_content = 30.0F},
+            .height = {.min_content = 5.0F, .preferred = 10.0F, .max_content = 12.0F},
+            .baseline = std::numeric_limits<float>::quiet_NaN(),
+        },
+    };
+    result = veyra::layout_flex_measured(container, styles, indefinite_intrinsic, resolved, output);
+    require(
+        result == veyra::FlexLayoutResult::invalid_input,
+        "measured layout rejects NaN intrinsic sizes"
     );
 }
 
@@ -594,6 +661,7 @@ void check_measured_flex_wrap() {
 int main() {
     try {
         check_unrepresentable_coordinates();
+        check_justification_places_leftover_space();
         check_growth_shrink_and_justification();
         check_padding_column_and_space_between();
         check_overflow_and_invalid_inputs();

@@ -60,6 +60,10 @@ void check_readonly_rejects_edits_allows_reads() {
         "copy still works while readonly"
     );
     require(
+        fix.field.select_all() == veyra::EditableTextResult::handled,
+        "selecting an already-selected span reports no change"
+    );
+    require(
         fix.field.cut_selection(output, length).result == veyra::EditableTextResult::ignored,
         "cut is rejected while readonly"
     );
@@ -107,8 +111,8 @@ void check_disabled_rejects_edits_clears_focus() {
         "focusing a disabled field is rejected"
     );
     require(
-        fix.field.set_focused(true) == veyra::EditableTextResult::ignored,
-        "duplicate focus rejection stays stable"
+        fix.field.set_cursor(1).result == veyra::EditableTextResult::ignored,
+        "caret movement is rejected while disabled"
     );
 
     std::array<char, 16> output{};
@@ -151,6 +155,13 @@ void check_invalid_flag_independent_of_ime() {
     require(fix.field.composing(), "flagging invalid leaves the preedit alone");
     require(!fix.field.set_invalid(true), "repeating invalid reports no change");
 
+    auto flagged = veyra::SemanticNodeData{};
+    require(fix.field.write_semantics("Name", "abc", flagged), "flagged semantics write");
+    require(
+        veyra::has_state(flagged.states, veyra::SemanticState::invalid),
+        "flagged semantics expose the invalid state"
+    );
+
     const auto commit = fix.field.commit_composition();
     require(
         commit.result == veyra::EditableTextResult::changed && !fix.field.composing(),
@@ -182,6 +193,22 @@ void check_composition_rejected_unfocused() {
         fix.field.commit_composition().result == veyra::EditableTextResult::handled,
         "committing nothing reports no change"
     );
+    fix.field.update_composition(fix.preedit, "X", 1, {});
+    require(
+        fix.field.cancel_composition() == veyra::EditableTextResult::changed,
+        "cancelling a live preedit reports a change"
+    );
+    require(!fix.field.composing(), "cancellation drops the preedit");
+
+    std::array<char, 1> cramped{};
+    const auto starved =
+        fix.field.update_composition(cramped, "toolong", 7, {.start = 0, .length = 0});
+    require(
+        starved.result == veyra::EditableTextResult::handled &&
+            starved.edit == veyra::TextEditResult::insufficient_capacity && !fix.field.composing(),
+        "a preedit larger than its storage reports no change and stores nothing"
+    );
+
     fix.field.update_composition(fix.preedit, "X", 1, {});
     require(
         fix.field.set_focused(false) == veyra::EditableTextResult::handled,
@@ -326,6 +353,35 @@ void check_empty_name_semantics_rejection() {
     );
 }
 
+void check_paste_and_erase_apply_edits() {
+    auto fix = Fixture{"hello"};
+    require(
+        fix.field.paste("!!").result == veyra::EditableTextResult::changed &&
+            fix.buffer.size() == 7,
+        "paste inserts at the caret"
+    );
+    require(
+        fix.field.erase_backward().result == veyra::EditableTextResult::changed &&
+            fix.buffer.size() == 6,
+        "erase-backward deletes behind the caret"
+    );
+    require(
+        fix.field.erase_forward().result == veyra::EditableTextResult::handled &&
+            fix.buffer.size() == 6,
+        "erase-forward at the end of text reports no change"
+    );
+
+    require(
+        fix.field.set_cursor(0).result == veyra::EditableTextResult::changed,
+        "caret moves to the front"
+    );
+    require(
+        fix.field.erase_forward().result == veyra::EditableTextResult::changed &&
+            fix.buffer.size() == 5,
+        "erase-forward deletes ahead of the caret"
+    );
+}
+
 void check_cut_copies_then_deletes() {
     auto fix = Fixture{"hello"};
     fix.field.select_all();
@@ -348,6 +404,18 @@ void check_cut_copies_then_deletes() {
         fix.field.cut_selection(output, length).result == veyra::EditableTextResult::handled,
         "cutting an empty selection reports no change"
     );
+
+    auto cramped = Fixture{"hello"};
+    cramped.field.select_all();
+    std::array<char, 2> small{};
+    std::size_t small_length = 0;
+    const auto truncated = cramped.field.cut_selection(small, small_length);
+    require(
+        truncated.result == veyra::EditableTextResult::handled &&
+            truncated.edit == veyra::TextEditResult::insufficient_capacity,
+        "cut into a short buffer reports no change with the capacity error"
+    );
+    require(cramped.buffer.size() == 5, "a failed cut keeps the text");
 }
 
 }
@@ -362,6 +430,7 @@ int main() {
         check_search_clear_and_intent_exactly_once();
         check_commit_then_validate_ordering();
         check_empty_name_semantics_rejection();
+        check_paste_and_erase_apply_edits();
         check_cut_copies_then_deletes();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

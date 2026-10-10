@@ -2,6 +2,7 @@
 
 #include <array>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -703,6 +704,333 @@ void check_invalid_input_is_transactional() {
     require(untouched(), "invalid surface storage leaves the available pixels untouched");
 }
 
+void check_per_command_geometry_rejections_are_transactional() {
+    constexpr std::size_t width = 3;
+    constexpr std::size_t height = 2;
+    const auto initial = veyra::SoftwarePixel{
+        .red = 5,
+        .green = 6,
+        .blue = 7,
+    };
+    std::array<veyra::SoftwarePixel, width * height> pixels;
+    pixels.fill(initial);
+    const auto surface = veyra::SoftwareSurface{
+        .width = width,
+        .height = height,
+        .stride = width,
+        .pixels = pixels,
+    };
+    const auto untouched = [&pixels] {
+        for (const auto& pixel : pixels) {
+            if (!pixel_is(pixel, 5, 6, 7)) {
+                return false;
+            }
+        }
+        return true;
+    };
+    std::array<veyra::LayoutPoint, 2> translations{};
+    const auto rejects = [&](std::span<const veyra::DisplayCommand> commands,
+                             veyra::SoftwareRenderWorkspace workspace,
+                             std::string_view rejection,
+                             std::string_view preservation) {
+        const auto result = veyra::render_software(commands, surface, workspace);
+        require(result == veyra::SoftwareRenderResult::invalid_input, rejection);
+        require(untouched(), preservation);
+    };
+    const auto plain_workspace = veyra::SoftwareRenderWorkspace{.translations = translations};
+    constexpr auto huge = std::numeric_limits<float>::max();
+    constexpr auto infinite = std::numeric_limits<float>::infinity();
+    constexpr auto not_a_number = std::numeric_limits<float>::quiet_NaN();
+
+    const std::array non_finite_points{
+        veyra::LayoutPoint{},
+        veyra::LayoutPoint{.x = infinite, .y = 1.0F},
+    };
+    const std::array<veyra::DisplayCommand, 1> non_finite_polyline{
+        veyra::StrokePolyline{
+            .points = non_finite_points,
+            .thickness = 1.0F,
+        },
+    };
+    rejects(
+        non_finite_polyline,
+        {},
+        "polyline with a non-finite point is rejected",
+        "rejected polyline points leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 1> non_finite_clip{
+        veyra::PushClip{
+            .bounds = {.x = not_a_number, .width = 1.0F, .height = 1.0F},
+        },
+    };
+    rejects(
+        non_finite_clip,
+        {},
+        "clip with non-finite bounds is rejected",
+        "rejected clip bounds leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 1> non_finite_translation{
+        veyra::PushTranslation{
+            .offset = {.x = 1.0F, .y = infinite},
+        },
+    };
+    rejects(
+        non_finite_translation,
+        {},
+        "translation with a non-finite offset is rejected",
+        "rejected translation offsets leave the surface untouched"
+    );
+
+    const std::array<std::uint8_t, 4> coverage{255, 255, 255, 255};
+    const auto mask = veyra::SoftwareMask{
+        .width = 2,
+        .height = 2,
+        .stride = 2,
+        .coverage = coverage,
+    };
+    const std::array<veyra::DisplayCommand, 1> nan_mask{
+        veyra::DrawMask{
+            .x = not_a_number,
+            .mask = &mask,
+        },
+    };
+    rejects(
+        nan_mask,
+        {},
+        "mask with a non-numeric position is rejected",
+        "rejected mask positions leave the surface untouched"
+    );
+    const std::array<veyra::DisplayCommand, 1> infinite_mask{
+        veyra::DrawMask{
+            .y = infinite,
+            .mask = &mask,
+        },
+    };
+    rejects(
+        infinite_mask,
+        {},
+        "mask with an infinite position is rejected",
+        "rejected infinite mask positions leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 4> overflowing_pushes{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::PopTranslation{},
+        veyra::PopTranslation{},
+    };
+    rejects(
+        overflowing_pushes,
+        plain_workspace,
+        "translations that overflow to infinity are rejected",
+        "overflowing translations leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_fill{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::FillRect{
+            .bounds = {.x = huge, .width = 1.0F, .height = 1.0F},
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_fill,
+        plain_workspace,
+        "translated rectangles that overflow to infinity are rejected",
+        "overflowing translated rectangles leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_rounded_fill{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = huge, .width = 1.0F, .height = 1.0F},
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_rounded_fill,
+        plain_workspace,
+        "translated rounded rectangles that overflow are rejected",
+        "overflowing rounded rectangles leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_stroke{
+        veyra::PushTranslation{
+            .offset = {.y = huge},
+        },
+        veyra::StrokeRect{
+            .bounds = {.y = huge, .width = 1.0F, .height = 1.0F},
+            .thickness = 1.0F,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_stroke,
+        plain_workspace,
+        "translated borders that overflow to infinity are rejected",
+        "overflowing translated borders leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_rounded_stroke{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::StrokeRoundedRect{
+            .bounds = {.x = huge, .width = 1.0F, .height = 1.0F},
+            .thickness = 1.0F,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_rounded_stroke,
+        plain_workspace,
+        "translated rounded borders that overflow are rejected",
+        "overflowing rounded borders leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_line{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::StrokeLine{
+            .start = {.x = huge},
+            .end = {.x = huge, .y = 1.0F},
+            .thickness = 1.0F,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_line,
+        plain_workspace,
+        "translated lines that overflow to infinity are rejected",
+        "overflowing translated lines leave the surface untouched"
+    );
+
+    const std::array translated_polyline_points{
+        veyra::LayoutPoint{},
+        veyra::LayoutPoint{.x = huge, .y = 1.0F},
+    };
+    const std::array<veyra::DisplayCommand, 3> translated_polyline{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::StrokePolyline{
+            .points = translated_polyline_points,
+            .thickness = 1.0F,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_polyline,
+        plain_workspace,
+        "translated polylines that overflow to infinity are rejected",
+        "overflowing translated polylines leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> translated_mask{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::DrawMask{
+            .x = huge,
+            .mask = &mask,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_mask,
+        plain_workspace,
+        "translated masks that overflow to infinity are rejected",
+        "overflowing translated masks leave the surface untouched"
+    );
+
+    const std::array<veyra::SoftwarePathSegment, 1> translated_path_segments{
+        veyra::SoftwareLineTo{
+            .end = {.x = 1.0F, .y = 1.0F},
+        },
+    };
+    const std::array<veyra::SoftwarePathContour, 1> translated_path_contours{
+        veyra::SoftwarePathContour{
+            .start = {.x = huge},
+            .segments = translated_path_segments,
+        },
+    };
+    const std::array<veyra::DisplayCommand, 3> translated_path{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::FillPath{
+            .contours = translated_path_contours,
+        },
+        veyra::PopTranslation{},
+    };
+    std::array<double, 2> path_intersections{};
+    rejects(
+        translated_path,
+        {
+            .translations = translations,
+            .path_intersections = path_intersections,
+        },
+        "translated paths that overflow to infinity are rejected",
+        "overflowing translated paths leave the surface untouched"
+    );
+
+    const std::array<veyra::SoftwarePixel, 1> image_pixels{
+        veyra::SoftwarePixel{.red = 255},
+    };
+    const auto image = veyra::SoftwareImage{
+        .width = 1,
+        .height = 1,
+        .stride = 1,
+        .pixels = image_pixels,
+    };
+    const std::array<veyra::DisplayCommand, 3> translated_image{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::DrawImage{
+            .source = {.width = 1.0F, .height = 1.0F},
+            .destination = {.x = huge, .width = 1.0F, .height = 1.0F},
+            .image = &image,
+        },
+        veyra::PopTranslation{},
+    };
+    rejects(
+        translated_image,
+        plain_workspace,
+        "translated images that overflow to infinity are rejected",
+        "overflowing translated images leave the surface untouched"
+    );
+
+    const std::array<veyra::DisplayCommand, 4> translated_clip{
+        veyra::PushTranslation{
+            .offset = {.x = huge},
+        },
+        veyra::PushClip{
+            .bounds = {.x = huge, .width = 1.0F, .height = 1.0F},
+        },
+        veyra::PopClip{},
+        veyra::PopTranslation{},
+    };
+    std::array<veyra::SoftwareClipRect, 1> clips{};
+    rejects(
+        translated_clip,
+        {.clips = clips, .translations = translations},
+        "translated clips that overflow to infinity are rejected",
+        "overflowing translated clips leave the surface untouched"
+    );
+}
+
 }
 
 int main() {
@@ -717,6 +1045,7 @@ int main() {
         check_image_alpha_clipping_and_stride();
         check_overlapping_damage_is_rejected();
         check_invalid_input_is_transactional();
+        check_per_command_geometry_rejections_are_transactional();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

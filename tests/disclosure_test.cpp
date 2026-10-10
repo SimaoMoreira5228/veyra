@@ -142,7 +142,7 @@ void check_expand_all_and_overflow() {
         "an empty expand-all reports no change"
     );
 
-    std::array<std::uint64_t, veyra::DisclosureController::kCapacity + 1> too_many{};
+    std::array<std::uint64_t, veyra::DisclosureController::kCapacity + 2> too_many{};
     for (std::size_t i = 0; i < too_many.size(); ++i) {
         too_many[i] = static_cast<std::uint64_t>(i + 1);
     }

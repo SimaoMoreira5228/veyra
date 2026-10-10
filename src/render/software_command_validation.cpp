@@ -82,7 +82,8 @@ bool valid_commands(
             continue;
         }
         if (const auto* mask = std::get_if<DrawMask>(&command)) {
-            if (mask->mask == nullptr || !valid_mask(*mask->mask)) {
+            if (mask->mask == nullptr || !std::isfinite(mask->x) || !std::isfinite(mask->y) ||
+                !valid_mask(*mask->mask)) {
                 return false;
             }
             continue;
