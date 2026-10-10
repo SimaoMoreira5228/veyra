@@ -56,7 +56,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/combobox.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -383,6 +383,10 @@ add_executable(veyra_menu_test tests/menu_test.cpp)
 target_link_libraries(veyra_menu_test PRIVATE veyra_behaviors)
 add_test(NAME menu_behavior COMMAND veyra_menu_test)
 
+add_executable(veyra_combobox_test tests/combobox_test.cpp)
+target_link_libraries(veyra_combobox_test PRIVATE veyra_behaviors)
+add_test(NAME combobox_behavior COMMAND veyra_combobox_test)
+
 add_executable(veyra_disclosure_test tests/disclosure_test.cpp)
 target_link_libraries(veyra_disclosure_test PRIVATE veyra_behaviors)
 add_test(NAME disclosure_behavior COMMAND veyra_disclosure_test)
@@ -559,6 +563,10 @@ add_test(NAME text_editor_buffer_behavior COMMAND veyra_text_editor_buffer_test)
 add_executable(veyra_text_editor_navigation_test tests/text_editor_navigation_test.cpp)
 target_link_libraries(veyra_text_editor_navigation_test PRIVATE veyra)
 add_test(NAME text_editor_navigation_behavior COMMAND veyra_text_editor_navigation_test)
+
+add_executable(veyra_text_editor_workload_test tests/text_editor_workload_test.cpp)
+target_link_libraries(veyra_text_editor_workload_test PRIVATE veyra_behaviors)
+add_test(NAME text_editor_workload_behavior COMMAND veyra_text_editor_workload_test)
 
 add_executable(veyra_animation_timeline_test tests/animation_timeline_test.cpp)
 target_link_libraries(veyra_animation_timeline_test PRIVATE veyra)

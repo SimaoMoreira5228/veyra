@@ -359,6 +359,314 @@ void check_semantics_per_kind() {
     );
 }
 
+void check_slider_block_policy_at_shared_value() {
+    auto control = veyra::RangeSliderController{};
+    require(
+        control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "a two-thumb domain configures cleanly"
+    );
+
+    const auto joined = control.set_low(90.0);
+    require(
+        joined.result == veyra::RangeResult::changed && joined.low == 80.0 && joined.high == 80.0,
+        "dragging low past high blocks at high instead of crossing"
+    );
+
+    require(
+        control.increment(veyra::RangeThumb::low).result == veyra::RangeResult::handled &&
+            control.low() == 80.0,
+        "incrementing the blocked low thumb reports no change"
+    );
+
+    const auto freed = control.increment(veyra::RangeThumb::high);
+    require(
+        freed.result == veyra::RangeResult::changed && freed.low == 80.0 && freed.high == 81.0,
+        "incrementing high off the shared value moves only high"
+    );
+
+    const auto met = control.decrement(veyra::RangeThumb::high);
+    require(
+        met.result == veyra::RangeResult::changed && met.high == 80.0,
+        "decrementing high back onto low rejoins the shared value"
+    );
+    require(
+        control.decrement(veyra::RangeThumb::high).result == veyra::RangeResult::handled,
+        "decrementing high past low blocks instead of crossing"
+    );
+
+    const auto dropped = control.decrement(veyra::RangeThumb::low);
+    require(
+        dropped.result == veyra::RangeResult::changed && dropped.low == 79.0 &&
+            dropped.high == 80.0,
+        "decrementing low off the shared value moves only low"
+    );
+
+    const auto capped = control.set_high(10.0);
+    require(
+        capped.result == veyra::RangeResult::changed && capped.low == 79.0 && capped.high == 79.0,
+        "setting high below low blocks at low instead of crossing"
+    );
+}
+
+void check_slider_clamp_snap_and_fractions() {
+    auto control = veyra::RangeSliderController{};
+    require(
+        control.configure({.minimum = 0.0, .maximum = 10.0, .step = 3.0, .low = 0.0, .high = 10.0}),
+        "an off-grid ceiling configures cleanly"
+    );
+    require(
+        control.low() == 0.0 && control.high() == 9.0,
+        "configure runs clamp snap clamp on both thumbs"
+    );
+
+    const auto dragged = control.set_fraction(veyra::RangeThumb::low, 0.5);
+    require(
+        dragged.result == veyra::RangeResult::changed && dragged.low == 6.0,
+        "a mid drag fraction snaps onto the step grid"
+    );
+    require(
+        control.fraction(veyra::RangeThumb::low) == 0.6 &&
+            control.fraction(veyra::RangeThumb::high) == 0.9,
+        "fractions read back per thumb from the stored values"
+    );
+
+    require(
+        control.set_fraction(veyra::RangeThumb::low, -0.5).low == 0.0,
+        "fractions below zero clamp to minimum"
+    );
+    require(
+        control.set_low(-4.0).result == veyra::RangeResult::handled && control.low() == 0.0,
+        "values below minimum clamp and report no change when already floored"
+    );
+
+    const auto ceiling = control.set_fraction(veyra::RangeThumb::high, 1.5);
+    require(
+        ceiling.result == veyra::RangeResult::handled && ceiling.high == 9.0,
+        "fractions above one clamp onto the snapped ceiling with no duplicate change"
+    );
+}
+
+void check_slider_domain_rejection() {
+    auto control = veyra::RangeSliderController{};
+    control.configure({.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0});
+
+    const veyra::RangeSliderState before = control.state();
+    require(
+        !control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 90.0, .high = 80.0}
+        ),
+        "a crossed configure is rejected, never silently swapped"
+    );
+    require(
+        !control.configure(
+            {.minimum = 80.0, .maximum = 20.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "an inverted domain is rejected"
+    );
+    require(
+        !control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 0.0, .low = 20.0, .high = 80.0}
+        ),
+        "a zero step is rejected"
+    );
+    require(
+        !control.configure(
+            {.minimum = kQuietNan, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "a NaN minimum is rejected"
+    );
+    require(
+        !control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = kQuietNan, .high = 80.0}
+        ),
+        "a NaN low thumb is rejected"
+    );
+    require(
+        !control.configure(
+            {.minimum = 0.0,
+             .maximum = 100.0,
+             .step = 1.0,
+             .low = 20.0,
+             .high = 80.0,
+             .page_step = kInfinity}
+        ),
+        "an infinite page step is rejected"
+    );
+    require(
+        control.state().low == before.low && control.state().high == before.high &&
+            control.state().minimum == before.minimum,
+        "rejected configures leave both thumbs untouched"
+    );
+
+    require(
+        control.set_low(kQuietNan).result == veyra::RangeResult::ignored &&
+            control.set_high(kInfinity).result == veyra::RangeResult::ignored &&
+            control.set_fraction(veyra::RangeThumb::low, kQuietNan).result ==
+                veyra::RangeResult::ignored &&
+            control.increment(static_cast<veyra::RangeThumb>(7)).result ==
+                veyra::RangeResult::ignored,
+        "non-finite inputs and unknown thumbs are ignored"
+    );
+    require(
+        control.low() == 20.0 && control.high() == 80.0,
+        "ignored inputs leave both thumbs where they were"
+    );
+
+    require(
+        control.configure({.minimum = 5.0, .maximum = 5.0, .step = 1.0, .low = 5.0, .high = 5.0}),
+        "a collapsed domain is allowed"
+    );
+    require(
+        control.low() == 5.0 && control.high() == 5.0 &&
+            control.fraction(veyra::RangeThumb::low) == 0.0 &&
+            control.fraction(veyra::RangeThumb::high) == 0.0,
+        "a collapsed domain pins both thumbs and reports zero fractions"
+    );
+    require(
+        control.set_low(99.0).result == veyra::RangeResult::handled &&
+            control.set_high(-99.0).result == veyra::RangeResult::handled,
+        "every value in a collapsed domain snaps to the single point"
+    );
+}
+
+void check_slider_duplicates_steps_and_ends() {
+    auto control = veyra::RangeSliderController{};
+    control.configure({.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0});
+
+    require(
+        control.set_low(20.0).result == veyra::RangeResult::handled &&
+            control.set_low(20.4).result == veyra::RangeResult::handled,
+        "setting low onto its snapped value reports no change"
+    );
+    require(
+        control.set_high(80.0).result == veyra::RangeResult::handled,
+        "setting high onto its stored value reports no change"
+    );
+    require(
+        !control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "configuring the identical domain reports no change"
+    );
+
+    require(
+        control.increment(veyra::RangeThumb::low).low == 21.0 &&
+            control.decrement(veyra::RangeThumb::high).high == 79.0,
+        "arrows step the addressed thumb only"
+    );
+    require(
+        control.page_increment(veyra::RangeThumb::low).low == 31.0 &&
+            control.page_decrement(veyra::RangeThumb::high).high == 69.0,
+        "page keys move the addressed thumb by the caller page step"
+    );
+
+    require(
+        control.set_to_min(veyra::RangeThumb::low).low == 0.0 &&
+            control.set_to_max(veyra::RangeThumb::high).high == 100.0,
+        "ends jump the addressed thumb across the domain"
+    );
+
+    const auto low_capped = control.set_to_max(veyra::RangeThumb::low);
+    require(
+        low_capped.result == veyra::RangeResult::changed && low_capped.low == 100.0 &&
+            low_capped.high == 100.0,
+        "set_to_max on low meets high instead of crossing it"
+    );
+    require(
+        control.set_to_min(veyra::RangeThumb::high).result == veyra::RangeResult::handled,
+        "set_to_min on high holds at the shared value instead of crossing low"
+    );
+}
+
+void check_slider_disabled_rejects_mutations() {
+    auto control = veyra::RangeSliderController{};
+    control.configure({.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0});
+    require(control.set_disabled(true), "disabling reports a state change");
+    require(!control.set_disabled(true), "repeating the disable reports no change");
+
+    require(
+        control.set_low(30.0).result == veyra::RangeResult::ignored &&
+            control.set_high(70.0).result == veyra::RangeResult::ignored &&
+            control.set_value(veyra::RangeThumb::low, 30.0).result == veyra::RangeResult::ignored &&
+            control.set_fraction(veyra::RangeThumb::high, 0.5).result ==
+                veyra::RangeResult::ignored &&
+            control.increment(veyra::RangeThumb::low).result == veyra::RangeResult::ignored &&
+            control.decrement(veyra::RangeThumb::high).result == veyra::RangeResult::ignored &&
+            control.page_increment(veyra::RangeThumb::low).result == veyra::RangeResult::ignored &&
+            control.page_decrement(veyra::RangeThumb::high).result == veyra::RangeResult::ignored &&
+            control.set_to_min(veyra::RangeThumb::low).result == veyra::RangeResult::ignored &&
+            control.set_to_max(veyra::RangeThumb::high).result == veyra::RangeResult::ignored,
+        "every thumb mutation is rejected while disabled"
+    );
+    require(
+        control.low() == 20.0 && control.high() == 80.0 &&
+            control.fraction(veyra::RangeThumb::low) == 0.2,
+        "disabled reads still report both stored thumbs"
+    );
+
+    auto semantics = veyra::SemanticNodeData{};
+    require(
+        control.write_semantics(veyra::RangeThumb::low, "Minimum price", "20", semantics) &&
+            veyra::has_state(semantics.states, veyra::SemanticState::disabled) &&
+            semantics.actions == 0,
+        "disabled thumb semantics keep the record but offer no actions"
+    );
+
+    require(control.set_disabled(false), "enabling reports a state change");
+    require(
+        control.increment(veyra::RangeThumb::low).result == veyra::RangeResult::changed,
+        "mutations work again once enabled"
+    );
+}
+
+void check_slider_semantics() {
+    auto control = veyra::RangeSliderController{};
+    control.configure({.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0});
+
+    auto semantics = veyra::SemanticNodeData{
+        .role = veyra::SemanticRole::text,
+        .label = "unchanged",
+    };
+    require(
+        !control.write_semantics(veyra::RangeThumb::low, {}, "20", semantics),
+        "an empty thumb name is rejected"
+    );
+    require(
+        semantics.role == veyra::SemanticRole::text && semantics.label == "unchanged",
+        "rejected thumb semantics leave the output untouched"
+    );
+    require(
+        !control
+             .write_semantics(static_cast<veyra::RangeThumb>(7), "Minimum price", "20", semantics),
+        "an unknown thumb is rejected"
+    );
+
+    require(
+        control.write_semantics(veyra::RangeThumb::low, "Minimum price", "20", semantics),
+        "the low thumb writes semantics"
+    );
+    require(
+        semantics.role == veyra::SemanticRole::slider && semantics.label == "Minimum price" &&
+            semantics.value == "20" &&
+            veyra::has_action(semantics.actions, veyra::SemanticAction::increment) &&
+            veyra::has_action(semantics.actions, veyra::SemanticAction::decrement) &&
+            veyra::has_action(semantics.actions, veyra::SemanticAction::set_value),
+        "a thumb exposes increment, decrement, and set_value with caller text"
+    );
+
+    require(
+        control.write_semantics(veyra::RangeThumb::high, "Maximum price", "80", semantics),
+        "the high thumb writes semantics"
+    );
+    require(
+        semantics.role == veyra::SemanticRole::slider && semantics.label == "Maximum price" &&
+            semantics.value == "80",
+        "the two thumbs carry distinct names so assistive tech tells them apart"
+    );
+}
+
 }
 
 int main() {
@@ -373,6 +681,12 @@ int main() {
         check_direct_commit_without_modes();
         check_disabled_rejects_mutations();
         check_semantics_per_kind();
+        check_slider_block_policy_at_shared_value();
+        check_slider_clamp_snap_and_fractions();
+        check_slider_domain_rejection();
+        check_slider_duplicates_steps_and_ends();
+        check_slider_disabled_rejects_mutations();
+        check_slider_semantics();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

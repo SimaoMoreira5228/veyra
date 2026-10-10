@@ -53,6 +53,9 @@ bool valid_role(SemanticRole role) noexcept {
     case SemanticRole::tab_list:
     case SemanticRole::menu:
     case SemanticRole::menu_item:
+    case SemanticRole::combobox:
+    case SemanticRole::listbox:
+    case SemanticRole::option:
     case SemanticRole::dialog:
     case SemanticRole::window:
     case SemanticRole::switch_:
