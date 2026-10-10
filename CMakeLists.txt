@@ -56,7 +56,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -119,6 +119,10 @@ if(VEYRA_WITH_FILESYSTEM)
  add_executable(veyra_file_thumbnail_queue_test tests/file_thumbnail_queue_test.cpp)
  target_link_libraries(veyra_file_thumbnail_queue_test PRIVATE veyra_filesystem)
  add_test(NAME file_thumbnail_queue_behavior COMMAND veyra_file_thumbnail_queue_test)
+
+ add_executable(veyra_file_list_refresh_test tests/file_list_refresh_test.cpp)
+ target_link_libraries(veyra_file_list_refresh_test PRIVATE veyra_filesystem)
+ add_test(NAME file_list_refresh_behavior COMMAND veyra_file_list_refresh_test)
 
  if(VEYRA_BUILD_BENCH)
   add_executable(veyra_directory_enumerator_bench bench/directory_enumerator.cpp)
@@ -343,6 +347,10 @@ add_executable(veyra_chat_row_height_cache_test tests/chat_row_height_cache_test
 target_link_libraries(veyra_chat_row_height_cache_test PRIVATE veyra)
 add_test(NAME chat_row_height_cache_behavior COMMAND veyra_chat_row_height_cache_test)
 
+add_executable(veyra_chat_list_burst_test tests/chat_list_burst_test.cpp)
+target_link_libraries(veyra_chat_list_burst_test PRIVATE veyra)
+add_test(NAME chat_list_burst_behavior COMMAND veyra_chat_list_burst_test)
+
 add_executable(veyra_pressable_test tests/pressable_test.cpp)
 target_link_libraries(veyra_pressable_test PRIVATE veyra_behaviors)
 add_test(NAME pressable_behavior COMMAND veyra_pressable_test)
@@ -390,6 +398,10 @@ add_test(NAME datagrid_behavior COMMAND veyra_datagrid_test)
 add_executable(veyra_overlay_test tests/overlay_test.cpp)
 target_link_libraries(veyra_overlay_test PRIVATE veyra_behaviors)
 add_test(NAME overlay_behavior COMMAND veyra_overlay_test)
+
+add_executable(veyra_toast_test tests/toast_test.cpp)
+target_link_libraries(veyra_toast_test PRIVATE veyra_behaviors)
+add_test(NAME toast_behavior COMMAND veyra_toast_test)
 
 add_executable(veyra_drag_drop_test tests/drag_drop_test.cpp)
 target_link_libraries(veyra_drag_drop_test PRIVATE veyra_behaviors)
