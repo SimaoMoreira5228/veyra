@@ -21,6 +21,7 @@ add_library(veyra STATIC
  src/chat/message_change_queue.cpp
  src/chat/row_height_cache.cpp
  src/files/file_list.cpp
+ src/inspector/trace_recorder.cpp
  src/media/animation_frame_cache.cpp
  src/media/animation_timeline.cpp
  src/core/focus_navigation.cpp
@@ -56,7 +57,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/combobox.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -383,6 +384,10 @@ add_executable(veyra_menu_test tests/menu_test.cpp)
 target_link_libraries(veyra_menu_test PRIVATE veyra_behaviors)
 add_test(NAME menu_behavior COMMAND veyra_menu_test)
 
+add_executable(veyra_menubar_test tests/menubar_test.cpp)
+target_link_libraries(veyra_menubar_test PRIVATE veyra_behaviors)
+add_test(NAME menubar_behavior COMMAND veyra_menubar_test)
+
 add_executable(veyra_combobox_test tests/combobox_test.cpp)
 target_link_libraries(veyra_combobox_test PRIVATE veyra_behaviors)
 add_test(NAME combobox_behavior COMMAND veyra_combobox_test)
@@ -492,6 +497,10 @@ add_executable(veyra_viewport_test tests/viewport_test.cpp)
 target_link_libraries(veyra_viewport_test PRIVATE veyra)
 add_test(NAME viewport_behavior COMMAND veyra_viewport_test)
 
+add_executable(veyra_toolbar_overflow_test tests/toolbar_overflow_test.cpp)
+target_link_libraries(veyra_toolbar_overflow_test PRIVATE veyra)
+add_test(NAME toolbar_overflow_behavior COMMAND veyra_toolbar_overflow_test)
+
 add_executable(veyra_layout_measure_test tests/layout_measure_test.cpp)
 target_link_libraries(veyra_layout_measure_test PRIVATE veyra)
 add_test(NAME layout_measure_behavior COMMAND veyra_layout_measure_test)
@@ -543,6 +552,10 @@ add_test(NAME software_renderer_path_behavior COMMAND veyra_software_renderer_pa
 add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
 add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
+
+add_executable(veyra_inspector_trace_test tests/inspector_trace_test.cpp)
+target_link_libraries(veyra_inspector_trace_test PRIVATE veyra)
+add_test(NAME inspector_trace_behavior COMMAND veyra_inspector_trace_test)
 
 add_executable(veyra_printing_test tests/printing_test.cpp)
 target_link_libraries(veyra_printing_test PRIVATE veyra)

@@ -29,6 +29,7 @@ enum class SemanticRole : std::uint8_t {
     tab_list,
     menu,
     menu_item,
+    menubar,
     combobox,
     listbox,
     option,
