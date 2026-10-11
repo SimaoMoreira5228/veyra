@@ -82,7 +82,7 @@ resolve_split_pane(const SplitPaneRequest& request, SplitPaneLayout& output) noe
     const float mins = request.min_first + request.min_second;
 
     float first_size = 0.0F;
-    float effective = clamped_fraction;
+    float effective;
     auto result = SplitPaneResult::complete;
 
     if (clamped_fraction != request.fraction) {

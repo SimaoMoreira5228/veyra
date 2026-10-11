@@ -429,6 +429,12 @@ void check_radio_movement_and_semantics() {
             group.selected() == 21,
         "first and last jump to the ends of the member order"
     );
+    require(
+        group.move(static_cast<veyra::RadioMove>(255), members) ==
+                veyra::SelectionResult::ignored &&
+            group.selected() == 21,
+        "an invalid movement is ignored without changing the selected radio"
+    );
 
     auto node = veyra::SemanticNodeData{};
     require(!group.write_semantics(21, {}, node), "an empty radio name is rejected");

@@ -203,26 +203,15 @@ ComboResult ComboBoxController::move_active(ComboMove direction) noexcept {
         current = find_match(active_);
     }
 
-    if (current == kNotFound) {
-        has_active_ = true;
-
-        if (direction == ComboMove::prev || direction == ComboMove::last) {
-            active_ = matches_[match_count_ - 1];
-        } else {
-            active_ = matches_[0];
-        }
-
-        return ComboResult::changed;
-    }
-
-    std::uint64_t target = matches_[current];
+    std::uint64_t target;
 
     switch (direction) {
     case ComboMove::next:
-        target = matches_[(current + 1) % match_count_];
+        target = current == kNotFound ? matches_[0] : matches_[(current + 1) % match_count_];
         break;
     case ComboMove::prev:
-        target = matches_[(current + match_count_ - 1) % match_count_];
+        target = current == kNotFound ? matches_[match_count_ - 1]
+                                      : matches_[(current + match_count_ - 1) % match_count_];
         break;
     case ComboMove::first:
         target = matches_[0];
@@ -230,12 +219,15 @@ ComboResult ComboBoxController::move_active(ComboMove direction) noexcept {
     case ComboMove::last:
         target = matches_[match_count_ - 1];
         break;
+    default:
+        return ComboResult::ignored;
     }
 
-    if (target == active_) {
+    if (has_active_ && target == active_) {
         return ComboResult::handled;
     }
 
+    has_active_ = true;
     active_ = target;
 
     return ComboResult::changed;

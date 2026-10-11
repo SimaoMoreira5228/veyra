@@ -178,6 +178,14 @@ void check_roving_wraps_over_matches() {
         closed.apply_filter("an", options) == veyra::ComboResult::ignored,
         "filtering while closed is ignored"
     );
+
+    auto invalid = veyra::ComboBoxController{};
+    require(invalid.open(options) == veyra::ComboResult::opened, "invalid move fixture opens");
+    require(
+        invalid.move_active(static_cast<veyra::ComboMove>(255)) == veyra::ComboResult::ignored &&
+            invalid.active().id == 11,
+        "an invalid movement is ignored without changing the active option"
+    );
 }
 
 void check_commit_closes_and_replaces() {

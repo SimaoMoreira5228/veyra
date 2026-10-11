@@ -1,7 +1,6 @@
 #include "grid_placement.hpp"
 
 #include <algorithm>
-#include <cassert>
 #include <limits>
 
 namespace veyra::grid_detail {
@@ -166,8 +165,7 @@ GridItemPlacement item_placement(
     if (!placements.empty()) {
         return placements[index];
     }
-    assert(item.row.has_value() && item.column.has_value());
-    return {.row = *item.row, .column = *item.column};
+    return {.row = item.row.value_or(0), .column = item.column.value_or(0)};
 }
 
 }

@@ -32,9 +32,17 @@ enum class WindowResult : std::uint8_t {
     insufficient_capacity,
     presentation_failed,
     creation_failed,
+    unsupported,
 };
 
-enum class PointerButton : std::uint32_t {
+struct WindowCapabilities {
+    bool clipboard{};
+    bool text_input{};
+    bool text_preedit{};
+    bool text_input_area{};
+};
+
+enum class PointerButton : std::uint8_t {
     primary = 1U << 0U,
     middle = 1U << 1U,
     secondary = 1U << 2U,
@@ -154,8 +162,6 @@ concept WindowBackend = requires(
     Backend& backend,
     const Backend& observer,
     WindowEvent& event,
-    SoftwareSurface& surface,
-    std::span<SoftwarePixel> pixels,
     std::span<char> text,
     std::size_t& length,
     TextInputArea area,
@@ -168,9 +174,8 @@ concept WindowBackend = requires(
     { observer.scale_x() } noexcept -> std::same_as<float>;
     { observer.scale_y() } noexcept -> std::same_as<float>;
     { observer.surface_generation() } noexcept -> std::same_as<std::uint64_t>;
+    { observer.capabilities() } noexcept -> std::same_as<WindowCapabilities>;
     { backend.poll_event(event) } noexcept -> std::same_as<bool>;
-    { backend.acquire_surface(surface, pixels) } noexcept -> std::same_as<WindowResult>;
-    { backend.present() } noexcept -> std::same_as<WindowResult>;
     { backend.start_text_input() } noexcept -> std::same_as<WindowResult>;
     { backend.stop_text_input() } noexcept -> std::same_as<WindowResult>;
     { backend.set_text_input_area(area) } noexcept -> std::same_as<WindowResult>;
@@ -178,6 +183,13 @@ concept WindowBackend = requires(
     { backend.set_clipboard_text(clipboard) } noexcept -> std::same_as<WindowResult>;
     { backend.get_clipboard_text(text, length) } noexcept -> std::same_as<WindowResult>;
 };
+
+template <typename Presenter>
+concept SoftwareSurfacePresenter =
+    requires(Presenter& presenter, SoftwareSurface& surface, std::span<SoftwarePixel> pixels) {
+        { presenter.acquire_surface(surface, pixels) } noexcept -> std::same_as<WindowResult>;
+        { presenter.present() } noexcept -> std::same_as<WindowResult>;
+    };
 
 }
 

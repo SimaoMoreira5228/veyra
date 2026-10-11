@@ -8,7 +8,7 @@
 
 namespace veyra {
 
-enum class ShortcutModifier : std::uint32_t {
+enum class ShortcutModifier : std::uint8_t {
     ctrl = 1U << 0U,
     alt = 1U << 1U,
     shift = 1U << 2U,

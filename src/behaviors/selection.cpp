@@ -478,7 +478,7 @@ RadioGroup::move(RadioMove direction, std::span<const std::uint64_t> members) no
         }
     }
 
-    std::uint64_t target = members.front();
+    std::uint64_t target;
 
     switch (direction) {
     case RadioMove::next:
@@ -501,6 +501,8 @@ RadioGroup::move(RadioMove direction, std::span<const std::uint64_t> members) no
     case RadioMove::last:
         target = members.back();
         break;
+    default:
+        return SelectionResult::ignored;
     }
 
     return select(target, members);

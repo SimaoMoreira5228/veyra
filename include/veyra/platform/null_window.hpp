@@ -29,6 +29,7 @@ class NullWindow {
     float scale_x() const noexcept;
     float scale_y() const noexcept;
     std::uint64_t surface_generation() const noexcept;
+    WindowCapabilities capabilities() const noexcept;
     std::uint64_t presented_frames() const noexcept;
     bool text_input_active() const noexcept;
 
@@ -74,6 +75,7 @@ class NullWindow {
 };
 
 static_assert(WindowBackend<NullWindow>);
+static_assert(SoftwareSurfacePresenter<NullWindow>);
 
 }
 

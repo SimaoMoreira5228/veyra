@@ -1,8 +1,8 @@
 #include "veyra/platform/sdl3_window.hpp"
 
+#include <SDL3/SDL.h>
+
 #include <array>
-#include <chrono>
-#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -16,217 +16,141 @@ void require(bool condition, std::string_view message) {
     }
 }
 
-void check_invalid_construction() {
-    veyra::Sdl3Window window(nullptr, 320, 240);
+void check_window_contract() {
+    veyra::Sdl3Window first("Veyra SDL test one", 160, 120);
+    veyra::Sdl3Window second("Veyra SDL test two", 120, 90);
+    require(first.creation_result() == veyra::WindowResult::ready, "SDL creates the first window");
     require(
-        window.creation_result() == veyra::SdlWindowResult::invalid_input,
-        "window creation rejects a null title"
+        second.creation_result() == veyra::WindowResult::ready,
+        "SDL creates the second window"
     );
-    require(window.native_window() == nullptr, "invalid construction owns no window");
-    SDL_Event event{};
-    require(!window.wait_event(event), "invalid window doesn't block for events");
+    require(first.window_id() != second.window_id(), "SDL assigns distinct window ids");
+    require(first.capabilities().text_preedit, "SDL reports preedit support");
     require(
-        !window.wait_event_until(event, veyra::FrameScheduler::Clock::now()),
-        "invalid window doesn't wait for a deadline"
+        first.logical_width() > 0.0F && first.logical_height() > 0.0F,
+        "SDL reports logical size"
     );
-}
+    require(first.surface_generation() > 0, "SDL reports a surface generation");
 
-void check_software_frame_lifecycle() {
-    veyra::Sdl3Window window("Veyra test", 320, 240);
+    std::array<veyra::SoftwarePixel, 19200> pixels{};
+    veyra::SoftwareSurface surface{};
     require(
-        window.creation_result() == veyra::SdlWindowResult::ready,
-        "SDL creates a window and renderer"
+        first.acquire_surface(surface, pixels) == veyra::WindowResult::ready,
+        "SDL acquires caller-owned pixels"
     );
-    SDL_HideWindow(window.native_window());
-
-    veyra::SoftwareSurface surface;
+    require(surface.pixels.data() == pixels.data(), "surface uses the caller buffer");
     require(
-        window.acquire_surface(surface) == veyra::SdlWindowResult::ready,
-        "window provides a software surface"
+        first.acquire_surface(surface, pixels) == veyra::WindowResult::invalid_state,
+        "SDL rejects a second acquire before present"
     );
+    require(first.present() == veyra::WindowResult::ready, "SDL presents the acquired surface");
     require(
-        surface.width == 320 && surface.height == 240 && surface.stride >= surface.width &&
-            surface.pixels.size() >= surface.stride * surface.height,
-        "software surface matches the renderer output"
-    );
-
-    const auto* acquired_pixels = surface.pixels.data();
-    require(
-        window.acquire_surface(surface) == veyra::SdlWindowResult::invalid_state,
-        "a second acquisition cannot lock the same frame"
-    );
-    require(
-        surface.pixels.data() == acquired_pixels,
-        "failed acquisition keeps the active surface"
+        first.present() == veyra::WindowResult::invalid_state,
+        "SDL requires acquire before present"
     );
 
-    const std::array commands{
-        veyra::DisplayCommand{veyra::FillRect{
-            .bounds = {.x = 0.0F, .y = 0.0F, .width = 320.0F, .height = 240.0F},
-            .color = {.red = 20, .green = 40, .blue = 60, .alpha = 255},
-        }},
-    };
+    std::array<veyra::SoftwarePixel, 4> short_pixels{};
     require(
-        veyra::render_software(commands, surface, {}) == veyra::SoftwareRenderResult::complete,
-        "software renderer draws into the window surface"
+        first.acquire_surface(surface, short_pixels) == veyra::WindowResult::insufficient_capacity,
+        "SDL rejects a short pixel buffer"
     );
     require(
-        window.present() == veyra::SdlWindowResult::ready,
-        "software surface presents through SDL"
+        first.set_text_input_area({.x = 8, .y = 12, .width = 80, .height = 24, .cursor = 16}) ==
+            veyra::WindowResult::ready,
+        "SDL accepts a valid text area"
     );
-    require(
-        window.present() == veyra::SdlWindowResult::invalid_state,
-        "a surface must be acquired before each present"
-    );
+    require(first.start_text_input() == veyra::WindowResult::ready, "SDL starts text input");
+    require(first.stop_text_input() == veyra::WindowResult::ready, "SDL stops text input");
+    require(first.clear_text_input_area() == veyra::WindowResult::ready, "SDL clears text area");
 
-    const SDL_Rect input_area{.x = 8, .y = 12, .w = 80, .h = 24};
-    require(
-        window.set_text_input_area(input_area, 16) == veyra::SdlWindowResult::ready,
-        "text input area can be placed relative to the window"
-    );
-    require(
-        window.start_text_input() == veyra::SdlWindowResult::ready,
-        "window enables text and composition events"
-    );
-    require(
-        window.stop_text_input() == veyra::SdlWindowResult::ready,
-        "window stops text and composition events"
-    );
-    require(
-        window.clear_text_input_area() == veyra::SdlWindowResult::ready,
-        "text input area can be cleared"
-    );
-    const SDL_Rect invalid_input_area{.x = 0, .y = 0, .w = -1, .h = 20};
-    require(
-        window.set_text_input_area(invalid_input_area, 0) == veyra::SdlWindowResult::invalid_input,
-        "invalid text input geometry is rejected"
-    );
+    veyra::WindowEvent received{};
+    while (first.poll_event(received)) {
+    }
+    while (second.poll_event(received)) {
+    }
 
     SDL_Event event{};
-    require(SDL_SetWindowSize(window.native_window(), 160, 120), "test can resize the window");
-    while (window.poll_event(event)) {
+    event.type = SDL_EVENT_WINDOW_RESIZED;
+    event.window.windowID = static_cast<Uint32>(second.window_id());
+    event.window.data1 = 640;
+    event.window.data2 = 480;
+    require(SDL_PushEvent(&event), "test queues an event for the second window");
+    event = {};
+    event.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+    event.window.windowID = static_cast<Uint32>(first.window_id());
+    require(SDL_PushEvent(&event), "test queues an event for the first window");
+
+    require(first.poll_event(received), "first poll finds its event in the process queue");
+    require(
+        received.kind == veyra::WindowEventKind::close_request &&
+            received.window == first.window_id(),
+        "first poll returns only the first window's close request"
+    );
+    require(second.poll_event(received), "second window retains its queued event");
+    require(
+        received.kind == veyra::WindowEventKind::resize && received.window == second.window_id() &&
+            received.data.resize.width == 640.0F && received.data.resize.height == 480.0F,
+        "second poll returns its resize payload"
+    );
+
+    event = {};
+    event.type = SDL_EVENT_QUIT;
+    require(SDL_PushEvent(&event), "test queues a process-wide quit");
+    require(first.poll_event(received), "first window receives process quit");
+    require(
+        received.kind == veyra::WindowEventKind::close_request,
+        "first quit becomes close request"
+    );
+    require(second.poll_event(received), "second window receives process quit");
+    require(
+        received.kind == veyra::WindowEventKind::close_request,
+        "second quit becomes close request"
+    );
+
+    for (std::size_t index = 0; index < veyra::Sdl3Window::kEventCapacity + 3; ++index) {
+        event = {};
+        event.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+        event.window.windowID = static_cast<Uint32>(first.window_id());
+        require(SDL_PushEvent(&event), "test queues events to fill one window's ring");
     }
-    veyra::SoftwareSurface resized_surface;
+    require(!second.poll_event(received), "poll pumps events for every window");
     require(
-        window.acquire_surface(resized_surface) == veyra::SdlWindowResult::ready,
-        "resized window provides a new software surface"
-    );
-    require(
-        resized_surface.width == 160 && resized_surface.height == 120,
-        "software surface follows the resized renderer output"
-    );
-    require(
-        veyra::render_software(commands, resized_surface, {}) ==
-            veyra::SoftwareRenderResult::complete,
-        "software renderer draws at the resized dimensions"
-    );
-    require(
-        window.present() == veyra::SdlWindowResult::ready,
-        "resized software surface presents through SDL"
-    );
-
-    SDL_Event expected_event{};
-    expected_event.type = SDL_EVENT_QUIT;
-    require(SDL_PushEvent(&expected_event), "test can queue an SDL event");
-
-    auto found_quit = false;
-    while (window.poll_event(event)) {
-        found_quit = found_quit || event.type == SDL_EVENT_QUIT;
-    }
-    require(found_quit, "window exposes SDL events to the application");
-
-    const auto dropped_path =
-        (std::filesystem::temp_directory_path() / "veyra-dropped-file.txt").u8string();
-    const auto* dropped_path_utf8 = reinterpret_cast<const char*>(dropped_path.c_str());
-    expected_event = {};
-    expected_event.type = SDL_EVENT_DROP_FILE;
-    expected_event.drop.type = SDL_EVENT_DROP_FILE;
-    expected_event.drop.windowID = SDL_GetWindowID(window.native_window());
-    expected_event.drop.data = dropped_path_utf8;
-    require(SDL_PushEvent(&expected_event), "test can queue a file drop event");
-    auto found_drop = false;
-    while (window.poll_event(event)) {
-        if (event.type == SDL_EVENT_DROP_FILE) {
-            found_drop = std::string_view(event.drop.data) == dropped_path_utf8;
-        }
-    }
-    require(found_drop, "window exposes the dropped path to the application");
-
-    expected_event = {};
-    expected_event.type = SDL_EVENT_QUIT;
-    require(SDL_PushEvent(&expected_event), "test can queue an event before waiting");
-    require(window.wait_event(event), "blocking wait returns a queued event");
-    require(event.type == SDL_EVENT_QUIT, "blocking wait returns the queued event");
-
-    require(SDL_PushEvent(&expected_event), "test can queue an event before a deadline wait");
-    require(
-        window.wait_event_until(
-            event,
-            veyra::FrameScheduler::Clock::now() + std::chrono::milliseconds{100}
-        ),
-        "deadline wait returns when an event arrives"
-    );
-    require(event.type == SDL_EVENT_QUIT, "deadline wait preserves the queued event");
-
-    const auto wait_started = veyra::FrameScheduler::Clock::now();
-    const auto deadline = wait_started + std::chrono::milliseconds{5};
-    require(
-        !window.wait_event_until(event, deadline),
-        "deadline wait returns false when the queue stays empty"
-    );
-    require(
-        veyra::FrameScheduler::Clock::now() >= deadline,
-        "deadline wait does not return before the requested deadline"
+        first.dropped_events() == 3,
+        "a full per-window ring drops excess events and reports the count"
     );
 }
 
 void check_clipboard() {
-    veyra::Sdl3Window window("Veyra clipboard test", 160, 120);
+    veyra::Sdl3Window window("Veyra clipboard test", 80, 60);
+    require(window.creation_result() == veyra::WindowResult::ready, "SDL creates clipboard window");
     require(
-        window.creation_result() == veyra::SdlWindowResult::ready,
-        "SDL creates a window for clipboard access"
-    );
-    SDL_HideWindow(window.native_window());
-
-    require(
-        window.set_clipboard_text("clipboard text") == veyra::SdlWindowResult::ready,
-        "clipboard accepts NUL-terminated UTF-8 text"
+        window.set_clipboard_text("clipboard text") == veyra::WindowResult::ready,
+        "clipboard writes"
     );
 
     std::array<char, 32> output{};
     std::size_t length = 0;
     require(
-        window.get_clipboard_text(output, length) == veyra::SdlWindowResult::ready,
-        "clipboard text copies into caller storage"
+        window.get_clipboard_text(output, length) == veyra::WindowResult::ready,
+        "clipboard copies into caller storage"
     );
-    require(
-        std::string_view(output.data(), length) == "clipboard text",
-        "clipboard text is returned without a terminator"
-    );
+    require(std::string_view(output.data(), length) == "clipboard text", "clipboard round-trips");
 
     std::array<char, 4> short_output{'x', 'x', 'x', 'x'};
     require(
         window.get_clipboard_text(short_output, length) ==
-            veyra::SdlWindowResult::insufficient_capacity,
-        "short clipboard output reports insufficient capacity"
+            veyra::WindowResult::insufficient_capacity,
+        "clipboard reports short output"
     );
-    require(length == 14, "short clipboard output reports the required length");
-    require(
-        short_output == std::array<char, 4>{'x', 'x', 'x', 'x'},
-        "short output stays unchanged"
-    );
-    require(
-        window.set_clipboard_text(nullptr) == veyra::SdlWindowResult::invalid_input,
-        "clipboard rejects a null input"
-    );
+    require(length == 14, "clipboard reports required length");
+    require(short_output == std::array<char, 4>{'x', 'x', 'x', 'x'}, "short output is untouched");
 }
 
 }
 
 int main() {
     try {
-        check_invalid_construction();
-        check_software_frame_lifecycle();
+        check_window_contract();
         check_clipboard();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

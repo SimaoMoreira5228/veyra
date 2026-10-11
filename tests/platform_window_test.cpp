@@ -401,7 +401,7 @@ void check_queue_limits() {
 void check_surface_lifecycle() {
     veyra::NullWindow window("surface", 64, 48);
 
-    std::array<veyra::SoftwarePixel, 64 * 48> backing{};
+    std::array<veyra::SoftwarePixel, static_cast<std::size_t>(64) * 48> backing{};
     veyra::SoftwareSurface surface{};
 
     require(
@@ -412,7 +412,10 @@ void check_surface_lifecycle() {
         surface.width == 64 && surface.height == 48 && surface.stride == 64,
         "surface matches logical size at unit scale"
     );
-    require(surface.pixels.size() == 64 * 48, "surface hands the full caller span");
+    require(
+        surface.pixels.size() == static_cast<std::size_t>(64) * 48,
+        "surface hands the full caller span"
+    );
     require(window.surface_generation() == 1, "first acquire starts generation one");
 
     require(
@@ -435,7 +438,7 @@ void check_surface_lifecycle() {
 
     require(window.poll_event(event) && window.poll_event(event), "geometry events poll");
 
-    std::array<veyra::SoftwarePixel, 80 * 30> grown{};
+    std::array<veyra::SoftwarePixel, static_cast<std::size_t>(80) * 30> grown{};
 
     require(
         window.acquire_surface(surface, grown) == veyra::WindowResult::ready,
