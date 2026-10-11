@@ -154,7 +154,8 @@ bool translate_mouse_button(const SDL_MouseButtonEvent& in, WindowEvent& out) no
             },
         .pointer = kMousePointerId,
         .buttons = button,
-        .modifiers = 0,
+        .modifiers = translate_modifiers(SDL_GetModState()),
+        .click_count = in.clicks,
     };
 
     return true;

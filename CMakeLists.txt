@@ -464,6 +464,13 @@ add_executable(veyra_textfield_appearance_test tests/textfield_appearance_test.c
 target_link_libraries(veyra_textfield_appearance_test PRIVATE veyra_widgets_basic)
 add_test(NAME textfield_appearance_behavior COMMAND veyra_textfield_appearance_test)
 
+add_executable(veyra_gallery examples/gallery.cpp)
+target_link_libraries(veyra_gallery PRIVATE veyra_widgets_basic veyra_behaviors veyra)
+
+add_executable(veyra_gallery_test tests/gallery_test.cpp)
+target_link_libraries(veyra_gallery_test PRIVATE veyra_widgets_basic veyra_behaviors veyra)
+add_test(NAME gallery_behavior COMMAND veyra_gallery_test)
+
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
 target_link_libraries(veyra_chat_message_change_queue_test PRIVATE veyra Threads::Threads)

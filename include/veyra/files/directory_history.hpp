@@ -19,6 +19,8 @@ class DirectoryHistory {
     explicit DirectoryHistory(std::span<std::filesystem::path> storage) noexcept;
 
     DirectoryHistoryResult navigate(std::filesystem::path directory);
+    bool can_go_back() const noexcept;
+    bool can_go_forward() const noexcept;
     bool go_back() noexcept;
     bool go_forward() noexcept;
     const std::filesystem::path* current() const noexcept;

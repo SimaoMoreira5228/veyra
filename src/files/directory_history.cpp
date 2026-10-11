@@ -33,6 +33,14 @@ DirectoryHistoryResult DirectoryHistory::navigate(std::filesystem::path director
     return DirectoryHistoryResult::complete;
 }
 
+bool DirectoryHistory::can_go_back() const noexcept {
+    return count_ != 0 && current_index_ != 0;
+}
+
+bool DirectoryHistory::can_go_forward() const noexcept {
+    return current_index_ + 1 < count_;
+}
+
 bool DirectoryHistory::go_back() noexcept {
     if (count_ == 0 || current_index_ == 0) {
         return false;

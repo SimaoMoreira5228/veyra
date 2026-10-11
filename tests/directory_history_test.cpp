@@ -30,6 +30,10 @@ void check_navigation_and_forward_branch() {
 
     require(history.current() == nullptr, "empty history has no current directory");
     require(
+        !history.can_go_back() && !history.can_go_forward(),
+        "empty history disables both navigation directions"
+    );
+    require(
         history.navigate(first) == veyra::DirectoryHistoryResult::complete,
         "first absolute directory enters history"
     );
@@ -41,7 +45,12 @@ void check_navigation_and_forward_branch() {
         history.navigate(third) == veyra::DirectoryHistoryResult::complete,
         "third directory enters history"
     );
+    require(
+        history.can_go_back() && !history.can_go_forward(),
+        "history enables back but not forward at its newest location"
+    );
     require(history.go_back(), "back moves to the previous directory");
+    require(history.can_go_back() && history.can_go_forward(), "middle history enables both ways");
     require(
         history.current() != nullptr && *history.current() == second,
         "back selects the previous path"
@@ -58,12 +67,19 @@ void check_navigation_and_forward_branch() {
         history.navigate(branch) == veyra::DirectoryHistoryResult::complete,
         "new navigation starts a branch"
     );
-    require(!history.go_forward(), "branching discards the old forward path");
+    require(
+        !history.can_go_forward() && !history.go_forward(),
+        "branching discards the old forward path"
+    );
     require(history.current() != nullptr && *history.current() == branch, "branch is current");
 
     history.clear();
     require(history.current() == nullptr, "clear removes the current path");
-    require(!history.go_back() && !history.go_forward(), "cleared history cannot navigate");
+    require(
+        !history.can_go_back() && !history.can_go_forward() && !history.go_back() &&
+            !history.go_forward(),
+        "cleared history cannot navigate"
+    );
 }
 
 void check_capacity_and_invalid_inputs() {
@@ -96,6 +112,7 @@ void check_capacity_and_invalid_inputs() {
         "newest path remains current"
     );
     require(history.go_back(), "back remains available after capacity eviction");
+    require(!history.can_go_back() && history.can_go_forward(), "evicted history exposes one step");
     require(
         history.current() != nullptr && *history.current() == second,
         "oldest path is evicted first"

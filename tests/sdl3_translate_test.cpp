@@ -69,6 +69,7 @@ void check_pointer() {
     in.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
     in.button.button = SDL_BUTTON_LEFT;
     in.button.down = true;
+    in.button.clicks = 1;
     in.button.x = 10.0F;
     in.button.y = 20.0F;
 
@@ -76,13 +77,24 @@ void check_pointer() {
     require(
         out.kind == veyra::WindowEventKind::pointer_down && out.data.pointer.position.x == 10.0F &&
             out.data.pointer.position.y == 20.0F &&
-            out.data.pointer.pointer == veyra::kMousePointerId,
+            out.data.pointer.pointer == veyra::kMousePointerId && out.data.pointer.click_count == 1,
         "mouse down keeps logical position and the mouse id"
     );
     require(
         veyra::has_button(out.data.pointer.buttons, veyra::PointerButton::primary),
         "left button maps to primary"
     );
+
+    in.button.clicks = 2;
+    SDL_SetModState(SDL_KMOD_CTRL | SDL_KMOD_SHIFT);
+    require(veyra::translate_sdl_event(in, kWindow, out), "mouse double-click translates");
+    require(
+        out.data.pointer.click_count == 2 &&
+            veyra::has_modifier(out.data.pointer.modifiers, veyra::ShortcutModifier::ctrl) &&
+            veyra::has_modifier(out.data.pointer.modifiers, veyra::ShortcutModifier::shift),
+        "mouse click count and modifiers are preserved"
+    );
+    SDL_SetModState(SDL_KMOD_NONE);
 
     in = {};
     in.type = SDL_EVENT_MOUSE_BUTTON_UP;

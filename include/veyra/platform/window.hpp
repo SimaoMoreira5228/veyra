@@ -98,6 +98,7 @@ struct WindowPointer {
     std::uint32_t pointer{kMousePointerId};
     std::uint32_t buttons{};
     std::uint32_t modifiers{};
+    std::uint8_t click_count{};
 };
 
 struct WindowWheel {
