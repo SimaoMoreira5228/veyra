@@ -45,6 +45,7 @@ add_library(veyra STATIC
  src/layout/viewport.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
+ src/render/scroll_shift.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
  src/render/software_polyline.cpp
@@ -163,6 +164,10 @@ if(VEYRA_WITH_TEXT)
  add_executable(veyra_shaped_run_cache_test tests/shaped_run_cache_test.cpp)
  target_link_libraries(veyra_shaped_run_cache_test PRIVATE veyra_text)
  add_test(NAME shaped_run_cache_behavior COMMAND veyra_shaped_run_cache_test)
+
+ add_executable(veyra_line_measure_cache_test tests/line_measure_cache_test.cpp)
+ target_link_libraries(veyra_line_measure_cache_test PRIVATE veyra_text)
+ add_test(NAME line_measure_cache_behavior COMMAND veyra_line_measure_cache_test)
 
  if(VEYRA_BUILD_BENCH)
   add_executable(veyra_text_shaper_bench bench/text_shaper.cpp)
@@ -612,6 +617,10 @@ add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
 add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
 
+add_executable(veyra_scroll_shift_test tests/scroll_shift_test.cpp)
+target_link_libraries(veyra_scroll_shift_test PRIVATE veyra)
+add_test(NAME scroll_shift_behavior COMMAND veyra_scroll_shift_test)
+
 add_executable(veyra_inspector_trace_test tests/inspector_trace_test.cpp)
 target_link_libraries(veyra_inspector_trace_test PRIVATE veyra)
 add_test(NAME inspector_trace_behavior COMMAND veyra_inspector_trace_test)
@@ -639,6 +648,20 @@ add_test(NAME text_editor_navigation_behavior COMMAND veyra_text_editor_navigati
 add_executable(veyra_text_editor_workload_test tests/text_editor_workload_test.cpp)
 target_link_libraries(veyra_text_editor_workload_test PRIVATE veyra_behaviors)
 add_test(NAME text_editor_workload_behavior COMMAND veyra_text_editor_workload_test)
+
+add_executable(veyra_allocation_audit_test tests/allocation_audit_test.cpp)
+target_link_libraries(veyra_allocation_audit_test PRIVATE veyra veyra_behaviors)
+add_test(NAME allocation_audit_behavior COMMAND veyra_allocation_audit_test)
+
+if(VEYRA_WITH_FILESYSTEM)
+ target_link_libraries(veyra_allocation_audit_test PRIVATE veyra_filesystem)
+ target_compile_definitions(veyra_allocation_audit_test PRIVATE VEYRA_AUDIT_FILESYSTEM=1)
+endif()
+
+if(VEYRA_WITH_TEXT)
+ target_link_libraries(veyra_allocation_audit_test PRIVATE veyra_text)
+ target_compile_definitions(veyra_allocation_audit_test PRIVATE VEYRA_AUDIT_TEXT=1)
+endif()
 
 add_executable(veyra_animation_timeline_test tests/animation_timeline_test.cpp)
 target_link_libraries(veyra_animation_timeline_test PRIVATE veyra)
