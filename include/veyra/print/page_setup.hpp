@@ -129,8 +129,8 @@ inline PrintPagePixels print_page_pixels(const PrintSetup& setup) noexcept {
     const double height = static_cast<double>(paper.height_mm) * scale;
 
     return {
-        .width = static_cast<std::size_t>(width + 0.5),
-        .height = static_cast<std::size_t>(height + 0.5),
+        .width = static_cast<std::size_t>(std::lround(width)),
+        .height = static_cast<std::size_t>(std::lround(height)),
     };
 }
 

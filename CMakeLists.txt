@@ -30,12 +30,14 @@ add_library(veyra STATIC
  src/core/node_id_pool.cpp
  src/core/node_tree.cpp
  src/core/semantics.cpp
+ src/core/shortcut_map.cpp
  src/layout/breakpoints.cpp
  src/layout/container_queries.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
  src/layout/image_fit.cpp
+ src/layout/image.cpp
  src/layout/measure.cpp
  src/layout/scroll_axis.cpp
  src/layout/stack.cpp
@@ -465,6 +467,10 @@ add_executable(veyra_semantics_test tests/semantics_test.cpp)
 target_link_libraries(veyra_semantics_test PRIVATE veyra)
 add_test(NAME semantics_behavior COMMAND veyra_semantics_test)
 
+add_executable(veyra_shortcut_map_test tests/shortcut_map_test.cpp)
+target_link_libraries(veyra_shortcut_map_test PRIVATE veyra)
+add_test(NAME shortcut_map_behavior COMMAND veyra_shortcut_map_test)
+
 add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
 add_test(NAME flex_layout_behavior COMMAND veyra_flex_layout_test)
@@ -508,6 +514,10 @@ add_test(NAME layout_measure_behavior COMMAND veyra_layout_measure_test)
 add_executable(veyra_image_fit_test tests/image_fit_test.cpp)
 target_link_libraries(veyra_image_fit_test PRIVATE veyra)
 add_test(NAME image_fit_behavior COMMAND veyra_image_fit_test)
+
+add_executable(veyra_image_controller_test tests/image_controller_test.cpp)
+target_link_libraries(veyra_image_controller_test PRIVATE veyra)
+add_test(NAME image_controller_behavior COMMAND veyra_image_controller_test)
 
 add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
 target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
