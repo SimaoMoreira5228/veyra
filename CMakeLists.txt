@@ -55,6 +55,8 @@ add_library(veyra STATIC
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
+ src/platform/null_window.cpp
+ src/platform/window_router.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
@@ -313,6 +315,13 @@ if(VEYRA_WITH_SDL3)
  target_link_libraries(veyra_sdl3_window_test PRIVATE veyra_sdl3)
  add_test(NAME sdl3_window_behavior COMMAND veyra_sdl3_window_test)
  set_tests_properties(sdl3_window_behavior PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+
+ target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_translate.cpp)
+
+ add_executable(veyra_sdl3_translate_test tests/sdl3_translate_test.cpp)
+ target_link_libraries(veyra_sdl3_translate_test PRIVATE veyra_sdl3)
+ add_test(NAME sdl3_translate_behavior COMMAND veyra_sdl3_translate_test)
+ set_tests_properties(sdl3_translate_behavior PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 endif()
 
 if(VEYRA_PARADIGM STREQUAL "all")
@@ -373,6 +382,10 @@ add_test(NAME toggle_behavior COMMAND veyra_toggle_test)
 add_executable(veyra_range_test tests/range_test.cpp)
 target_link_libraries(veyra_range_test PRIVATE veyra_behaviors)
 add_test(NAME range_behavior COMMAND veyra_range_test)
+
+add_executable(veyra_spinbox_test tests/spinbox_test.cpp)
+target_link_libraries(veyra_spinbox_test PRIVATE veyra_behaviors)
+add_test(NAME spinbox_behavior COMMAND veyra_spinbox_test)
 
 add_executable(veyra_selection_test tests/selection_test.cpp)
 target_link_libraries(veyra_selection_test PRIVATE veyra_behaviors)
@@ -470,6 +483,14 @@ add_test(NAME semantics_behavior COMMAND veyra_semantics_test)
 add_executable(veyra_shortcut_map_test tests/shortcut_map_test.cpp)
 target_link_libraries(veyra_shortcut_map_test PRIVATE veyra)
 add_test(NAME shortcut_map_behavior COMMAND veyra_shortcut_map_test)
+
+add_executable(veyra_platform_window_test tests/platform_window_test.cpp)
+target_link_libraries(veyra_platform_window_test PRIVATE veyra)
+add_test(NAME platform_window_behavior COMMAND veyra_platform_window_test)
+
+add_executable(veyra_window_router_test tests/window_router_test.cpp)
+target_link_libraries(veyra_window_router_test PRIVATE veyra)
+add_test(NAME window_router_behavior COMMAND veyra_window_router_test)
 
 add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
