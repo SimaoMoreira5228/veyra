@@ -32,7 +32,7 @@ void FakeServices::reset() noexcept {
     has_scripted_response_ = false;
 
     for (std::size_t index = 0; index < kNotices; ++index) {
-        notices_[index] = 0;
+        notices_[index] = {};
     }
 
     notice_count_ = 0;
@@ -327,8 +327,32 @@ NoticeAsk FakeServices::notice_request_permission() noexcept {
     return {.result = ServiceResult::ok, .permission = notice_permission_};
 }
 
-ServiceResult FakeServices::notice_show(std::uint64_t id) noexcept {
+NoticeAnnouncement
+FakeServices::make_announcement(std::uint64_t id, const char* title, const char* body) noexcept {
+    NoticeAnnouncement announcement{};
+
+    announcement.id = id;
+
+    const NoticeTextCopy title_copy = copy_notice_text(title, announcement.title);
+
+    announcement.title_length = title_copy.length;
+    announcement.title_truncated = title_copy.truncated;
+
+    const NoticeTextCopy body_copy = copy_notice_text(body, announcement.body);
+
+    announcement.body_length = body_copy.length;
+    announcement.body_truncated = body_copy.truncated;
+
+    return announcement;
+}
+
+ServiceResult
+FakeServices::notice_show(std::uint64_t id, const char* title, const char* body) noexcept {
     if (id == 0) {
+        return ServiceResult::invalid_input;
+    }
+
+    if (title == nullptr || body == nullptr) {
         return ServiceResult::invalid_input;
     }
 
@@ -336,7 +360,11 @@ ServiceResult FakeServices::notice_show(std::uint64_t id) noexcept {
         return ServiceResult::denied;
     }
 
-    if (notice_index(id) != kNotices) {
+    const std::size_t slot = notice_index(id);
+
+    if (slot != kNotices) {
+        notices_[slot].announcement = make_announcement(id, title, body);
+
         return ServiceResult::ok;
     }
 
@@ -344,10 +372,20 @@ ServiceResult FakeServices::notice_show(std::uint64_t id) noexcept {
         return ServiceResult::overflow;
     }
 
-    notices_[notice_count_] = id;
+    notices_[notice_count_] = {.id = id, .announcement = make_announcement(id, title, body)};
     ++notice_count_;
 
     return ServiceResult::ok;
+}
+
+NoticeRead FakeServices::notice_read(std::uint64_t id) const noexcept {
+    const std::size_t slot = notice_index(id);
+
+    if (slot == kNotices) {
+        return {.result = ServiceResult::not_found, .announcement = {}};
+    }
+
+    return {.result = ServiceResult::ok, .announcement = notices_[slot].announcement};
 }
 
 ServiceResult FakeServices::notice_dismiss(std::uint64_t id) noexcept {
@@ -358,7 +396,7 @@ ServiceResult FakeServices::notice_dismiss(std::uint64_t id) noexcept {
     }
 
     notices_[slot] = notices_[notice_count_ - 1];
-    notices_[notice_count_ - 1] = 0;
+    notices_[notice_count_ - 1] = {};
     --notice_count_;
 
     std::size_t kept{};
@@ -462,7 +500,7 @@ std::size_t FakeServices::stored_length(const char* text, bool& fits) noexcept {
 
 std::size_t FakeServices::notice_index(std::uint64_t id) const noexcept {
     for (std::size_t index = 0; index < notice_count_; ++index) {
-        if (notices_[index] == id) {
+        if (notices_[index].id == id) {
             return index;
         }
     }

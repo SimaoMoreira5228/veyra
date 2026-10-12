@@ -1,0 +1,596 @@
+#include "veyra/render/display_batches.hpp"
+
+#include "veyra/render/software_renderer.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <variant>
+
+namespace {
+
+void require(bool condition, std::string_view message) {
+    if (!condition) {
+        throw std::runtime_error(std::string(message));
+    }
+}
+
+veyra::FillRect blue_rect(float x, float width) {
+    return veyra::FillRect{
+        .bounds = {.x = x, .width = width, .height = 1.0F},
+        .color = {.red = 10, .green = 20, .blue = 200},
+    };
+}
+
+bool is_state_command(const veyra::DisplayCommand& command) {
+    return std::holds_alternative<veyra::PushClip>(command) ||
+        std::holds_alternative<veyra::PopClip>(command) ||
+        std::holds_alternative<veyra::PushTranslation>(command) ||
+        std::holds_alternative<veyra::PopTranslation>(command);
+}
+
+veyra::BatchPrimitive expected_primitive(const veyra::DisplayCommand& command) {
+    if (std::get_if<veyra::FillRect>(&command) != nullptr) {
+        return veyra::BatchPrimitive::fill_rect;
+    }
+
+    if (std::get_if<veyra::DrawMask>(&command) != nullptr) {
+        return veyra::BatchPrimitive::draw_mask;
+    }
+
+    if (std::get_if<veyra::DrawImage>(&command) != nullptr) {
+        return veyra::BatchPrimitive::draw_image;
+    }
+
+    if (std::get_if<veyra::StrokeLine>(&command) != nullptr) {
+        return veyra::BatchPrimitive::stroke_line;
+    }
+
+    throw std::runtime_error("test stream holds an unexpected draw kind");
+}
+
+const void* expected_resource(const veyra::DisplayCommand& command) {
+    if (const auto* mask = std::get_if<veyra::DrawMask>(&command)) {
+        return mask->mask;
+    }
+
+    if (const auto* image = std::get_if<veyra::DrawImage>(&command)) {
+        return image->image;
+    }
+
+    return nullptr;
+}
+
+std::size_t covering_run(
+    std::span<const veyra::BatchRun> runs,
+    std::size_t run_count,
+    std::size_t command_index
+) {
+    for (std::size_t run = 0; run < run_count; ++run) {
+        if (command_index >= runs[run].start && command_index < runs[run].start + runs[run].count) {
+            return run;
+        }
+    }
+
+    throw std::runtime_error("draw command is covered by no batch run");
+}
+
+void require_exact_cover(
+    std::span<const veyra::DisplayCommand> commands,
+    std::span<const veyra::BatchRun> runs,
+    std::size_t run_count
+) {
+    auto previous_end = std::size_t{0};
+
+    for (std::size_t run = 0; run < run_count; ++run) {
+        require(runs[run].count != 0, "every run covers at least one command");
+        require(runs[run].start >= previous_end, "runs stay ordered and disjoint");
+        require(
+            runs[run].start + runs[run].count <= commands.size(),
+            "runs stay inside the command list"
+        );
+        previous_end = runs[run].start + runs[run].count;
+    }
+
+    for (std::size_t index = 0; index < commands.size(); ++index) {
+        auto covering = std::size_t{0};
+        auto hits = std::size_t{0};
+
+        for (std::size_t run = 0; run < run_count; ++run) {
+            if (index >= runs[run].start && index < runs[run].start + runs[run].count) {
+                covering = run;
+                ++hits;
+            }
+        }
+
+        if (is_state_command(commands[index])) {
+            continue;
+        }
+
+        require(hits == 1, "every draw command lands in exactly one run");
+
+        const auto& key = runs[covering].key;
+
+        require(
+            key.primitive == expected_primitive(commands[index]),
+            "run key names the draw kind"
+        );
+        require(key.resource == expected_resource(commands[index]), "run key names the resource");
+    }
+}
+
+void require_replay_matches(
+    std::span<const veyra::DisplayCommand> commands,
+    std::span<const veyra::BatchRun> runs,
+    std::size_t run_count
+) {
+    auto clip_depth = std::size_t{0};
+
+    for (std::size_t index = 0; index < commands.size(); ++index) {
+        const auto& command = commands[index];
+
+        if (std::holds_alternative<veyra::PushClip>(command)) {
+            ++clip_depth;
+            continue;
+        }
+
+        if (std::holds_alternative<veyra::PopClip>(command)) {
+            if (clip_depth != 0) {
+                --clip_depth;
+            }
+
+            continue;
+        }
+
+        if (is_state_command(command)) {
+            continue;
+        }
+
+        const auto run = covering_run(runs, run_count, index);
+
+        require(runs[run].key.clip_depth == clip_depth, "run depth matches a replayed clip stack");
+
+        if (const auto* image = std::get_if<veyra::DrawImage>(&command)) {
+            require(
+                runs[run].key.sampling == image->sampling,
+                "image runs carry the replayed sampling mode"
+            );
+        }
+    }
+}
+
+void require_maximal_runs(
+    std::span<const veyra::DisplayCommand> commands,
+    std::span<const veyra::BatchRun> runs,
+    std::size_t run_count
+) {
+    for (std::size_t run = 0; run + 1 < run_count; ++run) {
+        const auto gap_begin = runs[run].start + runs[run].count;
+        const auto gap_end = runs[run + 1].start;
+
+        if (veyra::same_batch_key(runs[run].key, runs[run + 1].key)) {
+            auto saw_state = false;
+
+            for (std::size_t index = gap_begin; index < gap_end; ++index) {
+                saw_state = saw_state || is_state_command(commands[index]);
+            }
+
+            require(saw_state, "equal keys split only across a state command");
+        }
+    }
+
+    for (std::size_t run = 0; run < run_count; ++run) {
+        for (std::size_t offset = 0; offset < runs[run].count; ++offset) {
+            require(
+                !is_state_command(commands[runs[run].start + offset]),
+                "no state command hides inside a run"
+            );
+        }
+    }
+}
+
+void check_empty_list() {
+    const auto commands = std::array<veyra::DisplayCommand, 0>{};
+    auto storage = std::array<veyra::BatchRun, 4>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "empty list analyzes");
+    require(produced == 0, "empty list needs no runs");
+}
+
+void check_single_draw() {
+    const auto commands = std::array<veyra::DisplayCommand, 1>{blue_rect(0.0F, 4.0F)};
+    auto storage = std::array<veyra::BatchRun, 4>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "single draw analyzes");
+    require(produced == 1, "single draw needs one run");
+    require(storage[0].start == 0 && storage[0].count == 1, "single run covers the draw");
+    require(
+        storage[0].key.primitive == veyra::BatchPrimitive::fill_rect,
+        "single run names the draw kind"
+    );
+    require(storage[0].key.clip_depth == 0, "top-level runs sit at depth zero");
+}
+
+void check_state_only_list() {
+    const auto commands = std::array<veyra::DisplayCommand, 2>{
+        veyra::PushClip{.bounds = {.width = 4.0F, .height = 4.0F}},
+        veyra::PopClip{},
+    };
+    auto storage = std::array<veyra::BatchRun, 4>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "state-only list analyzes");
+    require(produced == 0, "state commands form no runs");
+}
+
+void check_all_same_merges() {
+    const auto commands = std::array<veyra::DisplayCommand, 5>{
+        blue_rect(0.0F, 1.0F),
+        blue_rect(1.0F, 1.0F),
+        blue_rect(2.0F, 1.0F),
+        blue_rect(3.0F, 1.0F),
+        blue_rect(4.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 5>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "uniform list analyzes");
+    require(produced == 1, "uniform draws merge into one run");
+    require(storage[0].start == 0 && storage[0].count == 5, "one run spans every draw");
+}
+
+void check_kind_splits() {
+    const auto line = veyra::StrokeLine{
+        .end = {.x = 2.0F, .y = 2.0F},
+        .thickness = 1.0F,
+    };
+    const auto commands = std::array<veyra::DisplayCommand, 3>{
+        blue_rect(0.0F, 1.0F),
+        line,
+        blue_rect(2.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 3>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "mixed kinds analyze");
+    require(produced == 3, "each kind change starts a new run");
+    require(
+        storage[1].key.primitive == veyra::BatchPrimitive::stroke_line,
+        "middle run names the line kind"
+    );
+    require(storage[0].start == 0 && storage[2].start == 2, "runs keep stream order");
+}
+
+void check_image_pointer_and_sampling() {
+    const auto pixels_a = std::array<veyra::SoftwarePixel, 1>{};
+    const auto pixels_b = std::array<veyra::SoftwarePixel, 1>{};
+    const auto image_a = veyra::SoftwareImage{
+        .width = 1,
+        .height = 1,
+        .stride = 1,
+        .pixels = pixels_a,
+    };
+    const auto image_b = veyra::SoftwareImage{
+        .width = 1,
+        .height = 1,
+        .stride = 1,
+        .pixels = pixels_b,
+    };
+    const auto nearest = veyra::DrawImage{
+        .image = &image_a,
+        .sampling = veyra::SoftwareImageSampling::nearest,
+    };
+    const auto linear = veyra::DrawImage{
+        .image = &image_a,
+        .sampling = veyra::SoftwareImageSampling::linear,
+    };
+    const auto other = veyra::DrawImage{
+        .image = &image_b,
+        .sampling = veyra::SoftwareImageSampling::nearest,
+    };
+
+    const auto same_texture = std::array<veyra::DisplayCommand, 2>{nearest, nearest};
+    const auto resampled = std::array<veyra::DisplayCommand, 2>{nearest, linear};
+    const auto swapped = std::array<veyra::DisplayCommand, 2>{nearest, other};
+
+    auto storage = std::array<veyra::BatchRun, 2>{};
+    auto produced = std::size_t{0};
+
+    require(
+        veyra::analyze_display_batches(same_texture, storage, produced) ==
+            veyra::BatchAnalysisResult::complete,
+        "repeated image analyzes"
+    );
+    require(produced == 1, "same image pointer draws merge");
+
+    require(
+        veyra::analyze_display_batches(resampled, storage, produced) ==
+            veyra::BatchAnalysisResult::complete,
+        "resampled image analyzes"
+    );
+    require(produced == 2, "sampling change starts a new run");
+
+    require(
+        veyra::analyze_display_batches(swapped, storage, produced) ==
+            veyra::BatchAnalysisResult::complete,
+        "swapped image analyzes"
+    );
+    require(produced == 2, "image pointer change starts a new run");
+    require(
+        !veyra::same_batch_key(storage[0].key, storage[1].key),
+        "different images compare unequal"
+    );
+}
+
+void check_mask_pointer_runs() {
+    const auto coverage_a = std::array<std::uint8_t, 4>{255, 128, 64, 0};
+    const auto coverage_b = std::array<std::uint8_t, 4>{0, 64, 128, 255};
+    const auto mask_a = veyra::SoftwareMask{
+        .width = 2,
+        .height = 2,
+        .stride = 2,
+        .coverage = coverage_a,
+    };
+    const auto mask_b = veyra::SoftwareMask{
+        .width = 2,
+        .height = 2,
+        .stride = 2,
+        .coverage = coverage_b,
+    };
+    const auto glyph_a = veyra::DrawMask{.x = 0.0F, .mask = &mask_a};
+    const auto glyph_b = veyra::DrawMask{.x = 3.0F, .mask = &mask_b};
+
+    const auto repeated = std::array<veyra::DisplayCommand, 3>{glyph_a, glyph_a, glyph_a};
+    const auto alternating = std::array<veyra::DisplayCommand, 3>{glyph_a, glyph_b, glyph_a};
+
+    auto storage = std::array<veyra::BatchRun, 3>{};
+    auto produced = std::size_t{0};
+
+    require(
+        veyra::analyze_display_batches(repeated, storage, produced) ==
+            veyra::BatchAnalysisResult::complete,
+        "repeated glyph analyzes"
+    );
+    require(produced == 1, "same mask pointer draws merge");
+    require(storage[0].key.resource == &mask_a, "mask run names the shared mask");
+
+    require(
+        veyra::analyze_display_batches(alternating, storage, produced) ==
+            veyra::BatchAnalysisResult::complete,
+        "alternating glyphs analyze"
+    );
+    require(produced == 3, "each mask swap starts a new run");
+}
+
+void check_clip_depth_splits() {
+    const auto commands = std::array<veyra::DisplayCommand, 5>{
+        blue_rect(0.0F, 1.0F),
+        veyra::PushClip{.bounds = {.width = 4.0F, .height = 4.0F}},
+        blue_rect(1.0F, 1.0F),
+        veyra::PopClip{},
+        blue_rect(3.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 5>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "clipped list analyzes");
+    require(produced == 3, "clip push and pop each end the run");
+    require(storage[0].key.clip_depth == 0, "outer runs sit at depth zero");
+    require(storage[1].key.clip_depth == 1, "clipped run records depth one");
+    require(storage[2].key.clip_depth == 0, "popped run returns to depth zero");
+    require(storage[1].start == 2 && storage[1].count == 1, "clipped run covers one draw");
+}
+
+void check_sibling_clips_split_at_equal_depth() {
+    const auto commands = std::array<veyra::DisplayCommand, 6>{
+        veyra::PushClip{.bounds = {.width = 2.0F, .height = 2.0F}},
+        blue_rect(0.0F, 1.0F),
+        veyra::PopClip{},
+        veyra::PushClip{.bounds = {.x = 2.0F, .width = 2.0F, .height = 2.0F}},
+        blue_rect(2.0F, 1.0F),
+        veyra::PopClip{},
+    };
+    auto storage = std::array<veyra::BatchRun, 6>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "sibling clips analyze");
+    require(produced == 2, "sibling clips never merge despite equal depth");
+    require(
+        storage[0].key.clip_depth == 1 && storage[1].key.clip_depth == 1,
+        "both runs record depth one"
+    );
+    require(storage[0].start == 1 && storage[1].start == 4, "runs cover each sibling draw");
+}
+
+void check_nested_clips() {
+    const auto commands = std::array<veyra::DisplayCommand, 7>{
+        veyra::PushClip{.bounds = {.width = 8.0F, .height = 8.0F}},
+        veyra::PushClip{.bounds = {.width = 4.0F, .height = 4.0F}},
+        blue_rect(0.0F, 1.0F),
+        blue_rect(1.0F, 1.0F),
+        veyra::PopClip{},
+        veyra::PopClip{},
+        blue_rect(5.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 7>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "nested clips analyze");
+    require(produced == 2, "nested draws merge at depth two");
+    require(storage[0].start == 2 && storage[0].count == 2, "inner run spans both draws");
+    require(storage[0].key.clip_depth == 2, "inner run records depth two");
+    require(storage[1].key.clip_depth == 0, "outer run records depth zero");
+}
+
+void check_translation_splits() {
+    const auto commands = std::array<veyra::DisplayCommand, 5>{
+        blue_rect(0.0F, 1.0F),
+        veyra::PushTranslation{.offset = {.x = 4.0F}},
+        blue_rect(0.0F, 1.0F),
+        veyra::PopTranslation{},
+        blue_rect(8.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 5>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "translated list analyzes");
+    require(produced == 3, "translation push and pop each end the run");
+    require(storage[0].start == 0 && storage[1].start == 2, "runs keep stream order");
+    require(storage[2].start == 4 && storage[2].count == 1, "popped run covers one draw");
+}
+
+void check_balanced_translation_gap_stays_split() {
+    const auto commands = std::array<veyra::DisplayCommand, 4>{
+        blue_rect(0.0F, 1.0F),
+        veyra::PushTranslation{.offset = {.x = 0.0F}},
+        veyra::PopTranslation{},
+        blue_rect(2.0F, 1.0F),
+    };
+    auto storage = std::array<veyra::BatchRun, 4>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "zero-offset list analyzes");
+    require(produced == 2, "even a net-zero translation pair ends the run");
+}
+
+void check_insufficient_output_reports_needed() {
+    const auto line = veyra::StrokeLine{
+        .end = {.x = 1.0F, .y = 1.0F},
+        .thickness = 1.0F,
+    };
+    const auto commands = std::array<veyra::DisplayCommand, 3>{
+        blue_rect(0.0F, 1.0F),
+        line,
+        blue_rect(2.0F, 1.0F),
+    };
+
+    auto cramped = std::array<veyra::BatchRun, 1>{};
+    auto produced = std::size_t{0};
+
+    const auto short_result = veyra::analyze_display_batches(commands, cramped, produced);
+
+    require(
+        short_result == veyra::BatchAnalysisResult::insufficient_output,
+        "cramped output reports shortage"
+    );
+    require(produced == 3, "shortage reports the needed run count");
+
+    auto roomy = std::array<veyra::BatchRun, 3>{};
+    const auto full_result = veyra::analyze_display_batches(commands, roomy, produced);
+
+    require(full_result == veyra::BatchAnalysisResult::complete, "exact output fits");
+    require(produced == 3, "exact output reports three runs");
+}
+
+void check_mixed_sequence_invariants() {
+    const auto coverage_a = std::array<std::uint8_t, 2>{255, 255};
+    const auto coverage_b = std::array<std::uint8_t, 2>{128, 128};
+    const auto mask_a = veyra::SoftwareMask{
+        .width = 2,
+        .height = 1,
+        .stride = 2,
+        .coverage = coverage_a,
+    };
+    const auto mask_b = veyra::SoftwareMask{
+        .width = 2,
+        .height = 1,
+        .stride = 2,
+        .coverage = coverage_b,
+    };
+    const auto pixels = std::array<veyra::SoftwarePixel, 1>{};
+    const auto image = veyra::SoftwareImage{
+        .width = 1,
+        .height = 1,
+        .stride = 1,
+        .pixels = pixels,
+    };
+    const auto line = veyra::StrokeLine{
+        .end = {.x = 3.0F, .y = 1.0F},
+        .thickness = 2.0F,
+    };
+
+    const auto commands = std::array<veyra::DisplayCommand, 16>{
+        blue_rect(0.0F, 8.0F),
+        blue_rect(0.0F, 8.0F),
+        veyra::DrawMask{.x = 0.0F, .mask = &mask_a},
+        veyra::DrawMask{.x = 2.0F, .mask = &mask_a},
+        veyra::DrawMask{.x = 4.0F, .mask = &mask_b},
+        veyra::PushClip{.bounds = {.width = 8.0F, .height = 8.0F}},
+        blue_rect(1.0F, 2.0F),
+        line,
+        veyra::PopClip{},
+        veyra::PushTranslation{.offset = {.x = 0.0F, .y = 6.0F}},
+        blue_rect(0.0F, 8.0F),
+        veyra::DrawImage{.image = &image},
+        veyra::PopTranslation{},
+        veyra::DrawImage{.image = &image},
+        blue_rect(0.0F, 8.0F),
+        blue_rect(0.0F, 8.0F),
+    };
+
+    auto storage = std::array<veyra::BatchRun, 16>{};
+    auto produced = std::size_t{0};
+
+    const auto result = veyra::analyze_display_batches(commands, storage, produced);
+
+    require(result == veyra::BatchAnalysisResult::complete, "mixed list analyzes");
+    require(produced == 9, "mixed list folds into nine runs");
+
+    const auto runs = std::span<const veyra::BatchRun>(storage.data(), produced);
+
+    require_exact_cover(commands, runs, produced);
+    require_replay_matches(commands, runs, produced);
+    require_maximal_runs(commands, runs, produced);
+}
+
+}
+
+int main() {
+    try {
+        check_empty_list();
+        check_single_draw();
+        check_state_only_list();
+        check_all_same_merges();
+        check_kind_splits();
+        check_image_pointer_and_sampling();
+        check_mask_pointer_runs();
+        check_clip_depth_splits();
+        check_sibling_clips_split_at_equal_depth();
+        check_nested_clips();
+        check_translation_splits();
+        check_balanced_translation_gap_stays_split();
+        check_insufficient_output_reports_needed();
+        check_mixed_sequence_invariants();
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
+    return 0;
+}

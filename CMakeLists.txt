@@ -45,6 +45,7 @@ add_library(veyra STATIC
  src/layout/viewport.cpp
  src/layout/virtual_list.cpp
  src/render/damage_tracker.cpp
+ src/render/display_batches.cpp
  src/render/scroll_shift.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
@@ -64,7 +65,7 @@ add_library(veyra STATIC
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -434,6 +435,18 @@ add_executable(veyra_combobox_test tests/combobox_test.cpp)
 target_link_libraries(veyra_combobox_test PRIVATE veyra_behaviors)
 add_test(NAME combobox_behavior COMMAND veyra_combobox_test)
 
+add_executable(veyra_breadcrumb_test tests/breadcrumb_test.cpp)
+target_link_libraries(veyra_breadcrumb_test PRIVATE veyra_behaviors)
+add_test(NAME breadcrumb_behavior COMMAND veyra_breadcrumb_test)
+
+add_executable(veyra_tooltip_test tests/tooltip_test.cpp)
+target_link_libraries(veyra_tooltip_test PRIVATE veyra_behaviors)
+add_test(NAME tooltip_behavior COMMAND veyra_tooltip_test)
+
+add_executable(veyra_menu_placement_test tests/menu_placement_test.cpp)
+target_link_libraries(veyra_menu_placement_test PRIVATE veyra)
+add_test(NAME menu_placement_behavior COMMAND veyra_menu_placement_test)
+
 add_executable(veyra_disclosure_test tests/disclosure_test.cpp)
 target_link_libraries(veyra_disclosure_test PRIVATE veyra_behaviors)
 add_test(NAME disclosure_behavior COMMAND veyra_disclosure_test)
@@ -465,6 +478,22 @@ add_test(NAME toggle_appearance_behavior COMMAND veyra_toggle_appearance_test)
 add_executable(veyra_editable_text_test tests/editable_text_test.cpp)
 target_link_libraries(veyra_editable_text_test PRIVATE veyra_behaviors)
 add_test(NAME editable_text_behavior COMMAND veyra_editable_text_test)
+
+add_executable(veyra_selection_typeahead_test tests/selection_typeahead_test.cpp)
+target_link_libraries(veyra_selection_typeahead_test PRIVATE veyra_behaviors)
+add_test(NAME selection_typeahead_behavior COMMAND veyra_selection_typeahead_test)
+
+add_executable(veyra_scroll_controller_test tests/scroll_controller_test.cpp)
+target_link_libraries(veyra_scroll_controller_test PRIVATE veyra_behaviors)
+add_test(NAME scroll_controller_behavior COMMAND veyra_scroll_controller_test)
+
+add_executable(veyra_text_area_composition_test tests/text_area_composition_test.cpp)
+target_link_libraries(veyra_text_area_composition_test PRIVATE veyra_behaviors)
+add_test(NAME text_area_composition_behavior COMMAND veyra_text_area_composition_test)
+
+add_executable(veyra_indeterminate_progress_test tests/indeterminate_progress_test.cpp)
+target_link_libraries(veyra_indeterminate_progress_test PRIVATE veyra_behaviors)
+add_test(NAME indeterminate_progress_behavior COMMAND veyra_indeterminate_progress_test)
 
 add_executable(veyra_textfield_appearance_test tests/textfield_appearance_test.cpp)
 target_link_libraries(veyra_textfield_appearance_test PRIVATE veyra_widgets_basic)
@@ -621,6 +650,10 @@ add_test(NAME software_renderer_path_behavior COMMAND veyra_software_renderer_pa
 add_executable(veyra_damage_tracker_test tests/damage_tracker_test.cpp)
 target_link_libraries(veyra_damage_tracker_test PRIVATE veyra)
 add_test(NAME damage_tracker_behavior COMMAND veyra_damage_tracker_test)
+
+add_executable(veyra_display_batches_test tests/display_batches_test.cpp)
+target_link_libraries(veyra_display_batches_test PRIVATE veyra)
+add_test(NAME display_batches_behavior COMMAND veyra_display_batches_test)
 
 add_executable(veyra_scroll_shift_test tests/scroll_shift_test.cpp)
 target_link_libraries(veyra_scroll_shift_test PRIVATE veyra)

@@ -142,7 +142,6 @@ class RangeSliderController {
         std::string_view value_text,
         SemanticNodeData& output
     ) const noexcept;
-
     RangeSliderTransition set_low(double value) noexcept;
     RangeSliderTransition set_high(double value) noexcept;
     RangeSliderTransition set_value(RangeThumb thumb, double value) noexcept;
@@ -170,6 +169,17 @@ class RangeSliderController {
     double page_step_{10.0};
     bool disabled_{};
 };
+
+inline double
+indeterminate_progress_fraction(std::uint64_t elapsed_ms, std::uint64_t period_ms) noexcept {
+    if (period_ms == 0) {
+        return 0.0;
+    }
+
+    const auto position = elapsed_ms % period_ms;
+
+    return static_cast<double>(position) / static_cast<double>(period_ms);
+}
 
 }
 

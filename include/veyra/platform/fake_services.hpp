@@ -1,6 +1,8 @@
 #ifndef VEYRA_PLATFORM_FAKE_SERVICES_HPP
 #define VEYRA_PLATFORM_FAKE_SERVICES_HPP
 
+#include "veyra/platform/notice.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -18,12 +20,6 @@ enum class ServiceResult : std::uint8_t {
     overflow,
     rejected,
     not_found,
-};
-
-enum class NoticePermission : std::uint8_t {
-    undecided,
-    granted,
-    denied,
 };
 
 enum class DialogKind : std::uint8_t {
@@ -50,6 +46,11 @@ struct DialogPoll {
 struct NoticeAsk {
     ServiceResult result{ServiceResult::pending};
     NoticePermission permission{NoticePermission::undecided};
+};
+
+struct NoticeRead {
+    ServiceResult result{ServiceResult::not_found};
+    NoticeAnnouncement announcement{};
 };
 
 // NOTE: scripted stand-in for OS services the fake never touches. Clipboard,
@@ -98,7 +99,8 @@ class FakeServices {
     void set_notice_permission(NoticePermission permission) noexcept;
     ServiceResult notice_script_response(NoticePermission permission) noexcept;
     NoticeAsk notice_request_permission() noexcept;
-    ServiceResult notice_show(std::uint64_t id) noexcept;
+    ServiceResult notice_show(std::uint64_t id, const char* title, const char* body) noexcept;
+    NoticeRead notice_read(std::uint64_t id) const noexcept;
     ServiceResult notice_dismiss(std::uint64_t id) noexcept;
     bool notice_visible(std::uint64_t id) const noexcept;
     std::size_t notice_count() const noexcept;
@@ -119,8 +121,15 @@ class FakeServices {
         bool resolved{};
     };
 
+    struct NoticeSlot {
+        std::uint64_t id{};
+        NoticeAnnouncement announcement{};
+    };
+
     static bool is_valid_answer(DialogAnswer answer) noexcept;
     static std::size_t stored_length(const char* text, bool& fits) noexcept;
+    static NoticeAnnouncement
+    make_announcement(std::uint64_t id, const char* title, const char* body) noexcept;
     std::size_t notice_index(std::uint64_t id) const noexcept;
     const DialogSlot* find_dialog(std::uint64_t handle) const noexcept;
     DialogSlot* find_dialog(std::uint64_t handle) noexcept;
@@ -142,7 +151,7 @@ class FakeServices {
     NoticePermission notice_permission_{NoticePermission::undecided};
     NoticePermission scripted_response_{NoticePermission::undecided};
     bool has_scripted_response_{};
-    std::array<std::uint64_t, kNotices> notices_{};
+    std::array<NoticeSlot, kNotices> notices_{};
     std::size_t notice_count_{};
 
     std::array<std::uint64_t, kClickQueue> clicks_{};
