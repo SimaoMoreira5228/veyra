@@ -58,6 +58,7 @@ add_library(veyra STATIC
  src/text/text_editor_buffer.cpp
  src/render/software_renderer.cpp
  src/platform/null_window.cpp
+ src/platform/fake_services.cpp
  src/platform/window_router.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -525,6 +526,10 @@ add_executable(veyra_window_router_test tests/window_router_test.cpp)
 target_link_libraries(veyra_window_router_test PRIVATE veyra)
 add_test(NAME window_router_behavior COMMAND veyra_window_router_test)
 
+add_executable(veyra_fake_services_test tests/fake_services_test.cpp)
+target_link_libraries(veyra_fake_services_test PRIVATE veyra)
+add_test(NAME fake_services_behavior COMMAND veyra_fake_services_test)
+
 add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
 add_test(NAME flex_layout_behavior COMMAND veyra_flex_layout_test)
@@ -621,6 +626,10 @@ add_executable(veyra_scroll_shift_test tests/scroll_shift_test.cpp)
 target_link_libraries(veyra_scroll_shift_test PRIVATE veyra)
 add_test(NAME scroll_shift_behavior COMMAND veyra_scroll_shift_test)
 
+add_executable(veyra_scroll_shift_verify_test tests/scroll_shift_verify_test.cpp)
+target_link_libraries(veyra_scroll_shift_verify_test PRIVATE veyra)
+add_test(NAME scroll_shift_verify_behavior COMMAND veyra_scroll_shift_verify_test)
+
 add_executable(veyra_inspector_trace_test tests/inspector_trace_test.cpp)
 target_link_libraries(veyra_inspector_trace_test PRIVATE veyra)
 add_test(NAME inspector_trace_behavior COMMAND veyra_inspector_trace_test)
@@ -636,6 +645,14 @@ add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
 add_executable(veyra_glyph_image_cache_test tests/glyph_image_cache_test.cpp)
 target_link_libraries(veyra_glyph_image_cache_test PRIVATE veyra)
 add_test(NAME glyph_image_cache_behavior COMMAND veyra_glyph_image_cache_test)
+
+add_executable(veyra_stb_rect_pack_test tests/stb_rect_pack_test.cpp)
+target_include_directories(veyra_stb_rect_pack_test PRIVATE third_party/stb)
+add_test(NAME stb_rect_pack_behavior COMMAND veyra_stb_rect_pack_test)
+
+add_executable(veyra_stb_sprintf_test tests/stb_sprintf_test.cpp)
+target_include_directories(veyra_stb_sprintf_test PRIVATE third_party/stb)
+add_test(NAME stb_sprintf_behavior COMMAND veyra_stb_sprintf_test)
 
 add_executable(veyra_text_editor_buffer_test tests/text_editor_buffer_test.cpp)
 target_link_libraries(veyra_text_editor_buffer_test PRIVATE veyra)
