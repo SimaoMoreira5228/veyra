@@ -35,6 +35,7 @@ void check_nested_translations() {
         },
         veyra::PushClip{
             .bounds = {.width = 3.0F, .height = 1.0F},
+            .clip_id = 0,
         },
         veyra::PushTranslation{
             .offset = {.x = 1.0F},
@@ -79,6 +80,7 @@ void check_nested_translations() {
         .height = 1,
         .stride = 1,
         .coverage = coverage,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 3> fractional_commands{
         veyra::PushTranslation{
@@ -184,6 +186,7 @@ void check_translated_strokes_and_images() {
         .height = 1,
         .stride = 1,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 5> commands{
         veyra::PushTranslation{

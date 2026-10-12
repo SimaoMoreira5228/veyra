@@ -42,6 +42,7 @@ void check_copy_update_and_eviction() {
                 .height = 2,
                 .stride = 3,
                 .pixels = source,
+                .generation = 0,
             },
         .bearing_x = -2,
         .bearing_y = 11,
@@ -70,7 +71,7 @@ void check_copy_update_and_eviction() {
     require(
         cache.insert(
             key(1),
-            {{.width = 1, .height = 1, .stride = 1, .pixels = replacement}, 3, 4}
+            {{.width = 1, .height = 1, .stride = 1, .pixels = replacement, .generation = 0}, 3, 4}
         ) == veyra::GlyphImageCacheResult::updated,
         "existing key updates its pixels"
     );
@@ -107,7 +108,7 @@ void check_copy_update_and_eviction() {
     require(
         cache.insert(
             alternate_palette_key,
-            {{.width = 1, .height = 1, .stride = 1, .pixels = replacement}, 0, 0}
+            {{.width = 1, .height = 1, .stride = 1, .pixels = replacement, .generation = 0}, 0, 0}
         ) == veyra::GlyphImageCacheResult::inserted,
         "alternate palette has a distinct cache entry"
     );
@@ -121,6 +122,59 @@ void check_copy_update_and_eviction() {
             alternate_palette_image->image.pixels[0].green == 8,
         "each palette returns its own pixels"
     );
+}
+
+void check_generation_carried_and_matched() {
+    std::array<veyra::GlyphImageCacheSlot, 4> slots{};
+    std::array<veyra::SoftwarePixel, 16> storage{};
+    veyra::GlyphImageCache cache(slots, storage, 2, 2);
+    const std::array<veyra::SoftwarePixel, 1> source{
+        veyra::SoftwarePixel{.red = 9, .alpha = 255},
+    };
+    const veyra::GlyphImage first{
+        .image =
+            {
+                .width = 1,
+                .height = 1,
+                .stride = 1,
+                .pixels = source,
+                .generation = 3,
+            },
+        .bearing_x = 1,
+        .bearing_y = 2,
+    };
+
+    require(
+        cache.insert(key(1), first) == veyra::GlyphImageCacheResult::inserted,
+        "a versioned image inserts"
+    );
+
+    const auto stored = cache.find(key(1));
+    if (!stored.has_value()) {
+        throw std::runtime_error("versioned image is found");
+    }
+    require(stored->image.generation == 3, "find carries the stored generation");
+    require(cache.find(key(1), 3).has_value(), "a matching generation is a hit");
+    require(cache.find(key(1), 0).has_value(), "an unversioned lookup skips the check");
+    require(!cache.find(key(1), 4).has_value(), "a generation mismatch is a miss");
+
+    const std::array<veyra::SoftwarePixel, 1> repaint{
+        veyra::SoftwarePixel{.blue = 5, .alpha = 255},
+    };
+    require(
+        cache.insert(
+            key(1),
+            {{.width = 1, .height = 1, .stride = 1, .pixels = repaint, .generation = 4}, 1, 2}
+        ) == veyra::GlyphImageCacheResult::updated,
+        "repainting the same key overwrites its pixels"
+    );
+
+    const auto updated = cache.find(key(1), 4);
+    if (!updated.has_value()) {
+        throw std::runtime_error("the bumped generation is found");
+    }
+    require(updated->image.pixels[0].blue == 5, "the bumped pixels are visible");
+    require(!cache.find(key(1), 3).has_value(), "the old generation no longer matches");
 }
 
 void check_invalid_storage_and_input() {
@@ -137,7 +191,7 @@ void check_invalid_storage_and_input() {
     veyra::GlyphImageCache cache(slots, storage, 2, 2);
     const std::array<veyra::SoftwarePixel, 4> pixels{};
     const veyra::GlyphImage image{
-        .image = {.width = 2, .height = 2, .stride = 2, .pixels = pixels},
+        .image = {.width = 2, .height = 2, .stride = 2, .pixels = pixels, .generation = 0},
     };
     auto invalid_key = key(1);
     invalid_key.face_id = 0;
@@ -147,7 +201,7 @@ void check_invalid_storage_and_input() {
     );
 
     const veyra::GlyphImage invalid_image{
-        .image = {.width = 2, .height = 2, .stride = 1, .pixels = pixels},
+        .image = {.width = 2, .height = 2, .stride = 1, .pixels = pixels, .generation = 0},
     };
     require(
         cache.insert(key(1), invalid_image) == veyra::GlyphImageCacheResult::invalid_image,
@@ -156,7 +210,7 @@ void check_invalid_storage_and_input() {
 
     const std::array<veyra::SoftwarePixel, 1> short_pixels{};
     const veyra::GlyphImage short_image{
-        .image = {.width = 2, .height = 2, .stride = 2, .pixels = short_pixels},
+        .image = {.width = 2, .height = 2, .stride = 2, .pixels = short_pixels, .generation = 0},
     };
     require(
         cache.insert(key(1), short_image) == veyra::GlyphImageCacheResult::invalid_image,
@@ -165,7 +219,8 @@ void check_invalid_storage_and_input() {
 
     const std::array<veyra::SoftwarePixel, 6> oversized_pixels{};
     const veyra::GlyphImage oversized{
-        .image = {.width = 3, .height = 2, .stride = 3, .pixels = oversized_pixels},
+        .image =
+            {.width = 3, .height = 2, .stride = 3, .pixels = oversized_pixels, .generation = 0},
     };
     require(
         cache.insert(key(1), oversized) == veyra::GlyphImageCacheResult::image_too_large,
@@ -179,6 +234,7 @@ int main() {
     try {
         check_copy_update_and_eviction();
         check_invalid_storage_and_input();
+        check_generation_carried_and_matched();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

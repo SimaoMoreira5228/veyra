@@ -207,7 +207,7 @@ void check_printed_page_renders_exact_pixels() {
                 },
             .color = {.red = 255, .green = 255, .blue = 255},
         },
-        veyra::PushClip{.bounds = content},
+        veyra::PushClip{.bounds = content, .clip_id = 0},
         veyra::PushTranslation{
             .offset = {.x = content.x, .y = content.y - slice_offset},
         },

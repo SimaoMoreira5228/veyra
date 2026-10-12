@@ -106,10 +106,29 @@ std::optional<GlyphMask> GlyphMaskCache::find(const GlyphMaskKey& key) noexcept 
                 .height = slot.height,
                 .stride = maximum_width_,
                 .coverage = storage,
+                .generation = slot.generation,
             },
         .bearing_x = slot.bearing_x,
         .bearing_y = slot.bearing_y,
     };
+}
+
+std::optional<GlyphMask>
+GlyphMaskCache::find(const GlyphMaskKey& key, std::uint64_t expected_generation) noexcept {
+    if (expected_generation == 0) {
+        return find(key);
+    }
+
+    if (!valid_ || !valid_key(key)) {
+        return std::nullopt;
+    }
+
+    const auto slot_index = find_slot(key);
+    if (slot_index == slots_.size() || slots_[slot_index].generation != expected_generation) {
+        return std::nullopt;
+    }
+
+    return find(key);
 }
 
 GlyphMaskCacheResult
@@ -169,6 +188,7 @@ GlyphMaskCache::insert(const GlyphMaskKey& key, const GlyphMask& mask) noexcept 
     slot.height = mask.mask.height;
     slot.bearing_x = mask.bearing_x;
     slot.bearing_y = mask.bearing_y;
+    slot.generation = mask.mask.generation;
     slot.occupied = true;
 
     if (mask.mask.width != 0) {

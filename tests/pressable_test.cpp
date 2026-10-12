@@ -1,4 +1,5 @@
 #include "veyra/behaviors/pressable.hpp"
+#include "veyra/core/node_tree.hpp"
 
 #include <iostream>
 #include <stdexcept>
@@ -180,6 +181,127 @@ void check_disabled_state_and_semantics() {
     );
 }
 
+void check_tint_animator_follows_state() {
+    auto control = veyra::PressableController{};
+    auto tint_anim = veyra::PressableTintAnimator{};
+
+    require(!tint_anim.tick(control.state(), 0), "an idle control ticks to zero tint");
+    const auto idle = tint_anim.tint();
+    require(idle.hover == 0.0F && idle.press == 0.0F, "a fresh tint animator rests at zero");
+
+    control.pointer_enter();
+    require(!tint_anim.tick(control.state(), 0), "retargeting alone changes nothing yet");
+    require(tint_anim.tick(control.state(), 60), "the hover leg reports progress");
+    tint_anim.tick(control.state(), 60);
+    require(
+        tint_anim.tint().hover > 0.0F && tint_anim.tint().hover < 1.0F,
+        "hover tint advances partway"
+    );
+
+    control.pointer_down(1, true);
+    tint_anim.tick(control.state(), 60);
+    tint_anim.tick(control.state(), 1000);
+    require(!tint_anim.tick(control.state(), 1001), "settled ticks report no change");
+    const auto settled = tint_anim.tint();
+    require(
+        settled.hover == 1.0F && settled.press == 1.0F,
+        "hover and press tints settle at full strength"
+    );
+    require(!tint_anim.running(), "settled tints stop running");
+
+    control.pointer_up(1, true, true);
+    control.pointer_leave();
+    tint_anim.tick(control.state(), 1100);
+    tint_anim.tick(control.state(), 1150);
+    const auto released = tint_anim.tint();
+    require(
+        released.hover < 1.0F && released.press < 1.0F,
+        "release and leave retarget both legs down"
+    );
+    tint_anim.tick(control.state(), 2000);
+    const auto rest = tint_anim.tint();
+    require(rest.hover == 0.0F && rest.press == 0.0F, "both legs return to zero");
+}
+
+void check_tint_retarget_never_jumps() {
+    auto control = veyra::PressableController{};
+    auto tint_anim = veyra::PressableTintAnimator{};
+
+    control.pointer_enter();
+    tint_anim.tick(control.state(), 0);
+    tint_anim.tick(control.state(), 60);
+    const auto mid_hover = tint_anim.tint().hover;
+    require(mid_hover > 0.0F && mid_hover < 1.0F, "hover tint advances partway");
+
+    control.pointer_leave();
+    tint_anim.tick(control.state(), 60);
+    require(
+        tint_anim.tint().hover == mid_hover,
+        "leaving mid-flight resumes from the current tint"
+    );
+}
+
+void check_tint_respects_reduced_motion_and_throttle() {
+    auto control = veyra::PressableController{};
+    auto tint_anim = veyra::PressableTintAnimator{};
+    tint_anim.set_reduced_motion(true);
+
+    control.pointer_enter();
+    tint_anim.tick(control.state(), 0);
+    tint_anim.tick(control.state(), 5000);
+    require(tint_anim.tint().hover == 0.0F, "reduced motion holds the tint at its start value");
+
+    auto offscreen = veyra::PressableTintAnimator{};
+    offscreen.set_throttled(true);
+    offscreen.tick(control.state(), 0);
+    offscreen.tick(control.state(), 5000);
+    require(offscreen.tint().hover == 0.0F, "a throttled tick contributes zero progress");
+    offscreen.set_throttled(false);
+    offscreen.tick(control.state(), 5120);
+    require(offscreen.tint().hover == 1.0F, "unthrottling resumes the hover leg");
+}
+
+void check_tint_classification_avoids_layout() {
+    require(
+        veyra::PressableTintAnimator::animated_property() == veyra::AnimatedProperty::color,
+        "pressable tint animates color"
+    );
+    require(
+        veyra::invalidation_for(veyra::PressableTintAnimator::animated_property()) ==
+            veyra::AnimationInvalidation::paint,
+        "pressable tint repaints without layout"
+    );
+
+    auto tree = veyra::NodeTree{};
+    const auto root = tree.create();
+    const auto child = tree.create();
+    require(tree.append_child(root, child), "test nodes link");
+
+    tree.clear_dirty(child, veyra::DirtyCategory::structure);
+    tree.clear_dirty(child, veyra::DirtyCategory::layout);
+    tree.clear_dirty(child, veyra::DirtyCategory::paint);
+
+    require(
+        !veyra::mark_animation_dirty(tree, child, veyra::AnimatedProperty::opacity),
+        "a compositor opacity tick invalidates nothing"
+    );
+    require(
+        !tree.is_dirty(child, veyra::DirtyCategory::layout),
+        "the compositor path triggers zero layout invalidation"
+    );
+    require(
+        !tree.is_dirty(child, veyra::DirtyCategory::paint),
+        "the compositor path repaints nothing"
+    );
+
+    require(
+        veyra::mark_animation_dirty(tree, child, veyra::PressableTintAnimator::animated_property()),
+        "a tint tick marks paint"
+    );
+    require(tree.is_dirty(child, veyra::DirtyCategory::paint), "tint marks the paint flag");
+    require(!tree.is_dirty(child, veyra::DirtyCategory::layout), "tint pays no layout");
+}
+
 }
 
 int main() {
@@ -187,6 +309,10 @@ int main() {
         check_pointer_activation_and_cancellation();
         check_keyboard_activation_and_focus_loss();
         check_disabled_state_and_semantics();
+        check_tint_animator_follows_state();
+        check_tint_retarget_never_jumps();
+        check_tint_respects_reduced_motion_and_throttle();
+        check_tint_classification_avoids_layout();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

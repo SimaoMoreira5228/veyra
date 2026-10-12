@@ -193,6 +193,7 @@ void check_cover_rendering() {
         .height = 2,
         .stride = 4,
         .pixels = pixels,
+        .generation = 0,
     };
     auto placement = veyra::ImagePlacement{};
     require(
@@ -234,6 +235,7 @@ void check_invalid_source_bounds_do_not_render_partial_frames() {
         .height = 1,
         .stride = 1,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 2> commands{
         veyra::FillRect{

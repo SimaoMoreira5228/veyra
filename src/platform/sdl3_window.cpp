@@ -161,11 +161,20 @@ std::uint64_t Sdl3Window::surface_generation() const noexcept {
 }
 
 WindowCapabilities Sdl3Window::capabilities() const noexcept {
+    const bool ready = creation_result_ == WindowResult::ready;
+
+    std::uint32_t texture_formats = 0;
+
+    if (ready && texture_ != nullptr) {
+        texture_formats |= texture_format_flag(WindowTextureFormat::rgba8_unorm);
+    }
+
     return {
-        .clipboard = creation_result_ == WindowResult::ready,
-        .text_input = creation_result_ == WindowResult::ready,
-        .text_preedit = creation_result_ == WindowResult::ready,
-        .text_input_area = creation_result_ == WindowResult::ready,
+        .clipboard = ready,
+        .text_input = ready,
+        .text_preedit = ready,
+        .text_input_area = ready,
+        .texture_formats = texture_formats,
     };
 }
 

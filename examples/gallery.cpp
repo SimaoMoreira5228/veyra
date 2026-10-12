@@ -90,9 +90,10 @@ void push_button(
     const veyra::Theme& theme,
     float x,
     float y,
-    veyra::PressableState state
+    veyra::PressableState state,
+    veyra::PressableTint tint
 ) {
-    const veyra::ButtonAppearance appearance = veyra::button_appearance(theme, state);
+    const veyra::ButtonAppearance appearance = veyra::button_appearance(theme, state, tint);
     const veyra::LayoutRect bounds =
         {.x = x, .y = y, .width = kButtonWidth, .height = kButtonHeight};
     commands.push_back(
@@ -135,12 +136,18 @@ float emit_buttons(
         if (index == 4) {
             press.set_focused(true);
         }
+
+        auto tint_anim = veyra::PressableTintAnimator{};
+        tint_anim.tick(press.state(), 0);
+        tint_anim.tick(press.state(), 1000);
+
         push_button(
             commands,
             theme,
             x + static_cast<float>(index) * kButtonStride,
             y + 2.0F,
-            press.state()
+            press.state(),
+            tint_anim.tint()
         );
     }
     return y + 36.0F;

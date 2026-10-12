@@ -273,7 +273,7 @@ void check_variant_swap_reports_index() {
     const auto left = build_rows(0);
 
     auto right = left;
-    right[3] = veyra::PushClip{.bounds = {.x = 1.0F, .width = 1.0F, .height = 1.0F}};
+    right[3] = veyra::PushClip{.bounds = {.x = 1.0F, .width = 1.0F, .height = 1.0F}, .clip_id = 0};
 
     auto first = std::size_t{0};
 
@@ -305,12 +305,14 @@ void check_resources_compare_by_identity() {
         .height = 1,
         .stride = 2,
         .coverage = coverage,
+        .generation = 0,
     };
     const auto second_mask = veyra::SoftwareMask{
         .width = 2,
         .height = 1,
         .stride = 2,
         .coverage = coverage,
+        .generation = 0,
     };
     const auto left = std::array<veyra::DisplayCommand, 1>{
         veyra::DrawMask{.x = 1, .y = 1, .mask = &first_mask},
@@ -331,7 +333,10 @@ void check_resources_compare_by_identity() {
 
 void check_clip_pairs_compare_structurally() {
     const auto left = std::array<veyra::DisplayCommand, 3>{
-        veyra::PushClip{.bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F}},
+        veyra::PushClip{
+            .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
+            .clip_id = 0
+        },
         veyra::FillRect{.bounds = {.width = 4.0F, .height = 3.0F}},
         veyra::PopClip{},
     };
@@ -346,6 +351,26 @@ void check_clip_pairs_compare_structurally() {
     require(veyra::equivalent_display_lists(left, same), "matching clip pairs match");
     require(!veyra::equivalent_display_lists(left, popped, first), "pop kind differs");
     require(first == 2, "pop difference reports index two");
+}
+
+void check_clip_id_distinguishes_scopes() {
+    const auto left = std::array<veyra::DisplayCommand, 3>{
+        veyra::PushClip{
+            .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
+            .clip_id = 3
+        },
+        veyra::FillRect{.bounds = {.width = 4.0F, .height = 3.0F}},
+        veyra::PopClip{},
+    };
+
+    auto renamed = left;
+    std::get<veyra::PushClip>(renamed[0]).clip_id = 4;
+
+    auto first = std::size_t{0};
+
+    require(veyra::equivalent_display_lists(left, left), "matching clip ids match");
+    require(!veyra::equivalent_display_lists(left, renamed, first), "clip id differs");
+    require(first == 0, "clip id difference reports index zero");
 }
 
 void check_spans_compare_elementwise() {
@@ -567,6 +592,7 @@ int main() {
         check_floats_compare_bitwise();
         check_resources_compare_by_identity();
         check_clip_pairs_compare_structurally();
+        check_clip_id_distinguishes_scopes();
         check_spans_compare_elementwise();
         check_partial_scroll_uses_pixels_not_commands();
         check_full_damage_restores_command_equality();

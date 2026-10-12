@@ -67,6 +67,7 @@ void check_concave_path_and_clipping() {
         },
         veyra::PushClip{
             .bounds = {.width = 3.0F, .height = 3.0F},
+            .clip_id = 0,
         },
         veyra::FillPath{
             .contours = contours,

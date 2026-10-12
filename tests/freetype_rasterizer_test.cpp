@@ -98,6 +98,7 @@ void check_rejections_leave_outputs_unchanged() {
                 .height = 1,
                 .stride = 1,
                 .coverage = existing_coverage,
+                .generation = 0,
             },
         .bearing_x = 5,
         .bearing_y = 6,

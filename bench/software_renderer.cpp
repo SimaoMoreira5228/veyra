@@ -288,12 +288,14 @@ int run(const Options& options) {
         .height = mask_height,
         .stride = mask_width,
         .coverage = coverage,
+        .generation = 0,
     };
     const auto image = veyra::SoftwareImage{
         .width = mask_width,
         .height = mask_height,
         .stride = mask_width,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const auto color = veyra::DisplayColor{
         .red = 70,

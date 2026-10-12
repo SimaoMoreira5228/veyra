@@ -120,6 +120,66 @@ void check_window_contract() {
     );
 }
 
+void check_capabilities() {
+    veyra::Sdl3Window window("Veyra SDL caps", 160, 120);
+    require(window.creation_result() == veyra::WindowResult::ready, "SDL creates the caps window");
+
+    const veyra::WindowCapabilities before = window.capabilities();
+
+    require(before.texture_formats == 0, "SDL proves no format before texture creation");
+    require(before.max_texture_width == 0, "SDL reports no max texture width");
+    require(before.max_texture_height == 0, "SDL reports no max texture height");
+    require(before.clip == veyra::WindowClipSupport::none, "SDL clips nothing on its present path");
+    require(before.present_modes == 0, "SDL proves no present mode on this path");
+    require(!before.present_timestamp, "SDL exposes no present timestamp here");
+    require(!before.external_image_import, "SDL imports no outside images here");
+    require(!before.external_image_export, "SDL exports no image handles here");
+    require(before.color_spaces == 0, "SDL manages no color space on this path");
+    require(!before.srgb_transfer_approximate, "SDL converts no transfer on this path");
+    require(!before.device_loss_recovery, "SDL recovers no lost device here");
+    require(!before.external_render_target, "SDL presents only its own window");
+
+    std::array<veyra::SoftwarePixel, 19200> pixels{};
+    veyra::SoftwareSurface surface{};
+
+    require(
+        window.acquire_surface(surface, pixels) == veyra::WindowResult::ready,
+        "caps window acquires caller pixels"
+    );
+
+    const veyra::WindowCapabilities after = window.capabilities();
+
+    require(
+        veyra::has_texture_format(after.texture_formats, veyra::WindowTextureFormat::rgba8_unorm),
+        "a created streaming texture proves rgba8 bytes"
+    );
+    require(
+        !veyra::has_texture_format(after.texture_formats, veyra::WindowTextureFormat::rgba8_srgb),
+        "SDL proves no srgb transfer handling"
+    );
+    require(
+        !veyra::has_texture_format(
+            after.texture_formats,
+            veyra::WindowTextureFormat::alpha8_coverage
+        ),
+        "SDL proves no direct coverage-mask path"
+    );
+    require(after.max_texture_width == 0, "a texture proves no size limit");
+    require(
+        after.clip == veyra::WindowClipSupport::none,
+        "a texture still clips nothing on present"
+    );
+    require(after.present_modes == 0, "a texture proves no present mode");
+    require(!after.present_timestamp, "a texture stamps no present time");
+    require(!after.external_image_import, "a texture imports no outside images");
+    require(!after.external_image_export, "a texture exports no image handles");
+    require(after.color_spaces == 0, "a texture manages no color space");
+    require(!after.device_loss_recovery, "a texture recovers no lost device");
+    require(!after.external_render_target, "a texture targets no outside surface");
+
+    require(window.present() == veyra::WindowResult::ready, "caps surface presents");
+}
+
 void check_clipboard() {
     veyra::Sdl3Window window("Veyra clipboard test", 80, 60);
     require(window.creation_result() == veyra::WindowResult::ready, "SDL creates clipboard window");
@@ -151,6 +211,7 @@ void check_clipboard() {
 int main() {
     try {
         check_window_contract();
+        check_capabilities();
         check_clipboard();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

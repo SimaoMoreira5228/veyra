@@ -18,6 +18,10 @@ bool same_draw_run(const BatchKey& left, const BatchKey& right) noexcept {
         return false;
     }
 
+    if (left.clip_id != right.clip_id) {
+        return false;
+    }
+
     if (left.primitive == BatchPrimitive::draw_image && left.sampling != right.sampling) {
         return false;
     }
@@ -93,9 +97,12 @@ bool same_batch_key(const BatchKey& left, const BatchKey& right) noexcept {
 BatchAnalysisResult analyze_display_batches(
     std::span<const DisplayCommand> commands,
     std::span<BatchRun> output,
+    std::span<std::uint64_t> clip_scopes,
     std::size_t& produced
 ) noexcept {
     auto clip_depth = std::size_t{0};
+    auto clip_id = std::uint64_t{0};
+    auto scopes_fit = true;
     auto has_open = false;
     auto open_key = BatchKey{};
     auto open_start = std::size_t{0};
@@ -115,6 +122,7 @@ BatchAnalysisResult analyze_display_batches(
                 .key = open_key,
                 .start = open_start,
                 .count = open_count,
+                .sequence = stored,
             };
             ++stored;
         }
@@ -125,9 +133,16 @@ BatchAnalysisResult analyze_display_batches(
     for (std::size_t index = 0; index < commands.size(); ++index) {
         const auto& command = commands[index];
 
-        if (std::holds_alternative<PushClip>(command)) {
+        if (const auto* push = std::get_if<PushClip>(&command)) {
             close_run();
+
+            if (clip_depth < clip_scopes.size()) {
+                clip_scopes[clip_depth] = push->clip_id;
+            } else {
+                scopes_fit = false;
+            }
             ++clip_depth;
+            clip_id = push->clip_id;
             continue;
         }
 
@@ -136,6 +151,15 @@ BatchAnalysisResult analyze_display_batches(
 
             if (clip_depth != 0) {
                 --clip_depth;
+            }
+
+            if (clip_depth == 0) {
+                clip_id = 0;
+            } else if (clip_depth - 1 < clip_scopes.size()) {
+                clip_id = clip_scopes[clip_depth - 1];
+            } else {
+                clip_id = 0;
+                scopes_fit = false;
             }
 
             continue;
@@ -156,6 +180,7 @@ BatchAnalysisResult analyze_display_batches(
         }
 
         key.clip_depth = clip_depth;
+        key.clip_id = clip_id;
 
         if (has_open && same_draw_run(open_key, key)) {
             ++open_count;
@@ -174,7 +199,7 @@ BatchAnalysisResult analyze_display_batches(
 
     produced = total;
 
-    if (stored != total) {
+    if (stored != total || !scopes_fit) {
         return BatchAnalysisResult::insufficient_output;
     }
 

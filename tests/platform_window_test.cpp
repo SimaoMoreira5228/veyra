@@ -570,6 +570,89 @@ void check_text_and_clipboard() {
     );
 }
 
+void check_capability_contract() {
+    veyra::NullWindow window("caps", 160, 120);
+
+    require(window.creation_result() == veyra::WindowResult::ready, "caps window is ready");
+
+    const veyra::WindowCapabilities capabilities = window.capabilities();
+
+    require(!capabilities.clipboard, "null backend proves no OS clipboard");
+    require(!capabilities.text_input, "null backend gates no real IME");
+    require(!capabilities.text_preedit, "null backend emits no preedit events");
+    require(!capabilities.text_input_area, "null backend places no candidate area");
+    require(capabilities.max_texture_width == 0, "null backend owns no textures");
+    require(capabilities.max_texture_height == 0, "null backend owns no textures");
+    require(capabilities.texture_formats == 0, "null backend proves no pixel format");
+    require(
+        capabilities.clip == veyra::WindowClipSupport::none,
+        "null backend clips nothing on present"
+    );
+    require(capabilities.present_modes == 0, "null backend proves no present mode");
+    require(!capabilities.present_timestamp, "null backend stamps no present time");
+    require(!capabilities.external_image_import, "null backend imports no outside images");
+    require(!capabilities.external_image_export, "null backend exports no image handles");
+    require(capabilities.color_spaces == 0, "null backend manages no color space");
+    require(!capabilities.srgb_transfer_approximate, "null backend converts no transfer");
+    require(!capabilities.device_loss_recovery, "null backend recovers no device");
+    require(!capabilities.external_render_target, "null backend targets no outside surface");
+}
+
+void check_unknown_means_false() {
+    const veyra::WindowCapabilities unknown{};
+
+    require(!unknown.clipboard, "default capabilities claim no clipboard");
+    require(!unknown.text_input, "default capabilities claim no text input");
+    require(!unknown.text_preedit, "default capabilities claim no preedit");
+    require(!unknown.text_input_area, "default capabilities claim no input area");
+    require(unknown.max_texture_width == 0, "default capabilities claim no max width");
+    require(unknown.max_texture_height == 0, "default capabilities claim no max height");
+    require(unknown.texture_formats == 0, "default capabilities claim no pixel format");
+    require(unknown.clip == veyra::WindowClipSupport::none, "default clip claims nothing");
+    require(unknown.present_modes == 0, "default capabilities claim no present mode");
+    require(!unknown.present_timestamp, "default capabilities claim no timestamp");
+    require(!unknown.external_image_import, "default capabilities claim no import");
+    require(!unknown.external_image_export, "default capabilities claim no export");
+    require(unknown.color_spaces == 0, "default capabilities claim no color space");
+    require(!unknown.srgb_transfer_approximate, "default capabilities claim no transfer hack");
+    require(!unknown.device_loss_recovery, "default capabilities claim no recovery");
+    require(!unknown.external_render_target, "default capabilities claim no outside target");
+    require(
+        !veyra::has_texture_format(
+            unknown.texture_formats,
+            veyra::WindowTextureFormat::rgba8_unorm
+        ),
+        "empty format mask matches no rgba bytes"
+    );
+    require(
+        !veyra::has_texture_format(unknown.texture_formats, veyra::WindowTextureFormat::rgba8_srgb),
+        "empty format mask matches no srgb bytes"
+    );
+    require(
+        !veyra::has_texture_format(
+            unknown.texture_formats,
+            veyra::WindowTextureFormat::alpha8_coverage
+        ),
+        "empty format mask matches no coverage masks"
+    );
+    require(
+        !veyra::has_present_mode(unknown.present_modes, veyra::WindowPresentMode::fifo),
+        "empty present mask matches no fifo"
+    );
+    require(
+        !veyra::has_present_mode(unknown.present_modes, veyra::WindowPresentMode::mailbox),
+        "empty present mask matches no mailbox"
+    );
+    require(
+        !veyra::has_present_mode(unknown.present_modes, veyra::WindowPresentMode::immediate),
+        "empty present mask matches no immediate"
+    );
+    require(
+        !veyra::has_color_space(unknown.color_spaces, veyra::WindowColorSpace::srgb),
+        "empty color mask matches no srgb"
+    );
+}
+
 }
 
 int main() {
@@ -579,6 +662,8 @@ int main() {
         check_queue_limits();
         check_surface_lifecycle();
         check_text_and_clipboard();
+        check_capability_contract();
+        check_unknown_means_false();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

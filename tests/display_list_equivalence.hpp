@@ -183,7 +183,9 @@ inline bool same_command(const DisplayCommand& left, const DisplayCommand& right
     }
 
     if (const auto* value = std::get_if<PushClip>(&left)) {
-        return same_rect(value->bounds, std::get<PushClip>(right).bounds);
+        const auto& other = std::get<PushClip>(right);
+
+        return same_rect(value->bounds, other.bounds) && value->clip_id == other.clip_id;
     }
 
     return std::get_if<PopClip>(&left) != nullptr;

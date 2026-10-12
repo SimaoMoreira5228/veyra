@@ -28,6 +28,7 @@ void check_display_list_snapshot() {
         .height = 1,
         .stride = coverage.size(),
         .coverage = coverage,
+        .generation = 0,
     };
     const std::array image_pixels{
         veyra::SoftwarePixel{
@@ -40,6 +41,7 @@ void check_display_list_snapshot() {
         .height = 1,
         .stride = 1,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 6> commands{
         veyra::FillRect{
@@ -58,6 +60,7 @@ void check_display_list_snapshot() {
         },
         veyra::PushClip{
             .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
+            .clip_id = 11,
         },
         veyra::DrawMask{
             .x = 1,

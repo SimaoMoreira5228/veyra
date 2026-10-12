@@ -59,6 +59,25 @@ int main() {
         );
         require(main_window.surface_generation() > 0, "surface generation starts initialized");
 
+        require(main_window.capabilities().max_texture_width == 0, "GLFW proves no max width");
+        require(main_window.capabilities().max_texture_height == 0, "GLFW proves no max height");
+        require(main_window.capabilities().texture_formats == 0, "GLFW proves no pixel format");
+        require(
+            main_window.capabilities().clip == veyra::WindowClipSupport::none,
+            "GLFW clips nothing without a renderer"
+        );
+        require(main_window.capabilities().present_modes == 0, "GLFW proves no present mode");
+        require(!main_window.capabilities().present_timestamp, "GLFW stamps no present time");
+        require(!main_window.capabilities().external_image_import, "GLFW imports no images");
+        require(!main_window.capabilities().external_image_export, "GLFW exports no handles");
+        require(main_window.capabilities().color_spaces == 0, "GLFW manages no color space");
+        require(!main_window.capabilities().srgb_transfer_approximate, "GLFW converts no transfer");
+        require(!main_window.capabilities().device_loss_recovery, "GLFW recovers no lost device");
+        require(
+            !main_window.capabilities().external_render_target,
+            "GLFW targets no outside surface"
+        );
+
         const auto capabilities = main_window.capabilities();
         require(!capabilities.clipboard, "null platform does not claim clipboard support");
         require(!capabilities.text_input, "null platform does not claim text input");

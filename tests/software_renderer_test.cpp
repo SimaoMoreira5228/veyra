@@ -45,6 +45,7 @@ void check_fills_and_nested_clips() {
         },
         veyra::PushClip{
             .bounds = {.x = 1.0F, .y = 1.0F, .width = 3.0F, .height = 2.0F},
+            .clip_id = 7,
         },
         veyra::FillRect{
             .bounds = {.x = 0.0F, .y = 0.0F, .width = 5.0F, .height = 4.0F},
@@ -52,6 +53,7 @@ void check_fills_and_nested_clips() {
         },
         veyra::PushClip{
             .bounds = {.x = 2.0F, .y = 0.0F, .width = 2.0F, .height = 3.0F},
+            .clip_id = 9,
         },
         veyra::FillRect{
             .bounds = {.x = 0.0F, .y = 0.0F, .width = 5.0F, .height = 4.0F},
@@ -145,6 +147,7 @@ void check_damage_replay_matches_full_render() {
         .height = height,
         .stride = width,
         .coverage = coverage,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 4> commands{
         veyra::FillRect{
@@ -153,6 +156,7 @@ void check_damage_replay_matches_full_render() {
         },
         veyra::PushClip{
             .bounds = {.x = 1.0F, .width = 2.0F, .height = static_cast<float>(height)},
+            .clip_id = 0,
         },
         veyra::DrawMask{
             .mask = &mask,
@@ -317,6 +321,7 @@ void check_mask_coverage_and_clipping() {
         .height = 2,
         .stride = stride,
         .coverage = coverage,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 1> commands{
         veyra::DrawMask{
@@ -344,6 +349,7 @@ void check_mask_coverage_and_clipping() {
     const std::array<veyra::DisplayCommand, 3> clipped_commands{
         veyra::PushClip{
             .bounds = {.x = 1.0F, .width = 1.0F, .height = 2.0F},
+            .clip_id = 0,
         },
         commands[0],
         veyra::PopClip{},
@@ -386,6 +392,7 @@ void check_stroke_rect_edges_and_clipping() {
     const std::array<veyra::DisplayCommand, 3> clipped_commands{
         veyra::PushClip{
             .bounds = {.width = 1.0F, .height = static_cast<float>(height)},
+            .clip_id = 0,
         },
         commands[0],
         veyra::PopClip{},
@@ -437,6 +444,7 @@ void check_image_alpha_clipping_and_stride() {
         .height = height,
         .stride = image_stride,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 1> commands{
         veyra::DrawImage{
@@ -480,6 +488,7 @@ void check_image_alpha_clipping_and_stride() {
     const std::array<veyra::DisplayCommand, 3> clipped_commands{
         veyra::PushClip{
             .bounds = {.x = 1.0F, .width = 1.0F, .height = static_cast<float>(height)},
+            .clip_id = 0,
         },
         commands[0],
         veyra::PopClip{},
@@ -561,12 +570,14 @@ void check_invalid_input_is_transactional() {
     const std::array<veyra::DisplayCommand, 2> unclosed_push{
         veyra::PushClip{
             .bounds = {.width = 3.0F, .height = 2.0F},
+            .clip_id = 0,
         },
         valid_fill[0],
     };
     const std::array<veyra::DisplayCommand, 3> clipped_fill{
         veyra::PushClip{
             .bounds = {.width = 3.0F, .height = 2.0F},
+            .clip_id = 0,
         },
         valid_fill[0],
         veyra::PopClip{},
@@ -593,6 +604,7 @@ void check_invalid_input_is_transactional() {
         .height = 2,
         .stride = 1,
         .coverage = {},
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 1> short_mask{
         veyra::DrawMask{
@@ -608,6 +620,7 @@ void check_invalid_input_is_transactional() {
         .height = 1,
         .stride = 1,
         .pixels = invalid_image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 1> short_image{
         veyra::DrawImage{
@@ -762,6 +775,7 @@ void check_per_command_geometry_rejections_are_transactional() {
     const std::array<veyra::DisplayCommand, 1> non_finite_clip{
         veyra::PushClip{
             .bounds = {.x = not_a_number, .width = 1.0F, .height = 1.0F},
+            .clip_id = 0,
         },
     };
     rejects(
@@ -789,6 +803,7 @@ void check_per_command_geometry_rejections_are_transactional() {
         .height = 2,
         .stride = 2,
         .coverage = coverage,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 1> nan_mask{
         veyra::DrawMask{
@@ -993,6 +1008,7 @@ void check_per_command_geometry_rejections_are_transactional() {
         .height = 1,
         .stride = 1,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const std::array<veyra::DisplayCommand, 3> translated_image{
         veyra::PushTranslation{
@@ -1018,6 +1034,7 @@ void check_per_command_geometry_rejections_are_transactional() {
         },
         veyra::PushClip{
             .bounds = {.x = huge, .width = 1.0F, .height = 1.0F},
+            .clip_id = 0,
         },
         veyra::PopClip{},
         veyra::PopTranslation{},

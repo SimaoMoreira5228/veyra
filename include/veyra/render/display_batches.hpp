@@ -26,12 +26,14 @@ struct BatchKey {
     const void* resource{};
     SoftwareImageSampling sampling{SoftwareImageSampling::nearest};
     std::size_t clip_depth{};
+    std::uint64_t clip_id{};
 };
 
 struct BatchRun {
     BatchKey key{};
     std::size_t start{};
     std::size_t count{};
+    std::size_t sequence{};
 };
 
 enum class BatchAnalysisResult : std::uint8_t {
@@ -44,6 +46,7 @@ bool same_batch_key(const BatchKey& left, const BatchKey& right) noexcept;
 BatchAnalysisResult analyze_display_batches(
     std::span<const DisplayCommand> commands,
     std::span<BatchRun> output,
+    std::span<std::uint64_t> clip_scopes,
     std::size_t& produced
 ) noexcept;
 

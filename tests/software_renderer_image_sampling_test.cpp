@@ -25,6 +25,7 @@ void check_linear_color_interpolation() {
         .height = 1,
         .stride = image_pixels.size(),
         .pixels = image_pixels,
+        .generation = 0,
     };
     const auto command = veyra::DisplayCommand{veyra::DrawImage{
         .source = {.width = 2.0F, .height = 1.0F},
@@ -57,6 +58,7 @@ void check_linear_sampling_uses_premultiplied_alpha() {
         .height = 1,
         .stride = image_pixels.size(),
         .pixels = image_pixels,
+        .generation = 0,
     };
     const auto command = veyra::DisplayCommand{veyra::DrawImage{
         .source = {.width = 2.0F, .height = 1.0F},
@@ -88,6 +90,7 @@ void check_image_opacity_modulates_source_alpha() {
         .height = 1,
         .stride = 1,
         .pixels = image_pixels,
+        .generation = 0,
     };
     const auto command = veyra::DisplayCommand{veyra::DrawImage{
         .source = {.width = 1.0F, .height = 1.0F},

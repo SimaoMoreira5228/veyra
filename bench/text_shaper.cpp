@@ -160,6 +160,7 @@ int run(const Options& options) {
             .height = mask_height,
             .stride = mask_width,
             .coverage = coverage,
+            .generation = 0,
         },
     };
     veyra::GlyphMaskCache cache(slots, coverage_storage, mask_width, mask_height);
@@ -248,6 +249,7 @@ int run(const Options& options) {
             .height = image_height,
             .stride = image_width,
             .pixels = pixel,
+            .generation = 0,
         },
     };
     veyra::GlyphImageCache image_cache(image_slots, image_storage, image_width, image_height);

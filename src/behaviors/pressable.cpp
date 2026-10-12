@@ -155,4 +155,60 @@ bool PressableController::write_semantics(
     return true;
 }
 
+// NOTE: hover answers slower than press; both attack fast and settle soft.
+constexpr std::uint64_t kPressableHoverDurationMs = 120;
+constexpr std::uint64_t kPressablePressDurationMs = 80;
+
+PressableTintAnimator::PressableTintAnimator() noexcept {
+    hover_.start(0.0F, 0.0F, 0, kPressableHoverDurationMs, AnimationEasing::ease_out_cubic);
+    press_.start(0.0F, 0.0F, 0, kPressablePressDurationMs, AnimationEasing::ease_out_cubic);
+}
+
+bool PressableTintAnimator::tick(PressableState state, std::uint64_t now_ms) noexcept {
+    const auto hover_target = (state.hovered && !state.disabled) ? 1.0F : 0.0F;
+    const auto press_target = (state.pressed && !state.disabled) ? 1.0F : 0.0F;
+
+    if (hover_target != hover_.target()) {
+        hover_.retarget(hover_target, now_ms);
+    }
+
+    if (press_target != press_.target()) {
+        press_.retarget(press_target, now_ms);
+    }
+
+    const auto before = tint();
+
+    hover_.advance(now_ms);
+    press_.advance(now_ms);
+
+    const auto after = tint();
+    return before.hover != after.hover || before.press != after.press;
+}
+
+PressableTint PressableTintAnimator::tint() const noexcept {
+    return {
+        .hover = hover_.value(),
+        .press = press_.value(),
+    };
+}
+
+bool PressableTintAnimator::running() const noexcept {
+    return hover_.running() || press_.running();
+}
+
+void PressableTintAnimator::set_paused(bool paused) noexcept {
+    hover_.set_paused(paused);
+    press_.set_paused(paused);
+}
+
+void PressableTintAnimator::set_throttled(bool throttled) noexcept {
+    hover_.set_throttled(throttled);
+    press_.set_throttled(throttled);
+}
+
+void PressableTintAnimator::set_reduced_motion(bool reduced_motion) noexcept {
+    hover_.set_reduced_motion(reduced_motion);
+    press_.set_reduced_motion(reduced_motion);
+}
+
 }

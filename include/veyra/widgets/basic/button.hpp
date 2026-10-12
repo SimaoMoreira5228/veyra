@@ -15,6 +15,8 @@ struct ButtonAppearance {
 };
 
 ButtonAppearance button_appearance(const Theme& theme, PressableState state) noexcept;
+ButtonAppearance
+button_appearance(const Theme& theme, PressableState state, PressableTint tint) noexcept;
 
 }
 

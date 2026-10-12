@@ -52,12 +52,7 @@ std::uint64_t NullWindow::surface_generation() const noexcept {
 }
 
 WindowCapabilities NullWindow::capabilities() const noexcept {
-    return {
-        .clipboard = true,
-        .text_input = true,
-        .text_preedit = true,
-        .text_input_area = true,
-    };
+    return {};
 }
 
 std::uint64_t NullWindow::presented_frames() const noexcept {

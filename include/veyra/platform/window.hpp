@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 
 namespace veyra {
 
@@ -35,12 +36,73 @@ enum class WindowResult : std::uint8_t {
     unsupported,
 };
 
+enum class WindowTextureFormat : std::uint32_t {
+    rgba8_unorm = 1U << 0U,
+    rgba8_srgb = 1U << 1U,
+    alpha8_coverage = 1U << 2U,
+};
+
+constexpr std::uint32_t texture_format_flag(WindowTextureFormat format) noexcept {
+    return static_cast<std::uint32_t>(format);
+}
+
+constexpr bool has_texture_format(std::uint32_t mask, WindowTextureFormat format) noexcept {
+    return (mask & static_cast<std::uint32_t>(format)) != 0;
+}
+
+enum class WindowClipSupport : std::uint8_t {
+    none,
+    rect_only,
+    stencil,
+    mask,
+};
+
+enum class WindowPresentMode : std::uint32_t {
+    fifo = 1U << 0U,
+    mailbox = 1U << 1U,
+    immediate = 1U << 2U,
+};
+
+constexpr std::uint32_t present_mode_flag(WindowPresentMode mode) noexcept {
+    return static_cast<std::uint32_t>(mode);
+}
+
+constexpr bool has_present_mode(std::uint32_t mask, WindowPresentMode mode) noexcept {
+    return (mask & static_cast<std::uint32_t>(mode)) != 0;
+}
+
+enum class WindowColorSpace : std::uint32_t {
+    srgb = 1U << 0U,
+};
+
+constexpr std::uint32_t color_space_flag(WindowColorSpace space) noexcept {
+    return static_cast<std::uint32_t>(space);
+}
+
+constexpr bool has_color_space(std::uint32_t mask, WindowColorSpace space) noexcept {
+    return (mask & static_cast<std::uint32_t>(space)) != 0;
+}
+
 struct WindowCapabilities {
     bool clipboard{};
     bool text_input{};
     bool text_preedit{};
     bool text_input_area{};
+    std::uint32_t max_texture_width{};
+    std::uint32_t max_texture_height{};
+    std::uint32_t texture_formats{};
+    WindowClipSupport clip{WindowClipSupport::none};
+    std::uint32_t present_modes{};
+    bool present_timestamp{};
+    bool external_image_import{};
+    bool external_image_export{};
+    std::uint32_t color_spaces{};
+    bool srgb_transfer_approximate{};
+    bool device_loss_recovery{};
+    bool external_render_target{};
 };
+
+static_assert(std::is_trivially_copyable_v<WindowCapabilities>);
 
 enum class PointerButton : std::uint8_t {
     primary = 1U << 0U,

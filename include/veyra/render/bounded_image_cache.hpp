@@ -34,6 +34,7 @@ template <typename Key> struct BoundedImageCacheSlot {
     std::size_t height{};
     std::int32_t bearing_x{};
     std::int32_t bearing_y{};
+    std::uint64_t generation{};
     std::uint8_t recency{};
     bool occupied{};
 };
@@ -125,10 +126,28 @@ template <typename Key, typename Hash, typename KeyValidator> class BoundedImage
                     .height = slot.height,
                     .stride = maximum_width_,
                     .pixels = pixels,
+                    .generation = slot.generation,
                 },
             .bearing_x = slot.bearing_x,
             .bearing_y = slot.bearing_y,
         };
+    }
+
+    std::optional<CachedImage> find(const Key& key, std::uint64_t expected_generation) noexcept {
+        if (expected_generation == 0) {
+            return find(key);
+        }
+
+        if (!valid_ || !KeyValidator{}(key)) {
+            return std::nullopt;
+        }
+
+        const auto slot_index = find_slot(key);
+        if (slot_index == slots_.size() || slots_[slot_index].generation != expected_generation) {
+            return std::nullopt;
+        }
+
+        return find(key);
     }
 
     BoundedImageCacheResult insert(const Key& key, const CachedImage& image) noexcept {
@@ -187,6 +206,7 @@ template <typename Key, typename Hash, typename KeyValidator> class BoundedImage
         slot.height = image.image.height;
         slot.bearing_x = image.bearing_x;
         slot.bearing_y = image.bearing_y;
+        slot.generation = image.image.generation;
         slot.occupied = true;
 
         auto* destination = pixel_storage_.data() + slot_index * slot_capacity_;

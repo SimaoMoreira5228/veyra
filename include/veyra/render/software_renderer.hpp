@@ -56,6 +56,7 @@ struct SoftwareMask {
     std::size_t height{};
     std::size_t stride{};
     std::span<const std::uint8_t> coverage;
+    std::uint64_t generation{};
 };
 
 struct DrawMask {
@@ -106,6 +107,7 @@ struct PopTranslation {};
 
 struct PushClip {
     LayoutRect bounds;
+    std::uint64_t clip_id{};
 };
 
 struct PopClip {};
@@ -122,6 +124,7 @@ struct SoftwareImage {
     std::size_t height{};
     std::size_t stride{};
     std::span<const SoftwarePixel> pixels;
+    std::uint64_t generation{};
 };
 
 enum class SoftwareImageSampling : std::uint8_t {

@@ -2,6 +2,7 @@
 #define VEYRA_BEHAVIORS_PRESSABLE_HPP
 
 #include "veyra/core/semantics.hpp"
+#include "veyra/media/animation_interpolation.hpp"
 
 #include <cstdint>
 #include <string_view>
@@ -52,6 +53,32 @@ class PressableController {
     bool disabled_{};
     bool space_armed_{};
     bool enter_armed_{};
+};
+
+struct PressableTint {
+    float hover{};
+    float press{};
+};
+
+class PressableTintAnimator {
+  public:
+    PressableTintAnimator() noexcept;
+
+    bool tick(PressableState state, std::uint64_t now_ms) noexcept;
+    PressableTint tint() const noexcept;
+    bool running() const noexcept;
+
+    void set_paused(bool paused) noexcept;
+    void set_throttled(bool throttled) noexcept;
+    void set_reduced_motion(bool reduced_motion) noexcept;
+
+    static constexpr AnimatedProperty animated_property() noexcept {
+        return AnimatedProperty::color;
+    }
+
+  private:
+    ScalarAnimator hover_;
+    ScalarAnimator press_;
 };
 
 }

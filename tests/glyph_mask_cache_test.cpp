@@ -56,6 +56,7 @@ void check_key_fields() {
             .height = 1,
             .stride = 1,
             .coverage = coverage,
+            .generation = 0,
         },
     };
     const auto base = key(42);
@@ -101,6 +102,7 @@ void check_copy_and_update() {
                 .height = 2,
                 .stride = 3,
                 .coverage = source,
+                .generation = 0,
             },
         .bearing_x = -2,
         .bearing_y = 11,
@@ -134,6 +136,7 @@ void check_copy_and_update() {
                 .height = 1,
                 .stride = 2,
                 .coverage = replacement,
+                .generation = 0,
             },
         .bearing_x = 3,
         .bearing_y = 4,
@@ -165,6 +168,7 @@ void check_lru_replacement() {
             .height = 1,
             .stride = 1,
             .coverage = coverage,
+            .generation = 0,
         },
     };
 
@@ -210,6 +214,7 @@ void check_invalid_inputs_and_capacity() {
             .height = 2,
             .stride = 2,
             .coverage = coverage,
+            .generation = 0,
         },
     };
     auto invalid_key = key(1);
@@ -225,6 +230,7 @@ void check_invalid_inputs_and_capacity() {
             .height = 2,
             .stride = 1,
             .coverage = coverage,
+            .generation = 0,
         },
     };
     require(
@@ -239,6 +245,7 @@ void check_invalid_inputs_and_capacity() {
             .height = 2,
             .stride = 2,
             .coverage = short_coverage,
+            .generation = 0,
         },
     };
     require(
@@ -253,6 +260,7 @@ void check_invalid_inputs_and_capacity() {
             .height = 2,
             .stride = 4,
             .coverage = large_coverage,
+            .generation = 0,
         },
     };
     require(
@@ -260,6 +268,64 @@ void check_invalid_inputs_and_capacity() {
         "glyphs larger than configured slots are rejected"
     );
     require(!cache.find(key(1)).has_value(), "rejected inserts do not create cache entries");
+}
+
+void check_generation_carried_and_matched() {
+    std::array<veyra::GlyphMaskCacheSlot, 4> slots{};
+    std::array<std::uint8_t, 16> storage{};
+    veyra::GlyphMaskCache cache(slots, storage, 2, 2);
+    const std::array<std::uint8_t, 1> coverage{200};
+    const veyra::GlyphMask first{
+        .mask =
+            {
+                .width = 1,
+                .height = 1,
+                .stride = 1,
+                .coverage = coverage,
+                .generation = 7,
+            },
+        .bearing_x = 1,
+        .bearing_y = 2,
+    };
+
+    require(
+        cache.insert(key(1), first) == veyra::GlyphMaskCacheResult::inserted,
+        "a versioned glyph inserts"
+    );
+
+    const auto stored = cache.find(key(1));
+    if (!stored.has_value()) {
+        throw std::runtime_error("versioned glyph is found");
+    }
+    require(stored->mask.generation == 7, "find carries the stored generation");
+    require(cache.find(key(1), 7).has_value(), "a matching generation is a hit");
+    require(cache.find(key(1), 0).has_value(), "an unversioned lookup skips the check");
+    require(!cache.find(key(1), 8).has_value(), "a generation mismatch is a miss");
+
+    const std::array<std::uint8_t, 1> replacement{44};
+    const veyra::GlyphMask second{
+        .mask =
+            {
+                .width = 1,
+                .height = 1,
+                .stride = 1,
+                .coverage = replacement,
+                .generation = 8,
+            },
+        .bearing_x = 1,
+        .bearing_y = 2,
+    };
+    require(
+        cache.insert(key(1), second) == veyra::GlyphMaskCacheResult::updated,
+        "repainting the same key overwrites its pixels"
+    );
+
+    const auto updated = cache.find(key(1), 8);
+    if (!updated.has_value()) {
+        throw std::runtime_error("the bumped generation is found");
+    }
+    require(updated->mask.coverage[0] == 44, "the bumped pixels are visible");
+    require(!cache.find(key(1), 7).has_value(), "the old generation no longer matches");
 }
 
 }
@@ -270,6 +336,7 @@ int main() {
         check_key_fields();
         check_lru_replacement();
         check_invalid_inputs_and_capacity();
+        check_generation_carried_and_matched();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

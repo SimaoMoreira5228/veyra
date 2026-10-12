@@ -21,6 +21,7 @@ void check_coverage_and_clip() {
     const std::array<veyra::DisplayCommand, 3> clipped_commands{
         veyra::PushClip{
             .bounds = {.x = 3.0F, .y = 1.0F, .width = 2.0F, .height = 4.0F},
+            .clip_id = 0,
         },
         veyra::StrokeLine{
             .start = {.x = 1.0F, .y = 2.5F},
@@ -255,7 +256,7 @@ void check_polyline_translation_and_clipping() {
     };
     const std::array<veyra::DisplayCommand, 5> commands{
         veyra::PushTranslation{.offset = {.x = 2.0F, .y = 1.0F}},
-        veyra::PushClip{.bounds = {.width = 4.0F, .height = 3.0F}},
+        veyra::PushClip{.bounds = {.width = 4.0F, .height = 3.0F}, .clip_id = 0},
         veyra::StrokePolyline{
             .points = points,
             .thickness = 1.0F,

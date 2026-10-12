@@ -39,6 +39,7 @@ struct GlyphMaskCacheSlot {
     std::size_t height{};
     std::int32_t bearing_x{};
     std::int32_t bearing_y{};
+    std::uint64_t generation{};
     std::uint8_t recency{};
     bool occupied{};
 };
@@ -69,6 +70,8 @@ class GlyphMaskCache {
     bool valid() const noexcept;
     void clear() noexcept;
     std::optional<GlyphMask> find(const GlyphMaskKey& key) noexcept;
+    std::optional<GlyphMask>
+    find(const GlyphMaskKey& key, std::uint64_t expected_generation) noexcept;
     GlyphMaskCacheResult insert(const GlyphMaskKey& key, const GlyphMask& mask) noexcept;
 
   private:

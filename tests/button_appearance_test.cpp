@@ -71,12 +71,70 @@ void check_layout_values_follow_theme() {
     );
 }
 
+void check_tinted_blending_matches_discrete_states() {
+    const auto theme = veyra::Theme{};
+
+    const auto hovered_state = veyra::PressableState{
+        .hovered = true,
+        .focused = true,
+    };
+    const auto hovered =
+        veyra::button_appearance(theme, hovered_state, {.hover = 1.0F, .press = 0.0F});
+    require(
+        hovered.background == theme.color(veyra::tokens::color_action_hovered),
+        "full hover tint reaches the hovered color"
+    );
+
+    const auto pressed_state = veyra::PressableState{
+        .hovered = true,
+        .pressed = true,
+    };
+    const auto pressed =
+        veyra::button_appearance(theme, pressed_state, {.hover = 1.0F, .press = 1.0F});
+    require(
+        pressed.background == theme.color(veyra::tokens::color_action_pressed),
+        "full press tint reaches the pressed color"
+    );
+
+    const auto partial =
+        veyra::button_appearance(theme, hovered_state, {.hover = 0.5F, .press = 0.0F});
+    require(
+        partial.background ==
+            veyra::mix_srgba8(
+                theme.color(veyra::tokens::color_action_primary),
+                theme.color(veyra::tokens::color_action_hovered),
+                0.5F
+            ),
+        "partial hover tint blends from the idle color"
+    );
+
+    const auto untinted =
+        veyra::button_appearance(theme, hovered_state, {.hover = 0.0F, .press = 0.0F});
+    require(
+        untinted.background == theme.color(veyra::tokens::color_action_primary),
+        "zero tint keeps the idle color"
+    );
+
+    const auto disabled_state = veyra::PressableState{
+        .hovered = true,
+        .pressed = true,
+        .disabled = true,
+    };
+    const auto disabled =
+        veyra::button_appearance(theme, disabled_state, {.hover = 1.0F, .press = 1.0F});
+    require(
+        disabled.background == theme.color(veyra::tokens::color_action_disabled),
+        "disabled styling ignores the tint"
+    );
+}
+
 }
 
 int main() {
     try {
         check_interaction_state_precedence();
         check_layout_values_follow_theme();
+        check_tinted_blending_matches_discrete_states();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
