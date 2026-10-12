@@ -67,7 +67,13 @@ double percentile(const std::vector<double>& timings, std::size_t percent) {
 int run() {
     constexpr std::string_view text =
         "Search channels, recent files, and settings without reshaping every frame.";
-    constexpr veyra::ShapedRunCacheKey key{.font_id = 1, .style_id = 2};
+    const veyra::ShapedRunCacheKey key{
+        .font_id = 1,
+        .style_id = 2,
+        .direction = veyra::TextDirection::left_to_right,
+        .script_tag = veyra::shaped_run_script_tag("Latn"),
+        .language_id = veyra::shaped_run_language_id("en"),
+    };
     SyntheticFont font;
     veyra::TextShaper shaper(text.size());
     std::array<veyra::ShapedGlyph, 128> glyphs{};

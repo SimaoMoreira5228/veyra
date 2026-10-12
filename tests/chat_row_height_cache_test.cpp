@@ -215,6 +215,7 @@ void check_edit_remeasurement_preserves_scroll_anchor() {
 
     constexpr auto width = 640.0F;
     constexpr auto style_generation = std::uint64_t{2};
+    constexpr auto scroll_generation = std::uint64_t{7};
     for (std::size_t index = 0; index < message_ids.size(); ++index) {
         require(
             cache.insert(
@@ -231,7 +232,7 @@ void check_edit_remeasurement_preserves_scroll_anchor() {
 
     auto anchor = veyra::VirtualListAnchor{};
     require(
-        list.capture_anchor(message_ids, 35.0, 20.0, anchor),
+        list.capture_anchor(message_ids, 35.0, 20.0, scroll_generation, anchor),
         "chat scroll captures a stable message anchor"
     );
     require(anchor.item_id == message_ids[2], "the anchor identifies the first visible message");
@@ -275,7 +276,14 @@ void check_edit_remeasurement_preserves_scroll_anchor() {
     auto lookup_context = MessageIndexContext{message_ids};
     auto scroll_offset = 35.0;
     require(
-        list.restore_anchor(anchor, 20.0, find_message_index, &lookup_context, scroll_offset),
+        list.restore_anchor(
+            anchor,
+            20.0,
+            scroll_generation,
+            find_message_index,
+            &lookup_context,
+            scroll_offset
+        ),
         "the stable anchor restores after row correction"
     );
 

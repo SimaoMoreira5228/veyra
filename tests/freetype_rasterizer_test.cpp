@@ -379,6 +379,23 @@ void check_bitmap_cache_render_path() {
     require(pixels[3 * 4 + 2].alpha == 128, "partial glyph coverage blends with the surface");
 }
 
+void check_measure_rejects_null_face() {
+    auto bounds = veyra::GlyphBounds{.width = 7, .height = 7, .bearing_x = 7, .bearing_y = 7};
+    require(
+        veyra::measure_freetype_glyph_bounds(
+            nullptr,
+            65,
+            veyra::GlyphRasterMode::grayscale,
+            bounds
+        ) == veyra::GlyphRasterizeResult::invalid_input,
+        "a null face never measures"
+    );
+    require(
+        bounds.width == 7 && bounds.height == 7 && bounds.bearing_x == 7 && bounds.bearing_y == 7,
+        "a rejected measure leaves its output unchanged"
+    );
+}
+
 }
 
 int main() {
@@ -388,6 +405,7 @@ int main() {
         check_rejections_leave_outputs_unchanged();
         check_color_bitmap_conversion_and_rendering();
         check_bitmap_cache_render_path();
+        check_measure_rejects_null_face();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -185,6 +185,88 @@ void check_font_scale_invalidates() {
     );
 }
 
+void check_shaping_properties_isolate() {
+    std::array<veyra::ShapedRunCacheSlot, 8> slots{};
+    std::array<char, 256> text_storage{};
+    std::array<veyra::ShapedGlyph, 64> glyph_storage{};
+    veyra::ShapedRunCache cache(slots, text_storage, glyph_storage, 32, 8);
+    const veyra::ShapedRunCacheKey base{
+        .font_id = 4,
+        .style_id = 9,
+        .direction = veyra::TextDirection::left_to_right,
+        .script_tag = veyra::shaped_run_script_tag("Latn"),
+        .language_id = veyra::shaped_run_language_id("en"),
+        .fallback_generation = 7,
+    };
+    const std::array<veyra::ShapedGlyph, 2> glyphs{
+        veyra::ShapedGlyph{.id = 21, .cluster = 0, .x_advance = 500},
+        veyra::ShapedGlyph{.id = 22, .cluster = 1, .x_advance = 300},
+    };
+    std::array<veyra::ShapedGlyph, 2> output{};
+    std::size_t glyph_count = 0;
+
+    require(
+        veyra::shaped_run_script_tag("Latn") == veyra::shaped_run_script_tag("Latn"),
+        "script tags repeat"
+    );
+    require(
+        veyra::shaped_run_script_tag("Latn") != veyra::shaped_run_script_tag("Arab"),
+        "scripts tag distinctly"
+    );
+    require(veyra::shaped_run_script_tag("") == 0, "an empty script tags as unset");
+    require(
+        veyra::shaped_run_language_id("en") != veyra::shaped_run_language_id("ar"),
+        "languages hash distinctly"
+    );
+    require(veyra::shaped_run_language_id("") == 0, "an empty language hashes as unset");
+
+    require(
+        cache.insert(base, "ab", glyphs) == veyra::ShapedRunCacheResult::stored,
+        "a fully qualified run enters the cache"
+    );
+    require(
+        cache.find(base, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::hit,
+        "the same qualifiers hit"
+    );
+
+    const auto miss_under =
+        [&cache, &output, &glyph_count](veyra::ShapedRunCacheKey key, std::string_view message) {
+            require(
+                cache.find(key, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::miss,
+                message
+            );
+            require(glyph_count == 0, "a qualifier miss resets the output count");
+            require(
+                cache.insert(key, "ab", {output.data(), 0}) == veyra::ShapedRunCacheResult::stored,
+                "a colliding qualifier still stores under its own key"
+            );
+            require(
+                cache.find(key, "ab", output, glyph_count) == veyra::ShapedRunCacheResult::hit,
+                "the stored qualifier reads back under its own key"
+            );
+        };
+
+    auto flipped = base;
+    flipped.direction = veyra::TextDirection::right_to_left;
+    miss_under(flipped, "direction invalidates a hit");
+
+    auto rescripted = base;
+    rescripted.script_tag = veyra::shaped_run_script_tag("Arab");
+    miss_under(rescripted, "script invalidates a hit");
+
+    auto retranslated = base;
+    retranslated.language_id = veyra::shaped_run_language_id("ar");
+    miss_under(retranslated, "language invalidates a hit");
+
+    auto remapped = base;
+    remapped.fallback_generation = 8;
+    miss_under(remapped, "a fallback remap invalidates a hit");
+
+    auto featured = base;
+    featured.features_id = 1;
+    miss_under(featured, "a feature set invalidates an unfeatured hit");
+}
+
 void check_workspace_limits_and_empty_runs() {
     std::array<veyra::ShapedRunCacheSlot, 1> slots{};
     std::array<char, 2> short_text_storage{};
@@ -218,6 +300,7 @@ int main() {
     try {
         check_lookup_and_invalidation();
         check_font_scale_invalidates();
+        check_shaping_properties_isolate();
         check_workspace_limits_and_empty_runs();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

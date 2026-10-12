@@ -140,10 +140,11 @@ int run(const Options& options) {
         if (!index.visible_range(scroll, 720.0, 2, range)) {
             throw std::runtime_error("virtual range query failed during warmup");
         }
-        if (!index.capture_anchor(item_ids, scroll, 720.0, anchor) ||
+        if (!index.capture_anchor(item_ids, scroll, 720.0, 0, anchor) ||
             !index.restore_anchor(
                 anchor,
                 720.0,
+                0,
                 find_item_index,
                 &lookup_context,
                 restored_scroll_offset
@@ -208,11 +209,12 @@ int run(const Options& options) {
         checksum += static_cast<double>(range.first_item + range.last_item) + range.first_offset;
 
         const auto anchor_begin = Clock::now();
-        const auto anchor_captured = index.capture_anchor(item_ids, scroll, 720.0, anchor);
+        const auto anchor_captured = index.capture_anchor(item_ids, scroll, 720.0, 0, anchor);
         const auto anchor_restored = anchor_captured &&
             index.restore_anchor(
                 anchor,
                 720.0,
+                0,
                 find_item_index,
                 &lookup_context,
                 restored_scroll_offset

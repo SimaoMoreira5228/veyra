@@ -19,6 +19,7 @@ constexpr auto kBurstGeneration = std::uint64_t{1};
 constexpr auto kNarrowWidth = 480.0F;
 constexpr auto kNextGeneration = std::uint64_t{2};
 constexpr auto kViewport = 200.0;
+constexpr auto kScrollGeneration = std::uint64_t{7};
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -214,7 +215,7 @@ void check_burst_absorption() {
     anchor_scroll += 3.0;
     auto anchor = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, anchor_scroll, kViewport, anchor),
+        model.list.capture_anchor(model.ids, anchor_scroll, kViewport, kScrollGeneration, anchor),
         "reader anchor captures before the burst"
     );
     require(anchor.item_id == 150, "reader anchor names the visible message");
@@ -222,7 +223,7 @@ void check_burst_absorption() {
     const auto bottom_scroll = model.list.total_extent() - kViewport;
     auto pinned = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, bottom_scroll, kViewport, pinned),
+        model.list.capture_anchor(model.ids, bottom_scroll, kViewport, kScrollGeneration, pinned),
         "pinned anchor captures before the burst"
     );
     require(pinned.pinned_to_end, "bottom scroll position pins to the end");
@@ -263,7 +264,14 @@ void check_burst_absorption() {
     auto lookup = RowLookupContext{model.ids};
     auto restored = 0.0;
     require(
-        model.list.restore_anchor(anchor, kViewport, find_row_index, &lookup, restored),
+        model.list.restore_anchor(
+            anchor,
+            kViewport,
+            kScrollGeneration,
+            find_row_index,
+            &lookup,
+            restored
+        ),
         "reader anchor restores after the burst"
     );
     auto anchor_top = 0.0;
@@ -272,7 +280,7 @@ void check_burst_absorption() {
 
     auto end_scroll = 0.0;
     require(
-        model.list.restore_anchor(pinned, kViewport, end_scroll),
+        model.list.restore_anchor(pinned, kViewport, kScrollGeneration, end_scroll),
         "pinned anchor restores after the burst"
     );
     require(
@@ -326,7 +334,7 @@ void check_pinned_anchor_holds_across_prepend_and_append() {
     auto scroll_offset = model.list.total_extent() - kViewport;
     auto pinned = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, scroll_offset, kViewport, pinned),
+        model.list.capture_anchor(model.ids, scroll_offset, kViewport, kScrollGeneration, pinned),
         "pinned scroll position is captured"
     );
     require(pinned.pinned_to_end, "bottom scroll position pins to the end");
@@ -335,7 +343,7 @@ void check_pinned_anchor_holds_across_prepend_and_append() {
     seed_messages(model, cache, 6001, 20, kBurstWidth, kBurstGeneration);
 
     require(
-        model.list.restore_anchor(pinned, kViewport, scroll_offset),
+        model.list.restore_anchor(pinned, kViewport, kScrollGeneration, scroll_offset),
         "pinned anchor restores without an ID lookup"
     );
     require(
@@ -363,7 +371,7 @@ void check_midlist_anchor_holds_across_prepend() {
     scroll_offset += 4.0;
     auto anchor = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, scroll_offset, kViewport, anchor),
+        model.list.capture_anchor(model.ids, scroll_offset, kViewport, kScrollGeneration, anchor),
         "history anchor captures its message ID"
     );
     require(!anchor.pinned_to_end, "mid-list anchor does not pin to the end");
@@ -373,7 +381,14 @@ void check_midlist_anchor_holds_across_prepend() {
 
     auto lookup = RowLookupContext{model.ids};
     require(
-        model.list.restore_anchor(anchor, kViewport, find_row_index, &lookup, scroll_offset),
+        model.list.restore_anchor(
+            anchor,
+            kViewport,
+            kScrollGeneration,
+            find_row_index,
+            &lookup,
+            scroll_offset
+        ),
         "history anchor resolves through its message ID"
     );
     auto anchor_top = 0.0;
@@ -403,7 +418,7 @@ void check_width_and_style_change_moves_extents() {
     scroll_offset += 5.0;
     auto anchor = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, scroll_offset, kViewport, anchor),
+        model.list.capture_anchor(model.ids, scroll_offset, kViewport, kScrollGeneration, anchor),
         "restyle anchor captures its message ID"
     );
 
@@ -442,7 +457,14 @@ void check_width_and_style_change_moves_extents() {
 
     auto lookup = RowLookupContext{model.ids};
     require(
-        model.list.restore_anchor(anchor, kViewport, find_row_index, &lookup, scroll_offset),
+        model.list.restore_anchor(
+            anchor,
+            kViewport,
+            kScrollGeneration,
+            find_row_index,
+            &lookup,
+            scroll_offset
+        ),
         "restyle anchor resolves through its message ID"
     );
     auto anchor_top = 0.0;

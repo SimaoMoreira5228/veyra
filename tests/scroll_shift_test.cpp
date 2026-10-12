@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -576,6 +577,122 @@ void check_blit_matches_full_redraw_sweep() {
     check_blit_matches_full_redraw(15, -14);
 }
 
+void check_stale_generation_refuses_blit_and_keeps_pixels() {
+    constexpr auto width = std::size_t{6};
+    constexpr auto height = std::size_t{5};
+    std::array<veyra::SoftwarePixel, width * height> pixels{};
+    paint_content(pixels, width, height, width, 2, 3);
+
+    const auto snapshot = pixels;
+
+    veyra::ScrollShiftPlan plan{
+        .has_blit = true,
+        .strip_count = 7,
+    };
+    const auto stale = veyra::resolve_scroll_shift(
+        {
+            .width = width,
+            .height = height,
+            .delta_x = 0,
+            .delta_y = 2,
+            .current_generation = 8,
+            .retained_generation = 7,
+        },
+        plan
+    );
+
+    require(stale == veyra::ScrollShiftResult::stale_generation, "a stale layer is refused");
+    require(!plan.has_blit, "a stale resolve emits no blit");
+    require(plan.strip_count == 0, "a stale resolve emits no strips");
+    require(!plan.full_damage_x && !plan.full_damage_y, "a stale resolve claims no damage");
+    require(buffers_equal(pixels, snapshot), "a refused resolve leaves pixels untouched");
+
+    veyra::ScrollShiftPlan fresh_plan{};
+    const auto fresh = veyra::resolve_scroll_shift(
+        {
+            .width = width,
+            .height = height,
+            .delta_x = 0,
+            .delta_y = 2,
+            .current_generation = 8,
+            .retained_generation = 8,
+        },
+        fresh_plan
+    );
+
+    require(fresh == veyra::ScrollShiftResult::complete, "a matching generation resolves");
+    require(fresh_plan.has_blit, "a fresh resolve keeps its blit");
+
+    veyra::ScrollShiftPlan broken_plan{};
+    const auto broken = veyra::resolve_scroll_shift(
+        {
+            .width = 0,
+            .height = height,
+            .current_generation = 8,
+            .retained_generation = 7,
+        },
+        broken_plan
+    );
+
+    require(
+        broken == veyra::ScrollShiftResult::invalid_input,
+        "bad sizes stay invalid even when stale"
+    );
+}
+
+void check_stale_generation_wins_over_no_movement() {
+    veyra::ScrollShiftPlan plan{};
+    const auto result = veyra::resolve_scroll_shift(
+        {
+            .width = 10,
+            .height = 8,
+            .delta_x = 0,
+            .delta_y = 0,
+            .current_generation = 3,
+            .retained_generation = 2,
+        },
+        plan
+    );
+
+    require(result == veyra::ScrollShiftResult::stale_generation, "stale wins over no movement");
+    require(!plan.has_blit && plan.strip_count == 0, "a stale still frame clears the plan");
+}
+
+void check_shift_generation_comparison_survives_wrap() {
+    constexpr auto before_wrap = std::numeric_limits<std::uint64_t>::max();
+
+    veyra::ScrollShiftPlan stale_plan{};
+    const auto stale = veyra::resolve_scroll_shift(
+        {
+            .width = 10,
+            .height = 8,
+            .delta_x = 2,
+            .delta_y = 0,
+            .current_generation = 0,
+            .retained_generation = before_wrap,
+        },
+        stale_plan
+    );
+
+    require(stale == veyra::ScrollShiftResult::stale_generation, "a wrapped bump reads as stale");
+
+    veyra::ScrollShiftPlan fresh_plan{};
+    const auto fresh = veyra::resolve_scroll_shift(
+        {
+            .width = 10,
+            .height = 8,
+            .delta_x = 2,
+            .delta_y = 0,
+            .current_generation = before_wrap,
+            .retained_generation = before_wrap,
+        },
+        fresh_plan
+    );
+
+    require(fresh == veyra::ScrollShiftResult::complete, "the pre-wrap value still matches");
+    require(fresh_plan.has_blit, "a pre-wrap match keeps its blit");
+}
+
 void check_zero_delta_needs_no_work() {
     constexpr auto width = std::size_t{6};
     constexpr auto height = std::size_t{5};
@@ -691,6 +808,9 @@ int main() {
         check_vertical_overlap_copies_top_down();
         check_horizontal_overlap_and_rejections();
         check_blit_matches_full_redraw_sweep();
+        check_stale_generation_refuses_blit_and_keeps_pixels();
+        check_stale_generation_wins_over_no_movement();
+        check_shift_generation_comparison_survives_wrap();
         check_zero_delta_needs_no_work();
         check_strips_drive_damage_render();
     } catch (const std::exception& error) {

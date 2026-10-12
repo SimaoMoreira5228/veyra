@@ -15,6 +15,12 @@ resolve_scroll_shift(const ScrollShiftRequest& request, ScrollShiftPlan& output)
         return ScrollShiftResult::invalid_input;
     }
 
+    if (!same_scroll_generation(request.current_generation, request.retained_generation)) {
+        output = ScrollShiftPlan{};
+
+        return ScrollShiftResult::stale_generation;
+    }
+
     auto origin_x = std::size_t{0};
     auto origin_y = std::size_t{0};
     auto extent_x = request.width;

@@ -1,6 +1,8 @@
 #ifndef VEYRA_LAYOUT_VIRTUAL_LIST_HPP
 #define VEYRA_LAYOUT_VIRTUAL_LIST_HPP
 
+#include "veyra/layout/scroll_axis.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -19,6 +21,7 @@ struct VirtualListAnchor {
     double item_offset{};
     bool pinned_to_end{};
     std::uint64_t item_id{};
+    std::uint64_t generation{};
 };
 
 using VirtualListItemIndexLookup =
@@ -39,22 +42,26 @@ class VirtualListIndex {
     bool capture_anchor(
         double scroll_offset,
         double viewport_extent,
+        std::uint64_t scroll_generation,
         VirtualListAnchor& anchor
     ) const noexcept;
     bool capture_anchor(
         std::span<const std::uint64_t> item_ids,
         double scroll_offset,
         double viewport_extent,
+        std::uint64_t scroll_generation,
         VirtualListAnchor& anchor
     ) const noexcept;
     bool restore_anchor(
         const VirtualListAnchor& anchor,
         double viewport_extent,
+        std::uint64_t current_generation,
         double& scroll_offset
     ) const noexcept;
     bool restore_anchor(
         const VirtualListAnchor& anchor,
         double viewport_extent,
+        std::uint64_t current_generation,
         VirtualListItemIndexLookup lookup,
         void* context,
         double& scroll_offset

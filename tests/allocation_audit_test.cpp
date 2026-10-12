@@ -136,6 +136,7 @@ std::uint64_t hash_bytes(std::uint64_t hash, std::string_view bytes) noexcept {
 constexpr auto kChatWidth = 640.0F;
 constexpr auto kChatGeneration = std::uint64_t{1};
 constexpr auto kViewport = 200.0;
+constexpr auto kScrollGeneration = std::uint64_t{7};
 
 struct ChatModel {
     std::vector<std::uint64_t> ids;
@@ -250,12 +251,13 @@ std::uint64_t run_chat_steady_cycle(
     auto lookup = RowLookup{model.ids};
     auto anchor = veyra::VirtualListAnchor{};
     require(
-        model.list.capture_anchor(model.ids, offset, kViewport, anchor),
+        model.list.capture_anchor(model.ids, offset, kViewport, kScrollGeneration, anchor),
         "steady cycle captures an anchor"
     );
     auto restored = 0.0;
     require(
-        model.list.restore_anchor(anchor, kViewport, find_chat_row, &lookup, restored),
+        model.list
+            .restore_anchor(anchor, kViewport, kScrollGeneration, find_chat_row, &lookup, restored),
         "steady cycle restores its anchor"
     );
     return chat_checksum(model);

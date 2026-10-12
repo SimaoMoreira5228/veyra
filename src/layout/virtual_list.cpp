@@ -70,6 +70,7 @@ bool VirtualListIndex::offset_of(std::size_t item_index, double& offset) const n
 bool VirtualListIndex::capture_anchor(
     double scroll_offset,
     double viewport_extent,
+    std::uint64_t scroll_generation,
     VirtualListAnchor& anchor
 ) const noexcept {
     if (!std::isfinite(scroll_offset) || scroll_offset < 0.0 || scroll_offset > total_extent_ ||
@@ -89,6 +90,7 @@ bool VirtualListIndex::capture_anchor(
         .item_index = item_index,
         .item_offset = item_offset,
         .pinned_to_end = viewport_extent >= total_extent_ - scroll_offset,
+        .generation = scroll_generation,
     };
     return true;
 }
@@ -97,6 +99,7 @@ bool VirtualListIndex::capture_anchor(
     std::span<const std::uint64_t> item_ids,
     double scroll_offset,
     double viewport_extent,
+    std::uint64_t scroll_generation,
     VirtualListAnchor& anchor
 ) const noexcept {
     if (item_ids.size() != extents_.size()) {
@@ -104,7 +107,7 @@ bool VirtualListIndex::capture_anchor(
     }
 
     auto candidate = VirtualListAnchor{};
-    if (!capture_anchor(scroll_offset, viewport_extent, candidate)) {
+    if (!capture_anchor(scroll_offset, viewport_extent, scroll_generation, candidate)) {
         return false;
     }
     if (!candidate.pinned_to_end) {
@@ -121,10 +124,15 @@ bool VirtualListIndex::capture_anchor(
 bool VirtualListIndex::restore_anchor(
     const VirtualListAnchor& anchor,
     double viewport_extent,
+    std::uint64_t current_generation,
     double& scroll_offset
 ) const noexcept {
     if (!std::isfinite(anchor.item_offset) || anchor.item_offset < 0.0 ||
         !std::isfinite(viewport_extent) || viewport_extent < 0.0) {
+        return false;
+    }
+
+    if (!same_scroll_generation(current_generation, anchor.generation)) {
         return false;
     }
 
@@ -149,12 +157,13 @@ bool VirtualListIndex::restore_anchor(
 bool VirtualListIndex::restore_anchor(
     const VirtualListAnchor& anchor,
     double viewport_extent,
+    std::uint64_t current_generation,
     VirtualListItemIndexLookup lookup,
     void* context,
     double& scroll_offset
 ) const noexcept {
     if (anchor.pinned_to_end) {
-        return restore_anchor(anchor, viewport_extent, scroll_offset);
+        return restore_anchor(anchor, viewport_extent, current_generation, scroll_offset);
     }
     if (anchor.item_id == 0 || lookup == nullptr) {
         return false;
@@ -167,7 +176,7 @@ bool VirtualListIndex::restore_anchor(
 
     auto resolved_anchor = anchor;
     resolved_anchor.item_index = item_index;
-    return restore_anchor(resolved_anchor, viewport_extent, scroll_offset);
+    return restore_anchor(resolved_anchor, viewport_extent, current_generation, scroll_offset);
 }
 
 bool VirtualListIndex::scroll_item_into_view(

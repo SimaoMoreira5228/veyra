@@ -21,6 +21,11 @@ std::uint64_t hash_run(ShapedRunCacheKey key, std::string_view text) noexcept {
     add_value(key.style_id);
     add_value(static_cast<std::uint64_t>(key.font_scale_x));
     add_value(static_cast<std::uint64_t>(key.font_scale_y));
+    add_value(static_cast<std::uint64_t>(key.direction));
+    add_value(static_cast<std::uint64_t>(key.script_tag));
+    add_value(static_cast<std::uint64_t>(key.language_id));
+    add_value(key.fallback_generation);
+    add_value(static_cast<std::uint64_t>(key.features_id));
     add_value(static_cast<std::uint64_t>(text.size()));
     for (const auto byte : text) {
         hash = (hash ^ static_cast<std::uint8_t>(byte)) * fnv_prime;
@@ -83,7 +88,10 @@ ShapedRunCacheResult ShapedRunCache::find(
     const auto& slot = slots_[index];
     if (!slot.occupied || slot.hash != hash || slot.key.font_id != key.font_id ||
         slot.key.style_id != key.style_id || slot.key.font_scale_x != key.font_scale_x ||
-        slot.key.font_scale_y != key.font_scale_y || slot.text_length != text.size() ||
+        slot.key.font_scale_y != key.font_scale_y || slot.key.direction != key.direction ||
+        slot.key.script_tag != key.script_tag || slot.key.language_id != key.language_id ||
+        slot.key.fallback_generation != key.fallback_generation ||
+        slot.key.features_id != key.features_id || slot.text_length != text.size() ||
         (!text.empty() &&
          std::memcmp(text_for_slot(index).data(), text.data(), text.size()) != 0)) {
         return ShapedRunCacheResult::miss;
@@ -130,6 +138,31 @@ ShapedRunCacheResult ShapedRunCache::insert(
     slot.glyph_count = glyphs.size();
     slot.occupied = true;
     return ShapedRunCacheResult::stored;
+}
+
+std::uint32_t shaped_run_script_tag(std::string_view script) noexcept {
+    if (script.empty()) {
+        return 0;
+    }
+    if (script.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        return 0;
+    }
+
+    return static_cast<std::uint32_t>(
+        hb_script_from_string(script.data(), static_cast<int>(script.size()))
+    );
+}
+
+std::uint32_t shaped_run_language_id(std::string_view language) noexcept {
+    if (language.empty()) {
+        return 0;
+    }
+
+    auto hash = std::uint32_t{2166136261U};
+    for (const auto byte : language) {
+        hash = (hash ^ static_cast<std::uint8_t>(byte)) * 16777619U;
+    }
+    return hash;
 }
 
 std::span<char> ShapedRunCache::text_for_slot(std::size_t index) const noexcept {

@@ -1,6 +1,7 @@
 #include "veyra/layout/scroll_axis.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -69,6 +70,85 @@ void check_nested_scroll_chaining() {
     require(near(remaining, 0.0), "fully handled motion leaves no remainder");
 }
 
+void check_generation_bumps_only_on_committed_change() {
+    auto axis = veyra::ScrollAxis{};
+    require(axis.generation() == 0, "a fresh axis starts at generation zero");
+
+    require(axis.set_extents(500.0, 100.0), "initial geometry is accepted");
+    require(axis.generation() == 1, "the first geometry change bumps the generation");
+
+    require(axis.set_extents(500.0, 100.0), "identical geometry is accepted");
+    require(axis.generation() == 1, "a no-op configure does not bump");
+
+    require(axis.set_offset(0.0), "repeating the offset is accepted");
+    require(axis.generation() == 1, "a no-op offset set does not bump");
+
+    require(axis.set_offset(50.0), "a moved offset is accepted");
+    require(axis.generation() == 2, "a committed offset bumps the generation");
+
+    require(axis.set_offset(50.0), "repeating the moved offset is accepted");
+    require(axis.generation() == 2, "repeating the offset does not bump again");
+
+    auto unconsumed = 0.0;
+    require(axis.scroll_by(0.0, unconsumed), "a zero delta is accepted");
+    require(axis.generation() == 2, "a zero delta does not bump");
+
+    require(axis.set_offset(axis.maximum_offset()), "the end offset is accepted");
+    const auto at_end = axis.generation();
+    require(axis.scroll_by(40.0, unconsumed), "pushing past the end is accepted");
+    require(axis.generation() == at_end, "clamped pushing past the edge does not bump");
+    require(near(unconsumed, 40.0), "the whole push past the edge stays unconsumed");
+
+    require(axis.set_extents(80.0, 100.0), "smaller content is accepted");
+    require(axis.generation() == at_end + 1, "a clamped shrink bumps exactly once");
+
+    const auto settled = axis.generation();
+    require(!axis.set_extents(-1.0, 10.0), "negative content is rejected");
+    require(
+        !axis.set_offset(std::numeric_limits<double>::quiet_NaN()),
+        "a non-finite offset is rejected"
+    );
+    require(
+        !axis.scroll_by(std::numeric_limits<double>::infinity(), unconsumed),
+        "a non-finite delta is rejected"
+    );
+    require(axis.generation() == settled, "rejected input never bumps");
+}
+
+void check_generation_comparison_survives_wrap() {
+    auto axis = veyra::ScrollAxis{};
+    require(axis.set_extents(500.0, 100.0), "wrap geometry is accepted");
+
+    axis.set_generation(std::numeric_limits<std::uint64_t>::max() - 1);
+    require(axis.set_offset(50.0), "a moved offset is accepted");
+    require(
+        axis.generation() == std::numeric_limits<std::uint64_t>::max(),
+        "bumps approach the maximum without wrapping early"
+    );
+
+    require(axis.set_offset(60.0), "another moved offset is accepted");
+    require(axis.generation() == 0, "the counter wraps to zero past the maximum");
+
+    require(
+        veyra::same_scroll_generation(axis.generation(), 0),
+        "the wrapped value matches itself"
+    );
+    require(
+        !veyra::same_scroll_generation(
+            axis.generation(),
+            std::numeric_limits<std::uint64_t>::max()
+        ),
+        "the pre-wrap value reads as stale after wrapping"
+    );
+    require(
+        !veyra::same_scroll_generation(
+            std::numeric_limits<std::uint64_t>::max(),
+            std::numeric_limits<std::uint64_t>::max() - 1
+        ),
+        "adjacent values never compare equal"
+    );
+}
+
 void check_invalid_inputs_leave_state_and_output_unchanged() {
     auto axis = veyra::ScrollAxis{};
     require(axis.set_extents(200.0, 100.0), "initial extents are accepted");
@@ -107,6 +187,8 @@ int main() {
         check_extents_and_offset_clamping();
         check_scroll_consumes_only_available_motion();
         check_nested_scroll_chaining();
+        check_generation_bumps_only_on_committed_change();
+        check_generation_comparison_survives_wrap();
         check_invalid_inputs_leave_state_and_output_unchanged();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -1,6 +1,7 @@
 #ifndef VEYRA_TEXT_FREETYPE_RASTERIZER_HPP
 #define VEYRA_TEXT_FREETYPE_RASTERIZER_HPP
 
+#include "veyra/text/glyph_bounds_cache.hpp"
 #include "veyra/text/glyph_image_cache.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 
@@ -50,6 +51,13 @@ GlyphRasterizeResult rasterize_freetype_glyph(
     std::span<std::uint8_t> output,
     std::size_t output_stride,
     GlyphMask& glyph
+) noexcept;
+
+GlyphRasterizeResult measure_freetype_glyph_bounds(
+    FT_Face face,
+    std::uint32_t glyph_id,
+    GlyphRasterMode mode,
+    GlyphBounds& bounds
 ) noexcept;
 
 GlyphRasterizeResult rasterize_freetype_color_glyph(

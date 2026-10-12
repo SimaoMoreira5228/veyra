@@ -11,9 +11,21 @@ bool ScrollAxis::set_extents(double content_extent, double viewport_extent) noex
         return false;
     }
 
+    const bool extents_changed =
+        content_extent != content_extent_ || viewport_extent != viewport_extent_;
+
     content_extent_ = content_extent;
     viewport_extent_ = viewport_extent;
-    offset_ = std::min(offset_, maximum_offset());
+
+    const double clamped = std::min(offset_, maximum_offset());
+
+    if (!extents_changed && clamped == offset_) {
+        return true;
+    }
+
+    offset_ = clamped;
+    ++generation_;
+
     return true;
 }
 
@@ -22,7 +34,15 @@ bool ScrollAxis::set_offset(double offset) noexcept {
         return false;
     }
 
-    offset_ = std::clamp(offset, 0.0, maximum_offset());
+    const double clamped = std::clamp(offset, 0.0, maximum_offset());
+
+    if (clamped == offset_) {
+        return true;
+    }
+
+    offset_ = clamped;
+    ++generation_;
+
     return true;
 }
 
@@ -35,9 +55,20 @@ bool ScrollAxis::scroll_by(double delta, double& unconsumed_delta) noexcept {
     const auto applied_delta = std::clamp(delta, -offset_, maximum - offset_);
     const auto next_offset = std::clamp(offset_ + applied_delta, 0.0, maximum);
     const auto remaining_delta = delta - applied_delta;
-    offset_ = next_offset;
     unconsumed_delta = remaining_delta;
+
+    if (next_offset == offset_) {
+        return true;
+    }
+
+    offset_ = next_offset;
+    ++generation_;
+
     return true;
+}
+
+void ScrollAxis::set_generation(std::uint64_t generation) noexcept {
+    generation_ = generation;
 }
 
 double ScrollAxis::content_extent() const noexcept {
@@ -54,6 +85,10 @@ double ScrollAxis::offset() const noexcept {
 
 double ScrollAxis::maximum_offset() const noexcept {
     return std::max(0.0, content_extent_ - viewport_extent_);
+}
+
+std::uint64_t ScrollAxis::generation() const noexcept {
+    return generation_;
 }
 
 }

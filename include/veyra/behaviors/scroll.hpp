@@ -18,6 +18,7 @@ struct ScrollState {
     double viewport_extent{};
     double offset{};
     bool disabled{};
+    std::uint64_t generation{};
 };
 
 struct ScrollMove {
@@ -37,6 +38,7 @@ class ScrollController {
     bool disabled() const noexcept;
     bool at_start() const noexcept;
     bool at_end() const noexcept;
+    std::uint64_t generation() const noexcept;
 
     bool configure(double content_extent, double viewport_extent) noexcept;
     bool set_disabled(bool disabled) noexcept;

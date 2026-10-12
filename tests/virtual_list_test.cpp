@@ -20,6 +20,8 @@ bool near(double actual, double expected) {
     return std::abs(actual - expected) < 0.001;
 }
 
+constexpr auto kScrollGeneration = std::uint64_t{7};
+
 struct ItemIdLookupContext {
     std::span<const std::uint64_t> item_ids;
 };
@@ -103,15 +105,19 @@ void check_scroll_anchor_after_measurement_changes() {
     require(index.reset(extents, fenwick), "anchor extents initialize the index");
 
     veyra::VirtualListAnchor anchor;
-    require(index.capture_anchor(35.0, 0.0, anchor), "visible row anchor is captured");
     require(
-        anchor.item_index == 3 && near(anchor.item_offset, 5.0),
-        "anchor stores the first visible row and its local offset"
+        index.capture_anchor(35.0, 0.0, kScrollGeneration, anchor),
+        "visible row anchor is captured"
+    );
+    require(
+        anchor.item_index == 3 && near(anchor.item_offset, 5.0) &&
+            anchor.generation == kScrollGeneration,
+        "anchor stores the first visible row and the scroll generation"
     );
 
     veyra::VirtualListAnchor boundary_anchor;
     require(
-        index.capture_anchor(30.0, 0.0, boundary_anchor),
+        index.capture_anchor(30.0, 0.0, kScrollGeneration, boundary_anchor),
         "anchor captures exact row boundaries"
     );
     require(
@@ -121,13 +127,14 @@ void check_scroll_anchor_after_measurement_changes() {
 
     const auto previous_anchor = anchor;
     require(
-        !index.capture_anchor(index.total_extent() + 1.0, 0.0, anchor),
+        !index.capture_anchor(index.total_extent() + 1.0, 0.0, kScrollGeneration, anchor),
         "scroll offsets past the list are rejected"
     );
     require(
         anchor.item_index == previous_anchor.item_index &&
             near(anchor.item_offset, previous_anchor.item_offset) &&
-            anchor.pinned_to_end == previous_anchor.pinned_to_end,
+            anchor.pinned_to_end == previous_anchor.pinned_to_end &&
+            anchor.generation == previous_anchor.generation,
         "failed anchor capture leaves output unchanged"
     );
 
@@ -136,7 +143,7 @@ void check_scroll_anchor_after_measurement_changes() {
     require(index.set_extent(3, 8.0F, delta), "anchored row can be remeasured");
     double restored_offset = -1.0;
     require(
-        index.restore_anchor(anchor, 0.0, restored_offset),
+        index.restore_anchor(anchor, 0.0, kScrollGeneration, restored_offset),
         "anchor restores after measurements"
     );
     require(
@@ -145,13 +152,16 @@ void check_scroll_anchor_after_measurement_changes() {
     );
 
     require(index.set_extent(3, 2.0F, delta), "anchored row can shrink below its old offset");
-    require(index.restore_anchor(anchor, 0.0, restored_offset), "shrunk anchor still restores");
+    require(
+        index.restore_anchor(anchor, 0.0, kScrollGeneration, restored_offset),
+        "shrunk anchor still restores"
+    );
     require(near(restored_offset, 36.0), "local offset clamps to the remeasured row extent");
 
     veyra::VirtualListAnchor pinned_anchor;
     const auto bottom_scroll_offset = index.total_extent() - 10.0;
     require(
-        index.capture_anchor(bottom_scroll_offset, 10.0, pinned_anchor),
+        index.capture_anchor(bottom_scroll_offset, 10.0, kScrollGeneration, pinned_anchor),
         "bottom-pinned scroll position can be captured"
     );
     require(pinned_anchor.pinned_to_end, "anchor records the pinned-to-end state");
@@ -159,7 +169,10 @@ void check_scroll_anchor_after_measurement_changes() {
     std::array appended_extents{14.0F, 20.0F, 0.0F, 2.0F, 5.0F, 9.0F};
     std::array<double, 7> appended_fenwick{};
     require(index.reset(appended_extents, appended_fenwick), "appended rows rebuild the index");
-    require(index.restore_anchor(pinned_anchor, 10.0, restored_offset), "bottom anchor restores");
+    require(
+        index.restore_anchor(pinned_anchor, 10.0, kScrollGeneration, restored_offset),
+        "bottom anchor restores"
+    );
     require(
         near(restored_offset, index.total_extent() - 10.0),
         "appending a row keeps a bottom-pinned list at the end"
@@ -169,7 +182,7 @@ void check_scroll_anchor_after_measurement_changes() {
     invalid_anchor.item_index = index.size() + 1;
     const auto previous_offset = restored_offset;
     require(
-        !index.restore_anchor(invalid_anchor, 10.0, restored_offset),
+        !index.restore_anchor(invalid_anchor, 10.0, kScrollGeneration, restored_offset),
         "past-end anchors are rejected"
     );
     require(
@@ -177,7 +190,7 @@ void check_scroll_anchor_after_measurement_changes() {
         "failed anchor restore leaves output unchanged"
     );
     require(
-        !index.restore_anchor(anchor, -1.0, restored_offset),
+        !index.restore_anchor(anchor, -1.0, kScrollGeneration, restored_offset),
         "negative viewports are rejected"
     );
     require(near(restored_offset, previous_offset), "rejected viewports leave output unchanged");
@@ -190,7 +203,10 @@ void check_restore_anchor_clamps_after_content_shrinks() {
     require(index.reset(extents, fenwick), "scroll range extents initialize the index");
 
     veyra::VirtualListAnchor anchor;
-    require(index.capture_anchor(45.0, 20.0, anchor), "anchor within the list is captured");
+    require(
+        index.capture_anchor(45.0, 20.0, kScrollGeneration, anchor),
+        "anchor within the list is captured"
+    );
     require(!anchor.pinned_to_end, "anchor away from the end remains unpinned");
 
     std::array shorter_extents{10.0F, 20.0F, 25.0F};
@@ -198,7 +214,10 @@ void check_restore_anchor_clamps_after_content_shrinks() {
     require(index.reset(shorter_extents, shorter_fenwick), "shorter list rebuilds the index");
 
     double restored_offset = -1.0;
-    require(index.restore_anchor(anchor, 20.0, restored_offset), "anchor restores after removal");
+    require(
+        index.restore_anchor(anchor, 20.0, kScrollGeneration, restored_offset),
+        "anchor restores after removal"
+    );
     require(
         near(restored_offset, 35.0),
         "restored offset stays within the shorter list's scrollable range"
@@ -214,7 +233,7 @@ void check_stable_anchor_survives_prepend() {
 
     veyra::VirtualListAnchor anchor;
     require(
-        index.capture_anchor(item_ids, 35.0, 20.0, anchor),
+        index.capture_anchor(item_ids, 35.0, 20.0, kScrollGeneration, anchor),
         "stable anchor captures its message ID"
     );
     require(
@@ -230,7 +249,14 @@ void check_stable_anchor_survives_prepend() {
     auto lookup_context = ItemIdLookupContext{prepended_ids};
     auto restored_offset = -1.0;
     require(
-        index.restore_anchor(anchor, 20.0, find_item_index, &lookup_context, restored_offset),
+        index.restore_anchor(
+            anchor,
+            20.0,
+            kScrollGeneration,
+            find_item_index,
+            &lookup_context,
+            restored_offset
+        ),
         "stable anchor resolves after prepend"
     );
     require(
@@ -242,12 +268,26 @@ void check_stable_anchor_survives_prepend() {
     std::array<std::uint64_t, 2> ids_without_anchor{99, 101};
     lookup_context.item_ids = ids_without_anchor;
     require(
-        !index.restore_anchor(anchor, 20.0, find_item_index, &lookup_context, restored_offset),
+        !index.restore_anchor(
+            anchor,
+            20.0,
+            kScrollGeneration,
+            find_item_index,
+            &lookup_context,
+            restored_offset
+        ),
         "a removed anchor ID fails lookup"
     );
     require(near(restored_offset, previous_offset), "missing IDs leave scroll output unchanged");
     require(
-        !index.restore_anchor(anchor, 20.0, nullptr, &lookup_context, restored_offset),
+        !index.restore_anchor(
+            anchor,
+            20.0,
+            kScrollGeneration,
+            nullptr,
+            &lookup_context,
+            restored_offset
+        ),
         "a null lookup cannot resolve rows"
     );
     require(near(restored_offset, previous_offset), "null lookups leave scroll output unchanged");
@@ -255,7 +295,14 @@ void check_stable_anchor_survives_prepend() {
     auto anonymous = anchor;
     anonymous.item_id = 0;
     require(
-        !index.restore_anchor(anonymous, 20.0, find_item_index, &lookup_context, restored_offset),
+        !index.restore_anchor(
+            anonymous,
+            20.0,
+            kScrollGeneration,
+            find_item_index,
+            &lookup_context,
+            restored_offset
+        ),
         "an anonymous anchor cannot resolve rows"
     );
     require(near(restored_offset, previous_offset), "anonymous anchors leave output unchanged");
@@ -269,22 +316,76 @@ void check_stable_anchor_rejects_invalid_ids() {
     require(index.reset(extents, fenwick), "invalid-ID extents initialize the index");
 
     veyra::VirtualListAnchor anchor{.item_id = 777};
-    require(!index.capture_anchor(item_ids, 5.0, 0.0, anchor), "zero IDs cannot anchor rows");
+    require(
+        !index.capture_anchor(item_ids, 5.0, 0.0, kScrollGeneration, anchor),
+        "zero IDs cannot anchor rows"
+    );
     require(anchor.item_id == 777, "failed stable capture leaves its output unchanged");
 
     std::array<std::uint64_t, 1> short_ids{201};
     require(
-        !index.capture_anchor(short_ids, 5.0, 0.0, anchor),
+        !index.capture_anchor(short_ids, 5.0, 0.0, kScrollGeneration, anchor),
         "identity storage must match the row count"
     );
     require(anchor.item_id == 777, "mismatched identity storage leaves output unchanged");
 
     std::array<std::uint64_t, 2> full_ids{201, 202};
     require(
-        !index.capture_anchor(full_ids, index.total_extent() + 1.0, 0.0, anchor),
+        !index.capture_anchor(full_ids, index.total_extent() + 1.0, 0.0, kScrollGeneration, anchor),
         "scroll offsets past the list cannot anchor rows"
     );
     require(anchor.item_id == 777, "out-of-range capture leaves output unchanged");
+}
+
+void check_anchor_generation_gates_restore() {
+    std::array extents{10.0F, 20.0F, 30.0F, 40.0F};
+    std::array<double, 5> fenwick{};
+    veyra::VirtualListIndex index;
+    require(index.reset(extents, fenwick), "generation extents initialize the index");
+
+    constexpr auto captured = std::uint64_t{41};
+
+    veyra::VirtualListAnchor anchor;
+    require(
+        index.capture_anchor(35.0, 20.0, captured, anchor),
+        "anchor records its capture generation"
+    );
+    require(anchor.generation == captured, "captured anchor keeps the scroll generation");
+
+    auto restored_offset = -1.0;
+    require(
+        index.restore_anchor(anchor, 20.0, captured, restored_offset),
+        "matching generations restore"
+    );
+    require(near(restored_offset, 35.0), "fresh restore keeps the scroll position");
+
+    restored_offset = -1.0;
+    require(
+        !index.restore_anchor(anchor, 20.0, captured + 1, restored_offset),
+        "a bumped scroll generation refuses the old anchor"
+    );
+    require(near(restored_offset, -1.0), "stale restore leaves the output untouched");
+
+    constexpr auto near_wrap = std::numeric_limits<std::uint64_t>::max();
+
+    veyra::VirtualListAnchor wrapped_anchor;
+    require(
+        index.capture_anchor(35.0, 20.0, near_wrap, wrapped_anchor),
+        "anchor captures at the wrap boundary"
+    );
+
+    restored_offset = -1.0;
+    require(
+        !index.restore_anchor(wrapped_anchor, 20.0, 0, restored_offset),
+        "one bump past the maximum reads as stale"
+    );
+    require(near(restored_offset, -1.0), "wrapped stale restore leaves the output untouched");
+
+    require(
+        index.restore_anchor(wrapped_anchor, 20.0, near_wrap, restored_offset),
+        "the same wrapped value still restores"
+    );
+    require(near(restored_offset, 35.0), "wrapped fresh restore keeps the scroll position");
 }
 
 void check_scroll_item_into_view() {
@@ -460,6 +561,7 @@ int main() {
         check_restore_anchor_clamps_after_content_shrinks();
         check_stable_anchor_survives_prepend();
         check_stable_anchor_rejects_invalid_ids();
+        check_anchor_generation_gates_restore();
         check_scroll_item_into_view();
         check_reset_rejects_invalid_storage_and_extents();
         check_ranges_match_linear_reference();

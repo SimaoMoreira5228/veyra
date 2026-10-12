@@ -675,6 +675,10 @@ add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
 
+add_executable(veyra_glyph_bounds_cache_test tests/glyph_bounds_cache_test.cpp)
+target_link_libraries(veyra_glyph_bounds_cache_test PRIVATE veyra)
+add_test(NAME glyph_bounds_cache_behavior COMMAND veyra_glyph_bounds_cache_test)
+
 add_executable(veyra_glyph_image_cache_test tests/glyph_image_cache_test.cpp)
 target_link_libraries(veyra_glyph_image_cache_test PRIVATE veyra)
 add_test(NAME glyph_image_cache_behavior COMMAND veyra_glyph_image_cache_test)
@@ -698,6 +702,10 @@ add_test(NAME text_editor_navigation_behavior COMMAND veyra_text_editor_navigati
 add_executable(veyra_text_editor_workload_test tests/text_editor_workload_test.cpp)
 target_link_libraries(veyra_text_editor_workload_test PRIVATE veyra_behaviors)
 add_test(NAME text_editor_workload_behavior COMMAND veyra_text_editor_workload_test)
+
+add_executable(veyra_e0_harness_test tests/e0_harness_test.cpp)
+target_link_libraries(veyra_e0_harness_test PRIVATE veyra)
+add_test(NAME e0_harness_behavior COMMAND veyra_e0_harness_test)
 
 add_executable(veyra_allocation_audit_test tests/allocation_audit_test.cpp)
 target_link_libraries(veyra_allocation_audit_test PRIVATE veyra veyra_behaviors)

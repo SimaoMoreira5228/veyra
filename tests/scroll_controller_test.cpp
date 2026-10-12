@@ -166,6 +166,51 @@ void check_lines_and_pages_use_caller_sizes() {
     );
 }
 
+void check_generation_tracks_committed_moves_only() {
+    auto scroller = veyra::ScrollController{};
+    require(scroller.generation() == 0, "a fresh controller starts at generation zero");
+
+    require(scroller.configure(500.0, 100.0), "initial geometry is accepted");
+    require(scroller.generation() == 1, "the first configure bumps the generation");
+    require(
+        scroller.state().generation == scroller.generation(),
+        "the state snapshot mirrors the generation"
+    );
+
+    require(scroller.configure(500.0, 100.0), "identical geometry is accepted");
+    require(scroller.generation() == 1, "a no-op configure does not bump");
+
+    require(
+        scroller.set_offset(0.0) == veyra::ScrollResult::handled,
+        "repeating the offset reports no change"
+    );
+    require(scroller.generation() == 1, "a no-op set does not bump");
+
+    require(
+        scroller.set_offset(50.0) == veyra::ScrollResult::changed,
+        "a moved offset reports a change"
+    );
+    require(scroller.generation() == 2, "a committed offset bumps the generation");
+
+    const auto settled = scroller.generation();
+    const auto quiet = scroller.scroll_by(0.0);
+    require(
+        quiet.result == veyra::ScrollResult::handled && near(quiet.overshoot, 0.0),
+        "a zero delta reports no change"
+    );
+    require(scroller.generation() == settled, "a zero delta does not bump");
+
+    require(scroller.set_disabled(true), "disabling reports a state change");
+    require(scroller.generation() == settled, "toggling disabled does not bump");
+
+    require(scroller.set_disabled(false), "enabling reports a state change");
+    require(
+        scroller.scroll_by(10.0).result == veyra::ScrollResult::changed,
+        "motion works after enabling"
+    );
+    require(scroller.generation() == settled + 1, "motion after enabling bumps once");
+}
+
 void check_disabled_rejects_intent_but_keeps_reads() {
     auto scroller = veyra::ScrollController{};
 
@@ -205,6 +250,7 @@ int main() {
         check_scroll_reports_excess_without_moving_past_edges();
         check_absolute_moves_report_excess();
         check_lines_and_pages_use_caller_sizes();
+        check_generation_tracks_committed_moves_only();
         check_disabled_rejects_intent_but_keeps_reads();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

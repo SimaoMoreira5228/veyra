@@ -13,6 +13,7 @@ ScrollState ScrollController::state() const noexcept {
         .viewport_extent = axis_.viewport_extent(),
         .offset = axis_.offset(),
         .disabled = disabled_,
+        .generation = axis_.generation(),
     };
 }
 
@@ -34,6 +35,10 @@ double ScrollController::maximum_offset() const noexcept {
 
 bool ScrollController::disabled() const noexcept {
     return disabled_;
+}
+
+std::uint64_t ScrollController::generation() const noexcept {
+    return axis_.generation();
 }
 
 bool ScrollController::at_start() const noexcept {

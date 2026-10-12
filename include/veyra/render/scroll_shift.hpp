@@ -1,6 +1,7 @@
 #ifndef VEYRA_RENDER_SCROLL_SHIFT_HPP
 #define VEYRA_RENDER_SCROLL_SHIFT_HPP
 
+#include "veyra/layout/scroll_axis.hpp"
 #include "veyra/render/software_renderer.hpp"
 
 #include <cstddef>
@@ -23,6 +24,8 @@ struct ScrollShiftRequest {
     int delta_y{};
     bool has_clip{};
     ScrollShiftRect clip{};
+    std::uint64_t current_generation{};
+    std::uint64_t retained_generation{};
 };
 
 struct ScrollShiftPlan {
@@ -39,6 +42,7 @@ enum class ScrollShiftResult : std::uint8_t {
     complete,
     no_movement,
     invalid_input,
+    stale_generation,
 };
 
 ScrollShiftResult

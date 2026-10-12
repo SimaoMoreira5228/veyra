@@ -248,6 +248,44 @@ GlyphRasterizeResult rasterize_freetype_glyph(
     );
 }
 
+GlyphRasterizeResult measure_freetype_glyph_bounds(
+    FT_Face face,
+    std::uint32_t glyph_id,
+    GlyphRasterMode mode,
+    GlyphBounds& bounds
+) noexcept {
+    if (face == nullptr || face->glyph == nullptr || !valid_mode(mode)) {
+        return GlyphRasterizeResult::invalid_input;
+    }
+
+    FT_Matrix transform{};
+    FT_Vector delta{};
+    FT_Get_Transform(face, &transform, &delta);
+    if (transform.xx != 0x10000L || transform.xy != 0 || transform.yx != 0 ||
+        transform.yy != 0x10000L || delta.x != 0 || delta.y != 0) {
+        return GlyphRasterizeResult::unsupported_transform;
+    }
+
+    auto load_flags = static_cast<FT_Int32>(
+        FT_LOAD_DEFAULT | FT_LOAD_BITMAP_METRICS_ONLY | FT_LOAD_NO_BITMAP | FT_LOAD_NO_SVG
+    );
+    if (mode == GlyphRasterMode::monochrome) {
+        load_flags |= FT_LOAD_TARGET_MONO;
+    }
+    if (FT_Load_Glyph(face, static_cast<FT_UInt>(glyph_id), load_flags) != 0) {
+        return GlyphRasterizeResult::raster_failure;
+    }
+
+    const auto* slot = face->glyph;
+    bounds = {
+        .width = static_cast<std::int32_t>(slot->bitmap.width),
+        .height = static_cast<std::int32_t>(slot->bitmap.rows),
+        .bearing_x = static_cast<std::int32_t>(slot->bitmap_left),
+        .bearing_y = static_cast<std::int32_t>(slot->bitmap_top),
+    };
+    return GlyphRasterizeResult::complete;
+}
+
 GlyphRasterizeResult rasterize_freetype_color_glyph(
     FT_Face face,
     std::uint32_t glyph_id,
