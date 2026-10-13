@@ -4,6 +4,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -216,10 +217,57 @@ bool create_commands(vulkan_detail::ContextState& state) noexcept {
         return false;
     }
 
+    auto properties = VkPhysicalDeviceProperties{};
+
+    vkGetPhysicalDeviceProperties(state.physical, &properties);
+
+    const auto valid_bits = [&] {
+        auto count = std::uint32_t{};
+
+        vkGetPhysicalDeviceQueueFamilyProperties(state.physical, &count, nullptr);
+
+        auto families = std::array<VkQueueFamilyProperties, 16>{};
+
+        if (count == 0 || count > static_cast<std::uint32_t>(families.size()) ||
+            state.queue_family >= count) {
+            return std::uint32_t{};
+        }
+
+        vkGetPhysicalDeviceQueueFamilyProperties(state.physical, &count, families.data());
+
+        return families[state.queue_family].timestampValidBits;
+    }();
+
+    if (valid_bits == 0) {
+        return true;
+    }
+
+    state.timestamp_period = properties.limits.timestampPeriod;
+    state.timestamp_mask =
+        valid_bits >= 64 ? ~0ULL : (valid_bits == 0 ? 0ULL : ((1ULL << valid_bits) - 1ULL));
+
+    const auto query_info = VkQueryPoolCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+        .queryType = VK_QUERY_TYPE_TIMESTAMP,
+        .queryCount = 2,
+    };
+
+    if (vkCreateQueryPool(state.device, &query_info, nullptr, &state.timestamp_pool) !=
+        VK_SUCCESS) {
+        state.timestamp_pool = VK_NULL_HANDLE;
+        state.timestamp_period = 0.0F;
+    }
+
     return true;
 }
 
 void destroy_commands(vulkan_detail::ContextState& state) noexcept {
+    if (state.timestamp_pool != VK_NULL_HANDLE) {
+        vkDestroyQueryPool(state.device, state.timestamp_pool, nullptr);
+
+        state.timestamp_pool = VK_NULL_HANDLE;
+    }
+
     if (state.fence != VK_NULL_HANDLE) {
         vkDestroyFence(state.device, state.fence, nullptr);
 

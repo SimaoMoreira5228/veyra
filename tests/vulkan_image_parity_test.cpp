@@ -270,11 +270,7 @@ void check_abandoned_upload_rolls_back(
             .sampling = veyra::SoftwareImageSampling::nearest,
             .opacity = 255,
         },
-        veyra::FillPath{
-            .contours = {},
-            .color = {.red = 255, .alpha = 255},
-            .fill_rule = veyra::SoftwarePathFillRule::even_odd,
-        },
+        veyra::PopClip{},
     };
 
     auto stats = veyra::VulkanRectStats{};
@@ -286,8 +282,8 @@ void check_abandoned_upload_rolls_back(
             std::span<const veyra::DisplayCommand>(poisoned),
             actual,
             stats
-        ) == veyra::VulkanRenderResult::unsupported_commands,
-        "images before an unsupported command abandon the frame"
+        ) == veyra::VulkanRenderResult::invalid_input,
+        "images before a rejected command abandon the frame"
     );
 
     const std::array<veyra::DisplayCommand, 1> recovered{

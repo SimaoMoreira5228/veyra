@@ -271,18 +271,21 @@ void fill_intersection_span(
     std::size_t y,
     double left_x,
     double right_x,
-    DisplayColor color,
-    SoftwareSurface surface,
-    SoftwareClipRect clip
+    SoftwareClipRect clip,
+    std::size_t surface_width,
+    void* context,
+    PathSpanEmit emit
 ) noexcept {
-    const auto surface_width = static_cast<double>(surface.width);
+    const auto width = static_cast<double>(surface_width);
     const auto left_position = left_x - 0.5;
     const auto right_position = right_x - 0.5;
-    auto left = ceil_coordinate(std::clamp(left_position, 0.0, surface_width), surface.width);
-    auto right = ceil_coordinate(std::clamp(right_position, 0.0, surface_width), surface.width);
+    auto left = ceil_coordinate(std::clamp(left_position, 0.0, width), surface_width);
+    auto right = ceil_coordinate(std::clamp(right_position, 0.0, width), surface_width);
     left = std::max(left, clip.left);
     right = std::min(right, clip.right);
-    fill_span(y, left, right, color, surface);
+    if (left < right) {
+        emit(context, PathPixelSpan{.y = y, .left = left, .right = right});
+    }
 }
 
 }
@@ -410,18 +413,17 @@ bool valid_translated_path(const FillPath& command, LayoutPoint translation) noe
     return true;
 }
 
-void draw_path(
+void fill_path_spans(
     const FillPath& command,
     LayoutPoint translation,
-    SoftwareSurface surface,
+    std::size_t surface_width,
+    std::size_t surface_height,
     SoftwareClipRect clip,
     std::span<double> intersections,
-    std::span<std::int8_t> windings
+    std::span<std::int8_t> windings,
+    void* context,
+    PathSpanEmit emit
 ) noexcept {
-    if (command.color.alpha == 0) {
-        return;
-    }
-
     const auto path_windings =
         command.fill_rule == SoftwarePathFillRule::non_zero ? windings : std::span<std::int8_t>{};
 
@@ -447,9 +449,9 @@ void draw_path(
         }
     }
 
-    const auto surface_height = static_cast<double>(surface.height);
-    auto top = floor_coordinate(std::clamp(minimum_y, 0.0, surface_height), surface.height);
-    auto bottom = ceil_coordinate(std::clamp(maximum_y, 0.0, surface_height), surface.height);
+    const auto height_limit = static_cast<double>(surface_height);
+    auto top = floor_coordinate(std::clamp(minimum_y, 0.0, height_limit), surface_height);
+    auto bottom = ceil_coordinate(std::clamp(maximum_y, 0.0, height_limit), surface_height);
     top = std::max(top, clip.top);
     bottom = std::min(bottom, clip.bottom);
     if (top >= bottom) {
@@ -530,9 +532,10 @@ void draw_path(
                     y,
                     intersections[index],
                     intersections[index + 1],
-                    command.color,
-                    surface,
-                    clip
+                    clip,
+                    surface_width,
+                    context,
+                    emit
                 );
             }
             continue;
@@ -545,7 +548,15 @@ void draw_path(
         while (intersection_index < intersection_count) {
             const auto current_x = intersections[intersection_index];
             if (winding != 0) {
-                fill_intersection_span(y, previous_x, current_x, command.color, surface, clip);
+                fill_intersection_span(
+                    y,
+                    previous_x,
+                    current_x,
+                    clip,
+                    surface_width,
+                    context,
+                    emit
+                );
             }
 
             do {
@@ -556,6 +567,46 @@ void draw_path(
             previous_x = current_x;
         }
     }
+}
+
+namespace {
+
+struct FillSpanSink {
+    DisplayColor color;
+    SoftwareSurface surface;
+};
+
+void emit_fill_span(void* context, PathPixelSpan span) noexcept {
+    const auto* sink = static_cast<const FillSpanSink*>(context);
+    fill_span(span.y, span.left, span.right, sink->color, sink->surface);
+}
+
+}
+
+void draw_path(
+    const FillPath& command,
+    LayoutPoint translation,
+    SoftwareSurface surface,
+    SoftwareClipRect clip,
+    std::span<double> intersections,
+    std::span<std::int8_t> windings
+) noexcept {
+    if (command.color.alpha == 0) {
+        return;
+    }
+
+    auto sink = FillSpanSink{.color = command.color, .surface = surface};
+    fill_path_spans(
+        command,
+        translation,
+        surface.width,
+        surface.height,
+        clip,
+        intersections,
+        windings,
+        &sink,
+        emit_fill_span
+    );
 }
 
 }

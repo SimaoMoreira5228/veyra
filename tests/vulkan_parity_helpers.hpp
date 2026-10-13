@@ -32,16 +32,18 @@ inline std::uint64_t elapsed_ns(TestClock::time_point begin, TestClock::time_poi
 }
 
 struct SoftwareRooms {
-    std::array<SoftwareClipRect, 1> clips{};
+    std::array<SoftwareClipRect, 2> clips{};
     std::array<LayoutPoint, 2> translations{};
+    std::array<double, 512> path_intersections{};
+    std::array<std::int8_t, 512> path_windings{};
 };
 
 inline SoftwareRenderWorkspace workspace_view(SoftwareRooms& rooms) noexcept {
     return SoftwareRenderWorkspace{
         .clips = rooms.clips,
         .translations = rooms.translations,
-        .path_intersections = {},
-        .path_windings = {},
+        .path_intersections = rooms.path_intersections,
+        .path_windings = rooms.path_windings,
     };
 }
 
@@ -141,6 +143,7 @@ inline void check_parity(
     std::cout << " mask_draws=" << stats.mask_draws;
     std::cout << " stroke_draws=" << stats.stroke_draws;
     std::cout << " rounded_stroke_draws=" << stats.rounded_stroke_draws;
+    std::cout << " gpu_ns=" << stats.gpu_ns;
     std::cout << " max_abs_error=" << max_error << '\n';
 }
 

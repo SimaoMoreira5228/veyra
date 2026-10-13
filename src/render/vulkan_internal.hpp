@@ -34,6 +34,9 @@ struct ContextState {
     VkCommandPool pool{VK_NULL_HANDLE};
     VkCommandBuffer commands{VK_NULL_HANDLE};
     VkFence fence{VK_NULL_HANDLE};
+    VkQueryPool timestamp_pool{VK_NULL_HANDLE};
+    float timestamp_period{};
+    std::uint64_t timestamp_mask{~0ULL};
     VkRenderPass shared_pass{VK_NULL_HANDLE};
     VkFramebuffer framebuffer{VK_NULL_HANDLE};
     TargetResources target{};

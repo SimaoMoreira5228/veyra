@@ -431,6 +431,26 @@ if(VEYRA_WITH_VULKAN)
   )
   target_link_libraries(veyra_vulkan_rounded_stroke_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_rounded_stroke_parity COMMAND veyra_vulkan_rounded_stroke_parity_test)
+
+  add_executable(veyra_vulkan_path_parity_test tests/vulkan_path_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_path_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_path_parity COMMAND veyra_vulkan_path_parity_test)
+
+  add_executable(veyra_vulkan_clip_parity_test tests/vulkan_clip_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_clip_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_clip_parity COMMAND veyra_vulkan_clip_parity_test)
+
+  add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
+  target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)
+  target_compile_definitions(veyra_vulkan_e3_bench PRIVATE
+   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+   "VEYRA_BUILD_CONFIG=\"$<CONFIG>\""
+  )
+  add_test(
+   NAME vulkan_e3_benchmark_smoke
+   COMMAND veyra_vulkan_e3_bench --scene shadowed-boxes-600 --frames 2 --warmup 1
+  )
  endif()
 endif()
 

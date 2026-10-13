@@ -172,31 +172,27 @@ void check_rejections(
     );
     require(stats.submitted == 4, "an 8x8 outline lowers to four bars");
 
-    const std::array<veyra::DisplayCommand, 1> pathed{
-        veyra::FillPath{
-            .contours = {},
-            .color = {.red = 255, .alpha = 255},
-            .fill_rule = veyra::SoftwarePathFillRule::even_odd,
-        },
-    };
-
-    const auto path_result = veyra::render_vulkan_rects(context, pipeline, pathed, scratch, stats);
-
-    require(
-        path_result == veyra::VulkanRenderResult::unsupported_commands,
-        "non-rect commands are rejected, not misrendered"
-    );
-
-    const std::array<veyra::DisplayCommand, 2> clipped{
-        veyra::PushClip{.bounds = {.width = 8.0F, .height = 8.0F}, .clip_id = 7},
+    const std::array<veyra::DisplayCommand, 1> popped{
         veyra::PopClip{},
     };
 
-    const auto clip_result = veyra::render_vulkan_rects(context, pipeline, clipped, scratch, stats);
+    const auto pop_result = veyra::render_vulkan_rects(context, pipeline, popped, scratch, stats);
 
     require(
-        clip_result == veyra::VulkanRenderResult::unsupported_commands,
-        "clips are rejected, not misrendered"
+        pop_result == veyra::VulkanRenderResult::invalid_input,
+        "popping an empty clip stack is rejected"
+    );
+
+    const std::array<veyra::DisplayCommand, 1> unclosed{
+        veyra::PushClip{.bounds = {.width = 8.0F, .height = 8.0F}, .clip_id = 7},
+    };
+
+    const auto unclosed_result =
+        veyra::render_vulkan_rects(context, pipeline, unclosed, scratch, stats);
+
+    require(
+        unclosed_result == veyra::VulkanRenderResult::invalid_input,
+        "leaving a clip open is rejected"
     );
 }
 

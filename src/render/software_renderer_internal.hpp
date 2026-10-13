@@ -239,6 +239,26 @@ void draw_path(
     std::span<std::int8_t> windings
 ) noexcept;
 
+struct PathPixelSpan {
+    std::size_t y{};
+    std::size_t left{};
+    std::size_t right{};
+};
+
+using PathSpanEmit = void (*)(void* context, PathPixelSpan span) noexcept;
+
+void fill_path_spans(
+    const FillPath& command,
+    LayoutPoint translation,
+    std::size_t surface_width,
+    std::size_t surface_height,
+    SoftwareClipRect clip,
+    std::span<double> intersections,
+    std::span<std::int8_t> windings,
+    void* context,
+    PathSpanEmit emit
+) noexcept;
+
 }
 
 #endif

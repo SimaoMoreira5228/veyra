@@ -97,7 +97,9 @@ void draw_chunk(
     vkCmdDraw(state.commands, 6, count, 0, first);
 }
 
-bool end_frame(vulkan_detail::ContextState& state) noexcept {
+bool end_frame(vulkan_detail::ContextState& state, std::uint64_t& gpu_ns) noexcept {
+    gpu_ns = 0;
+
     vkCmdEndRenderPass(state.commands);
 
     const auto to_copy = VkImageMemoryBarrier{
@@ -151,6 +153,17 @@ bool end_frame(vulkan_detail::ContextState& state) noexcept {
         &copy
     );
 
+    const auto timed = state.timestamp_pool != VK_NULL_HANDLE;
+
+    if (timed) {
+        vkCmdWriteTimestamp(
+            state.commands,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            state.timestamp_pool,
+            1
+        );
+    }
+
     if (vkEndCommandBuffer(state.commands) != VK_SUCCESS) {
         return false;
     }
@@ -171,6 +184,26 @@ bool end_frame(vulkan_detail::ContextState& state) noexcept {
 
     if (vkWaitForFences(state.device, 1, &state.fence, VK_TRUE, timeout_ns) != VK_SUCCESS) {
         return false;
+    }
+
+    if (timed) {
+        auto ticks = std::array<std::uint64_t, 2>{};
+
+        if (vkGetQueryPoolResults(
+                state.device,
+                state.timestamp_pool,
+                0,
+                2,
+                sizeof(ticks),
+                ticks.data(),
+                sizeof(std::uint64_t),
+                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
+            ) == VK_SUCCESS) {
+            const auto elapsed = (ticks[1] - ticks[0]) & state.timestamp_mask;
+            gpu_ns = static_cast<std::uint64_t>(
+                static_cast<double>(elapsed) * static_cast<double>(state.timestamp_period)
+            );
+        }
     }
 
     return true;
@@ -268,6 +301,11 @@ std::size_t stroke_rect_bars(
     return 4;
 }
 
+bool clip_excludes(SoftwareClipRect clip, SoftwareClipRect bounds) noexcept {
+    return bounds.left >= clip.right || bounds.right <= clip.left || bounds.top >= clip.bottom ||
+        bounds.bottom <= clip.top;
+}
+
 enum class DrawPipe : std::uint8_t {
     rect,
     rounded,
@@ -278,6 +316,96 @@ enum class DrawPipe : std::uint8_t {
 };
 
 constexpr std::size_t kVulkanPipeCount = 6;
+
+constexpr std::size_t kPathSpanScratch = 256;
+
+template <typename EnsurePass, typename DrawPending> struct PathRectSink {
+    EnsurePass& ensure_pass;
+    DrawPending& draw_pending;
+    vulkan_detail::ContextState& state;
+    vulkan_detail::PipelineState& stored;
+    bool& pass_open;
+    std::size_t* pipe_slots;
+    std::size_t* pipe_counts;
+    bool& pending_valid;
+    DrawPipe& pending_pipe;
+    VkDescriptorSet& pending_set;
+    std::size_t& run_base;
+    vulkan_detail::RectInstance* rects;
+    VulkanRectStats& stats;
+    SoftwareClipRect clip{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+    VulkanRenderResult result{VulkanRenderResult::complete};
+
+    void emit_span(render_detail::PathPixelSpan span) noexcept {
+        if (result != VulkanRenderResult::complete) {
+            return;
+        }
+
+        if (span.left >= clip.right || span.right <= clip.left) {
+            return;
+        }
+
+        if (stats.submitted == kVulkanMaxRects * kVulkanMaxRectDraws) {
+            abandon_frame(state, stored, pass_open);
+
+            result = VulkanRenderResult::insufficient_capacity;
+
+            return;
+        }
+
+        const auto rect_index = static_cast<std::size_t>(DrawPipe::rect);
+
+        if (pending_valid && pending_pipe != DrawPipe::rect) {
+            ensure_pass();
+
+            draw_pending(
+                pending_pipe,
+                run_base,
+                pipe_counts[static_cast<std::size_t>(pending_pipe)],
+                pending_set
+            );
+
+            pipe_counts[static_cast<std::size_t>(pending_pipe)] = 0;
+            pending_valid = false;
+        }
+
+        if (!pending_valid) {
+            pending_pipe = DrawPipe::rect;
+            pending_set = VkDescriptorSet{};
+            run_base = pipe_slots[rect_index];
+            pending_valid = true;
+        }
+
+        const auto slot = pipe_slots[rect_index]++;
+
+        rects[slot] = vulkan_detail::RectInstance{
+            .min_x = static_cast<float>(span.left),
+            .min_y = static_cast<float>(span.y),
+            .max_x = static_cast<float>(span.right),
+            .max_y = static_cast<float>(span.y + 1),
+            .red = red,
+            .green = green,
+            .blue = blue,
+            .alpha = alpha,
+        };
+
+        ++pipe_counts[rect_index];
+        ++stats.submitted;
+
+        if (pipe_counts[rect_index] == kVulkanMaxRects) {
+            ensure_pass();
+
+            draw_pending(DrawPipe::rect, run_base, pipe_counts[rect_index], VkDescriptorSet{});
+
+            pipe_counts[rect_index] = 0;
+            pending_valid = false;
+        }
+    }
+};
 
 }
 
@@ -307,6 +435,16 @@ VulkanRenderResult render_vulkan_rects(
 
     if (!begin_commands(*state)) {
         return VulkanRenderResult::device_error;
+    }
+
+    if (state->timestamp_pool != VK_NULL_HANDLE) {
+        vkCmdResetQueryPool(state->commands, state->timestamp_pool, 0, 2);
+        vkCmdWriteTimestamp(
+            state->commands,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            state->timestamp_pool,
+            0
+        );
     }
 
     stored->staging_used = 0;
@@ -342,6 +480,15 @@ VulkanRenderResult render_vulkan_rects(
     auto translation = LayoutPoint{};
     auto translation_stack = std::array<LayoutPoint, 8>{};
     auto translation_depth = std::size_t{};
+    auto clip_stack = std::array<SoftwareClipRect, 8>{};
+    auto clip_depth = std::size_t{};
+    auto current_clip = SoftwareClipRect{
+        .left = 0,
+        .top = 0,
+        .right = state->width,
+        .bottom = state->height,
+    };
+    auto scissor_dirty = true;
 
     const auto pipe_index = [](DrawPipe pipe) noexcept {
         return static_cast<std::size_t>(pipe);
@@ -359,6 +506,24 @@ VulkanRenderResult render_vulkan_rects(
                             std::size_t count,
                             VkDescriptorSet set) noexcept {
         const auto offset = VkDeviceSize{};
+
+        if (scissor_dirty) {
+            const auto scissor = VkRect2D{
+                .offset =
+                    {
+                        .x = static_cast<std::int32_t>(current_clip.left),
+                        .y = static_cast<std::int32_t>(current_clip.top),
+                    },
+                .extent = {
+                    .width = static_cast<std::uint32_t>(current_clip.right - current_clip.left),
+                    .height = static_cast<std::uint32_t>(current_clip.bottom - current_clip.top),
+                },
+            };
+
+            vkCmdSetScissor(state->commands, 0, 1, &scissor);
+
+            scissor_dirty = false;
+        }
 
         if (!bound_valid || bound != pipe) {
             if (pipe == DrawPipe::rect) {
@@ -479,18 +644,90 @@ VulkanRenderResult render_vulkan_rects(
             continue;
         }
 
+        if (const auto* push_clip = std::get_if<PushClip>(&command)) {
+            if (!render_detail::valid_rect(push_clip->bounds)) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (clip_depth >= clip_stack.size()) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            clip_stack[clip_depth++] = current_clip;
+
+            if (pending_valid) {
+                ensure_pass();
+
+                draw_pending(
+                    pending_pipe,
+                    run_base,
+                    pipe_counts[pipe_index(pending_pipe)],
+                    pending_set
+                );
+
+                pipe_counts[pipe_index(pending_pipe)] = 0;
+                pending_valid = false;
+            }
+
+            auto translated = push_clip->bounds;
+            translated.x += translation.x;
+            translated.y += translation.y;
+
+            const auto pushed =
+                render_detail::pixel_bounds(translated, state->width, state->height);
+
+            current_clip = render_detail::intersect(current_clip, pushed);
+
+            scissor_dirty = true;
+
+            continue;
+        }
+
+        if (std::holds_alternative<PopClip>(command)) {
+            if (clip_depth == 0) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (pending_valid) {
+                ensure_pass();
+
+                draw_pending(
+                    pending_pipe,
+                    run_base,
+                    pipe_counts[pipe_index(pending_pipe)],
+                    pending_set
+                );
+
+                pipe_counts[pipe_index(pending_pipe)] = 0;
+                pending_valid = false;
+            }
+
+            current_clip = clip_stack[--clip_depth];
+
+            scissor_dirty = true;
+
+            continue;
+        }
+
         const auto* fill = std::get_if<FillRect>(&command);
         const auto* rounded_fill = std::get_if<FillRoundedRect>(&command);
         const auto* drawn = std::get_if<DrawImage>(&command);
         const auto* masked = std::get_if<DrawMask>(&command);
         const auto* stroked = std::get_if<StrokeRect>(&command);
+        const auto* pathed = std::get_if<FillPath>(&command);
         const auto* rounded_stroked = std::get_if<StrokeRoundedRect>(&command);
         const auto* lined = std::get_if<StrokeLine>(&command);
         const auto* polylined = std::get_if<StrokePolyline>(&command);
 
         if (fill == nullptr && rounded_fill == nullptr && drawn == nullptr && masked == nullptr &&
-            stroked == nullptr && rounded_stroked == nullptr && lined == nullptr &&
-            polylined == nullptr) {
+            stroked == nullptr && pathed == nullptr && rounded_stroked == nullptr &&
+            lined == nullptr && polylined == nullptr) {
             abandon_frame(*state, *stored, pass_open);
 
             return VulkanRenderResult::unsupported_commands;
@@ -645,6 +882,10 @@ VulkanRenderResult render_vulkan_rects(
                     return VulkanRenderResult::complete;
                 }
 
+                if (clip_excludes(current_clip, bounds)) {
+                    return VulkanRenderResult::complete;
+                }
+
                 if (stats.submitted == kVulkanMaxRects * kVulkanMaxRectDraws) {
                     abandon_frame(*state, *stored, pass_open);
 
@@ -731,6 +972,81 @@ VulkanRenderResult render_vulkan_rects(
                         return emitted;
                     }
                 }
+            }
+
+            continue;
+        } else if (pathed != nullptr) {
+            auto intersection_capacity = std::size_t{};
+            auto winding_capacity = std::size_t{};
+
+            if (!render_detail::valid_path(*pathed, intersection_capacity, winding_capacity) ||
+                !render_detail::valid_translated_path(*pathed, translation)) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (pathed->color.alpha == 0) {
+                continue;
+            }
+
+            const auto needs_windings = pathed->fill_rule == SoftwarePathFillRule::non_zero;
+
+            if (intersection_capacity > kPathSpanScratch ||
+                (needs_windings && winding_capacity > kPathSpanScratch)) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            auto intersections = std::array<double, kPathSpanScratch>{};
+            auto windings = std::array<std::int8_t, kPathSpanScratch>{};
+
+            constexpr auto channel_scale = 1.0F / 255.0F;
+            auto sink = PathRectSink<decltype(ensure_pass), decltype(draw_pending)>{
+                .ensure_pass = ensure_pass,
+                .draw_pending = draw_pending,
+                .state = *state,
+                .stored = *stored,
+                .pass_open = pass_open,
+                .pipe_slots = pipe_slots,
+                .pipe_counts = pipe_counts,
+                .pending_valid = pending_valid,
+                .pending_pipe = pending_pipe,
+                .pending_set = pending_set,
+                .run_base = run_base,
+                .rects = rects,
+                .stats = stats,
+                .clip = current_clip,
+                .red = static_cast<float>(pathed->color.red) * channel_scale,
+                .green = static_cast<float>(pathed->color.green) * channel_scale,
+                .blue = static_cast<float>(pathed->color.blue) * channel_scale,
+                .alpha = static_cast<float>(pathed->color.alpha) * channel_scale,
+            };
+
+            const auto emit_span = [](void* context, render_detail::PathPixelSpan span) noexcept {
+                static_cast<decltype(sink)*>(context)->emit_span(span);
+            };
+
+            render_detail::fill_path_spans(
+                *pathed,
+                translation,
+                state->width,
+                state->height,
+                SoftwareClipRect{
+                    .left = 0,
+                    .top = 0,
+                    .right = state->width,
+                    .bottom = state->height,
+                },
+                intersections,
+                windings,
+                &sink,
+                emit_span
+            );
+
+            if (sink.result != VulkanRenderResult::complete) {
+                return sink.result;
             }
 
             continue;
@@ -843,6 +1159,10 @@ VulkanRenderResult render_vulkan_rects(
                     continue;
                 }
 
+                if (clip_excludes(current_clip, bar_bounds)) {
+                    continue;
+                }
+
                 if (stats.submitted == kVulkanMaxRects * kVulkanMaxRectDraws) {
                     abandon_frame(*state, *stored, pass_open);
 
@@ -888,6 +1208,10 @@ VulkanRenderResult render_vulkan_rects(
         const auto bounds = render_detail::pixel_bounds(translated, state->width, state->height);
 
         if (bounds.left >= bounds.right || bounds.top >= bounds.bottom) {
+            continue;
+        }
+
+        if (clip_excludes(current_clip, bounds)) {
             continue;
         }
 
@@ -1066,6 +1390,12 @@ VulkanRenderResult render_vulkan_rects(
         return VulkanRenderResult::invalid_input;
     }
 
+    if (clip_depth != 0) {
+        abandon_frame(*state, *stored, pass_open);
+
+        return VulkanRenderResult::invalid_input;
+    }
+
     if (pending_valid) {
         ensure_pass();
 
@@ -1080,11 +1410,16 @@ VulkanRenderResult render_vulkan_rects(
         pass_open = true;
     }
 
-    if (!end_frame(*state)) {
+    auto gpu_ns = std::uint64_t{};
+
+    if (!end_frame(*state, gpu_ns)) {
         vulkan_detail::evict_frame_images(*state, *stored);
 
         return VulkanRenderResult::device_error;
     }
+
+    stats.gpu_ns = gpu_ns;
+    stats.gpu_timed = state->timestamp_pool != VK_NULL_HANDLE;
 
     const auto byte_count = state->width * state->height * sizeof(SoftwarePixel);
 
