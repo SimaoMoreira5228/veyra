@@ -12,6 +12,7 @@ namespace veyra {
 
 constexpr std::size_t kVulkanMaxRects = 256;
 constexpr std::size_t kVulkanMaxRectDraws = 16;
+constexpr std::size_t kVulkanMaxFrameImages = 64;
 
 enum class VulkanRenderResult : std::uint8_t {
     complete,
@@ -26,6 +27,8 @@ struct VulkanRectStats {
     std::size_t draws{};
     std::size_t rect_draws{};
     std::size_t rounded_draws{};
+    std::size_t image_draws{};
+    std::size_t mask_draws{};
 };
 
 struct VulkanRectPipeline {
@@ -35,6 +38,9 @@ struct VulkanRectPipeline {
 
 VulkanRenderResult
 create_vulkan_rect_pipeline(VulkanContext& context, VulkanRectPipeline& pipeline) noexcept;
+
+VulkanRenderResult
+create_vulkan_unified_pipeline(VulkanContext& context, VulkanRectPipeline& pipeline) noexcept;
 
 void destroy_vulkan_rect_pipeline(VulkanContext& context, VulkanRectPipeline& pipeline) noexcept;
 

@@ -138,6 +138,8 @@ inline void check_parity(
     std::cout << " draws=" << stats.draws;
     std::cout << " rect_draws=" << stats.rect_draws;
     std::cout << " rounded_draws=" << stats.rounded_draws;
+    std::cout << " image_draws=" << stats.image_draws;
+    std::cout << " mask_draws=" << stats.mask_draws;
     std::cout << " max_abs_error=" << max_error << '\n';
 }
 

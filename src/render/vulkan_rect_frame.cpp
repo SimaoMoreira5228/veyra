@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,10 +16,7 @@
 namespace veyra {
 namespace {
 
-bool begin_frame(
-    vulkan_detail::ContextState& state,
-    vulkan_detail::PipelineState& pipeline
-) noexcept {
+bool begin_commands(vulkan_detail::ContextState& state) noexcept {
     if (vkResetCommandBuffer(state.commands, 0) != VK_SUCCESS) {
         return false;
     }
@@ -32,6 +30,13 @@ bool begin_frame(
         return false;
     }
 
+    return true;
+}
+
+void begin_pass(
+    vulkan_detail::ContextState& state,
+    vulkan_detail::PipelineState& pipeline
+) noexcept {
     const auto clear = VkClearValue{
         .color = {.float32 = {0.0F, 0.0F, 0.0F, 1.0F}},
     };
@@ -82,8 +87,6 @@ bool begin_frame(
         sizeof(extent),
         extent.data()
     );
-
-    return true;
 }
 
 void draw_chunk(
@@ -173,15 +176,99 @@ bool end_frame(vulkan_detail::ContextState& state) noexcept {
     return true;
 }
 
-void abandon_frame(vulkan_detail::ContextState& state) noexcept {
-    vkCmdEndRenderPass(state.commands);
+void abandon_frame(
+    vulkan_detail::ContextState& state,
+    vulkan_detail::PipelineState& stored,
+    bool pass_open
+) noexcept {
+    if (pass_open) {
+        vkCmdEndRenderPass(state.commands);
+    }
+
     vkEndCommandBuffer(state.commands);
+    vulkan_detail::evict_frame_images(state, stored);
 }
 
 enum class DrawPipe : std::uint8_t {
     rect,
     rounded,
+    image,
+    mask,
 };
+
+constexpr std::size_t kVulkanPipeCount = 4;
+
+VulkanRenderResult upload_textures(
+    vulkan_detail::ContextState& state,
+    vulkan_detail::PipelineState& stored,
+    std::span<const DisplayCommand> commands
+) noexcept {
+    for (const auto& command : commands) {
+        if (const auto* drawn = std::get_if<DrawImage>(&command)) {
+            if (drawn->image == nullptr || !render_detail::valid_image(*drawn->image) ||
+                !render_detail::valid_image_placement(*drawn)) {
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (drawn->opacity == 0) {
+                continue;
+            }
+
+            if (drawn->source.width <= 0.0F || drawn->source.height <= 0.0F) {
+                continue;
+            }
+
+            auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+
+            const auto resolved = vulkan_detail::resolve_image(
+                state,
+                stored,
+                *drawn->image,
+                drawn->sampling,
+                descriptor
+            );
+
+            if (resolved == vulkan_detail::ImageResolveResult::too_large) {
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            if (resolved != vulkan_detail::ImageResolveResult::ready) {
+                return VulkanRenderResult::device_error;
+            }
+
+            continue;
+        }
+
+        const auto* masked = std::get_if<DrawMask>(&command);
+
+        if (masked == nullptr) {
+            continue;
+        }
+
+        if (masked->mask == nullptr || masked->mask->stride < masked->mask->width ||
+            masked->mask->coverage.size() < masked->mask->height * masked->mask->stride) {
+            return VulkanRenderResult::invalid_input;
+        }
+
+        if (masked->color.alpha == 0 || masked->mask->width == 0 || masked->mask->height == 0) {
+            continue;
+        }
+
+        auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+
+        const auto resolved = vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor);
+
+        if (resolved == vulkan_detail::MaskResolveResult::too_large) {
+            return VulkanRenderResult::insufficient_capacity;
+        }
+
+        if (resolved != vulkan_detail::MaskResolveResult::ready) {
+            return VulkanRenderResult::device_error;
+        }
+    }
+
+    return VulkanRenderResult::complete;
+}
 
 }
 
@@ -209,35 +296,56 @@ VulkanRenderResult render_vulkan_rects(
 
     stats = VulkanRectStats{};
 
+    if (!begin_commands(*state)) {
+        return VulkanRenderResult::device_error;
+    }
+
+    stored->staging_used = 0;
+    stored->frame_seq += 1;
+
+    {
+        const auto uploaded = upload_textures(*state, *stored, commands);
+
+        if (uploaded != VulkanRenderResult::complete) {
+            abandon_frame(*state, *stored, false);
+            return uploaded;
+        }
+    }
+
     auto* rects = static_cast<vulkan_detail::RectInstance*>(stored->instance_mapped);
     auto* rounded =
         static_cast<vulkan_detail::RoundedRectInstance*>(stored->rounded_instance_mapped);
-    auto rect_count = std::size_t{};
-    auto rounded_count = std::size_t{};
-    auto rect_slot = std::size_t{};
-    auto rounded_slot = std::size_t{};
-    auto rect_base = std::size_t{};
-    auto rounded_base = std::size_t{};
-    auto begun = false;
-    auto bound = DrawPipe::rect;
+    auto* images = static_cast<vulkan_detail::ImageInstance*>(stored->image_instance_mapped);
+    auto* masks = static_cast<vulkan_detail::MaskInstance*>(stored->mask_instance_mapped);
+    std::size_t pipe_counts[kVulkanPipeCount] = {};
+    std::size_t pipe_slots[kVulkanPipeCount] = {};
+    auto pass_open = false;
     auto bound_valid = false;
+    auto bound = DrawPipe::rect;
+    auto bound_set = VkDescriptorSet{VK_NULL_HANDLE};
+    auto pending_valid = false;
+    auto pending_pipe = DrawPipe::rect;
+    auto pending_set = VkDescriptorSet{VK_NULL_HANDLE};
+    auto run_base = std::size_t{};
     auto translation = LayoutPoint{};
     auto translation_stack = std::array<LayoutPoint, 8>{};
     auto translation_depth = std::size_t{};
 
-    auto ensure_begun = [&]() noexcept {
-        if (!begun) {
-            if (!begin_frame(*state, *stored)) {
-                return false;
-            }
-
-            begun = true;
-        }
-
-        return true;
+    const auto pipe_index = [](DrawPipe pipe) noexcept {
+        return static_cast<std::size_t>(pipe);
     };
 
-    auto draw_pending = [&](DrawPipe pipe, std::size_t first, std::size_t count) noexcept {
+    auto ensure_pass = [&]() noexcept {
+        if (!pass_open) {
+            begin_pass(*state, *stored);
+            pass_open = true;
+        }
+    };
+
+    auto draw_pending = [&](DrawPipe pipe,
+                            std::size_t first,
+                            std::size_t count,
+                            VkDescriptorSet set) noexcept {
         const auto offset = VkDeviceSize{};
 
         if (!bound_valid || bound != pipe) {
@@ -248,35 +356,59 @@ VulkanRenderResult render_vulkan_rects(
                     stored->pipeline
                 );
                 vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->instances, &offset);
-            } else {
+            } else if (pipe == DrawPipe::rounded) {
                 vkCmdBindPipeline(
                     state->commands,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     stored->rounded_pipeline
                 );
                 vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->rounded_instances, &offset);
+            } else if (pipe == DrawPipe::image) {
+                vkCmdBindPipeline(
+                    state->commands,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    stored->image_pipeline
+                );
+                vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->image_instances, &offset);
+            } else {
+                vkCmdBindPipeline(
+                    state->commands,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    stored->mask_pipeline
+                );
+                vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->mask_instances, &offset);
             }
 
             bound = pipe;
             bound_valid = true;
+            bound_set = VkDescriptorSet{VK_NULL_HANDLE};
         }
 
+        if ((pipe == DrawPipe::image || pipe == DrawPipe::mask) && set != bound_set) {
+            vkCmdBindDescriptorSets(
+                state->commands,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipe == DrawPipe::image ? stored->image_layout : stored->mask_layout,
+                0,
+                1,
+                &set,
+                0,
+                nullptr
+            );
+
+            bound_set = set;
+        }
+
+        draw_chunk(*state, static_cast<std::uint32_t>(first), static_cast<std::uint32_t>(count));
+
         if (pipe == DrawPipe::rect) {
-            draw_chunk(
-                *state,
-                static_cast<std::uint32_t>(first),
-                static_cast<std::uint32_t>(count)
-            );
-
             ++stats.rect_draws;
-        } else {
-            draw_chunk(
-                *state,
-                static_cast<std::uint32_t>(first),
-                static_cast<std::uint32_t>(count)
-            );
-
+        } else if (pipe == DrawPipe::rounded) {
             ++stats.rounded_draws;
+        } else if (pipe == DrawPipe::image) {
+            ++stats.image_draws;
+        } else {
+            ++stats.mask_draws;
         }
 
         ++stats.draws;
@@ -285,9 +417,7 @@ VulkanRenderResult render_vulkan_rects(
     for (const auto& command : commands) {
         if (const auto* push = std::get_if<PushTranslation>(&command)) {
             if (translation_depth >= translation_stack.size()) {
-                if (begun) {
-                    abandon_frame(*state);
-                }
+                abandon_frame(*state, *stored, pass_open);
 
                 return VulkanRenderResult::insufficient_capacity;
             }
@@ -302,9 +432,7 @@ VulkanRenderResult render_vulkan_rects(
 
         if (std::holds_alternative<PopTranslation>(command)) {
             if (translation_depth == 0) {
-                if (begun) {
-                    abandon_frame(*state);
-                }
+                abandon_frame(*state, *stored, pass_open);
 
                 return VulkanRenderResult::invalid_input;
             }
@@ -317,28 +445,104 @@ VulkanRenderResult render_vulkan_rects(
 
         const auto* fill = std::get_if<FillRect>(&command);
         const auto* rounded_fill = std::get_if<FillRoundedRect>(&command);
+        const auto* drawn = std::get_if<DrawImage>(&command);
+        const auto* masked = std::get_if<DrawMask>(&command);
 
-        if (fill == nullptr && rounded_fill == nullptr) {
-            if (begun) {
-                abandon_frame(*state);
-            }
+        if (fill == nullptr && rounded_fill == nullptr && drawn == nullptr && masked == nullptr) {
+            abandon_frame(*state, *stored, pass_open);
 
             return VulkanRenderResult::unsupported_commands;
         }
 
-        const auto& shape = fill != nullptr ? fill->bounds : rounded_fill->bounds;
-        const auto& color = fill != nullptr ? fill->color : rounded_fill->color;
+        auto pipe = DrawPipe::rect;
+        auto set = VkDescriptorSet{VK_NULL_HANDLE};
+        auto radius = 0.0F;
+        auto opacity = 1.0F;
+        LayoutRect shape{};
+        DisplayColor color{};
 
-        if (!render_detail::valid_rect(shape)) {
-            if (begun) {
-                abandon_frame(*state);
+        if (drawn != nullptr) {
+            const auto* image = drawn->image;
+
+            if (image == nullptr || !render_detail::valid_image(*image) ||
+                !render_detail::valid_image_placement(*drawn)) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
             }
 
-            return VulkanRenderResult::invalid_input;
-        }
+            if (drawn->opacity == 0) {
+                continue;
+            }
 
-        if (color.alpha == 0) {
-            continue;
+            const auto found = vulkan_detail::lookup_image(*stored, *image, drawn->sampling);
+
+            if (found == VK_NULL_HANDLE) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            pipe = DrawPipe::image;
+            set = found;
+            opacity = static_cast<float>(drawn->opacity) * (1.0F / 255.0F);
+            shape = drawn->destination;
+        } else if (masked != nullptr) {
+            const auto* mask = masked->mask;
+
+            if (mask == nullptr || mask->stride < mask->width ||
+                mask->coverage.size() < mask->height * mask->stride) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (masked->color.alpha == 0) {
+                continue;
+            }
+
+            const auto found = vulkan_detail::lookup_mask(*stored, *mask);
+
+            if (found == VK_NULL_HANDLE) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            pipe = DrawPipe::mask;
+            set = found;
+            color = masked->color;
+            shape = LayoutRect{
+                .x = masked->x,
+                .y = masked->y,
+                .width = static_cast<float>(mask->width),
+                .height = static_cast<float>(mask->height),
+            };
+        } else {
+            shape = fill != nullptr ? fill->bounds : rounded_fill->bounds;
+            color = fill != nullptr ? fill->color : rounded_fill->color;
+
+            if (!render_detail::valid_rect(shape)) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (color.alpha == 0) {
+                continue;
+            }
+
+            if (rounded_fill != nullptr || stored->unified) {
+                const auto diameter =
+                    std::min(static_cast<float>(shape.width), static_cast<float>(shape.height));
+
+                radius = rounded_fill != nullptr ? std::min(rounded_fill->radius, diameter * 0.5F)
+                                                 : 0.0F;
+
+                if (radius > 0.0F || stored->unified) {
+                    pipe = DrawPipe::rounded;
+                }
+            }
         }
 
         const auto translated = LayoutRect{
@@ -354,58 +558,49 @@ VulkanRenderResult render_vulkan_rects(
             continue;
         }
 
-        if (stats.submitted == kVulkanMaxRects * kVulkanMaxRectDraws) {
-            if (begun) {
-                abandon_frame(*state);
+        if (drawn != nullptr) {
+            const auto source_right = drawn->source.x + drawn->source.width;
+            const auto source_bottom = drawn->source.y + drawn->source.height;
+
+            if (drawn->source.width <= 0.0F || drawn->source.height <= 0.0F ||
+                source_right <= 0.0F || source_bottom <= 0.0F) {
+                continue;
             }
+        }
+
+        if (stats.submitted == kVulkanMaxRects * kVulkanMaxRectDraws) {
+            abandon_frame(*state, *stored, pass_open);
 
             return VulkanRenderResult::insufficient_capacity;
         }
 
         constexpr auto channel_scale = 1.0F / 255.0F;
 
-        auto pipe = DrawPipe::rect;
-        auto radius = 0.0F;
+        const auto index = pipe_index(pipe);
 
-        if (rounded_fill != nullptr) {
-            const auto diameter = std::min(
-                static_cast<float>(bounds.right - bounds.left),
-                static_cast<float>(bounds.bottom - bounds.top)
+        if (pending_valid && (pipe != pending_pipe || set != pending_set)) {
+            ensure_pass();
+
+            draw_pending(
+                pending_pipe,
+                run_base,
+                pipe_counts[pipe_index(pending_pipe)],
+                pending_set
             );
 
-            radius = std::min(rounded_fill->radius, diameter * 0.5F);
-
-            if (radius > 0.0F) {
-                pipe = DrawPipe::rounded;
-            }
+            pipe_counts[pipe_index(pending_pipe)] = 0;
+            pending_valid = false;
         }
 
-        if (pipe == DrawPipe::rect && rounded_count != 0) {
-            if (!ensure_begun()) {
-                return VulkanRenderResult::device_error;
-            }
-
-            draw_pending(DrawPipe::rounded, rounded_base, rounded_count);
-
-            rounded_count = 0;
-        }
-
-        if (pipe == DrawPipe::rounded && rect_count != 0) {
-            if (!ensure_begun()) {
-                return VulkanRenderResult::device_error;
-            }
-
-            draw_pending(DrawPipe::rect, rect_base, rect_count);
-
-            rect_count = 0;
+        if (!pending_valid) {
+            pending_pipe = pipe;
+            pending_set = set;
+            run_base = pipe_slots[index];
+            pending_valid = true;
         }
 
         if (pipe == DrawPipe::rect) {
-            if (rect_count == 0) {
-                rect_base = rect_slot;
-            }
-
-            const auto slot = rect_slot++;
+            const auto slot = pipe_slots[index]++;
 
             rects[slot] = vulkan_detail::RectInstance{
                 .min_x = static_cast<float>(bounds.left),
@@ -417,14 +612,8 @@ VulkanRenderResult render_vulkan_rects(
                 .blue = static_cast<float>(color.blue) * channel_scale,
                 .alpha = static_cast<float>(color.alpha) * channel_scale,
             };
-
-            ++rect_count;
-        } else {
-            if (rounded_count == 0) {
-                rounded_base = rounded_slot;
-            }
-
-            const auto slot = rounded_slot++;
+        } else if (pipe == DrawPipe::rounded) {
+            const auto slot = pipe_slots[index]++;
 
             rounded[slot] = vulkan_detail::RoundedRectInstance{
                 .min_x = static_cast<float>(bounds.left),
@@ -435,60 +624,114 @@ VulkanRenderResult render_vulkan_rects(
                 .green = static_cast<float>(color.green) * channel_scale,
                 .blue = static_cast<float>(color.blue) * channel_scale,
                 .alpha = static_cast<float>(color.alpha) * channel_scale,
+                .center_x = translated.x + translated.width * 0.5F,
+                .center_y = translated.y + translated.height * 0.5F,
+                .half_x = translated.width * 0.5F,
+                .half_y = translated.height * 0.5F,
                 .radius = radius,
             };
+        } else if (pipe == DrawPipe::image) {
+            const auto& image = *drawn->image;
+            const auto image_width = static_cast<float>(image.width);
+            const auto image_height = static_cast<float>(image.height);
+            const auto scale_x = drawn->source.width / translated.width;
+            const auto scale_y = drawn->source.height / translated.height;
+            const auto nearest_bias =
+                drawn->sampling == veyra::SoftwareImageSampling::nearest ? 0.001F : 0.0F;
+            const auto uv_bias_x = nearest_bias / image_width;
+            const auto uv_bias_y = nearest_bias / image_height;
+            const auto slot = pipe_slots[index]++;
 
-            ++rounded_count;
+            images[slot] = vulkan_detail::ImageInstance{
+                .min_x = static_cast<float>(bounds.left),
+                .min_y = static_cast<float>(bounds.top),
+                .max_x = static_cast<float>(bounds.right),
+                .max_y = static_cast<float>(bounds.bottom),
+                .min_u =
+                    (drawn->source.x + (static_cast<float>(bounds.left) - translated.x) * scale_x) /
+                        image_width +
+                    uv_bias_x,
+                .min_v = (drawn->source.y + static_cast<float>(bounds.top) - translated.y) *
+                        scale_y / image_height +
+                    uv_bias_y,
+                .max_u = (drawn->source.x +
+                          (static_cast<float>(bounds.right) - translated.x) * scale_x) /
+                        image_width +
+                    uv_bias_x,
+                .max_v = (drawn->source.y + static_cast<float>(bounds.bottom) - translated.y) *
+                        scale_y / image_height +
+                    uv_bias_y,
+                .opacity = opacity,
+            };
+        } else {
+            const auto& mask = *masked->mask;
+            const auto slot = pipe_slots[index]++;
+
+            const auto start_x = std::clamp(
+                std::floor(
+                    static_cast<double>(bounds.left) + 0.5 - static_cast<double>(translated.x)
+                ),
+                0.0,
+                static_cast<double>(mask.width - 1)
+            );
+            const auto start_y = std::clamp(
+                std::floor(
+                    static_cast<double>(bounds.top) + 0.5 - static_cast<double>(translated.y)
+                ),
+                0.0,
+                static_cast<double>(mask.height - 1)
+            );
+
+            masks[slot] = vulkan_detail::MaskInstance{
+                .min_x = static_cast<float>(bounds.left),
+                .min_y = static_cast<float>(bounds.top),
+                .max_x = static_cast<float>(bounds.right),
+                .max_y = static_cast<float>(bounds.bottom),
+                .start_x = static_cast<float>(start_x),
+                .start_y = static_cast<float>(start_y),
+                .red = static_cast<float>(color.red) * channel_scale,
+                .green = static_cast<float>(color.green) * channel_scale,
+                .blue = static_cast<float>(color.blue) * channel_scale,
+                .alpha = static_cast<float>(color.alpha) * channel_scale,
+            };
         }
 
+        ++pipe_counts[index];
         ++stats.submitted;
 
-        if (rect_count == kVulkanMaxRects) {
-            if (!ensure_begun()) {
-                return VulkanRenderResult::device_error;
-            }
+        if (pipe_counts[index] == kVulkanMaxRects) {
+            ensure_pass();
 
-            draw_pending(DrawPipe::rect, rect_base, rect_count);
+            draw_pending(pipe, run_base, pipe_counts[index], set);
 
-            rect_count = 0;
-        }
-
-        if (rounded_count == kVulkanMaxRects) {
-            if (!ensure_begun()) {
-                return VulkanRenderResult::device_error;
-            }
-
-            draw_pending(DrawPipe::rounded, rounded_base, rounded_count);
-
-            rounded_count = 0;
+            pipe_counts[index] = 0;
+            pending_valid = false;
         }
     }
 
     if (translation_depth != 0) {
-        if (begun) {
-            abandon_frame(*state);
-        }
+        abandon_frame(*state, *stored, pass_open);
 
         return VulkanRenderResult::invalid_input;
     }
 
-    if (!begun) {
-        if (!begin_frame(*state, *stored)) {
-            return VulkanRenderResult::device_error;
-        }
+    if (pending_valid) {
+        ensure_pass();
 
-        begun = true;
+        draw_pending(pending_pipe, run_base, pipe_counts[pipe_index(pending_pipe)], pending_set);
+
+        pipe_counts[pipe_index(pending_pipe)] = 0;
+        pending_valid = false;
     }
 
-    if (rect_count != 0) {
-        draw_pending(DrawPipe::rect, rect_base, rect_count);
-    }
-
-    if (rounded_count != 0) {
-        draw_pending(DrawPipe::rounded, rounded_base, rounded_count);
+    if (!pass_open) {
+        begin_pass(*state, *stored);
+        pass_open = true;
     }
 
     if (!end_frame(*state)) {
+        vulkan_detail::evict_frame_images(*state, *stored);
+
         return VulkanRenderResult::device_error;
     }
 

@@ -364,7 +364,7 @@ if(VEYRA_WITH_VULKAN)
   set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
   file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
   set(veyra_vulkan_spv_headers "")
-  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect")
+  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask")
    string(REPLACE ":" ";" shader_parts "${shader_spec}")
    list(GET shader_parts 0 shader_name)
    list(GET shader_parts 1 shader_prefix)
@@ -392,6 +392,9 @@ if(VEYRA_WITH_VULKAN)
   add_library(veyra_vulkan STATIC
    src/render/vulkan_context.cpp
    src/render/vulkan_internal.cpp
+   src/render/vulkan_texture_cache.cpp
+   src/render/vulkan_mask_cache.cpp
+   src/render/vulkan_pipeline_assembly.cpp
    src/render/vulkan_rect_pipeline.cpp
    src/render/vulkan_rect_frame.cpp
    ${veyra_vulkan_spv_headers}
@@ -407,9 +410,17 @@ if(VEYRA_WITH_VULKAN)
   target_link_libraries(veyra_vulkan_rect_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_rect_parity COMMAND veyra_vulkan_rect_parity_test)
 
-  add_executable(veyra_vulkan_e3_shadowed_test tests/vulkan_e3_shadowed_test.cpp)
-  target_link_libraries(veyra_vulkan_e3_shadowed_test PRIVATE veyra_vulkan)
-  add_test(NAME vulkan_e3_shadowed COMMAND veyra_vulkan_e3_shadowed_test)
+  add_executable(veyra_vulkan_e3_scenes_test tests/vulkan_e3_scenes_test.cpp)
+  target_link_libraries(veyra_vulkan_e3_scenes_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_e3_scenes COMMAND veyra_vulkan_e3_scenes_test)
+
+  add_executable(veyra_vulkan_image_parity_test tests/vulkan_image_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_image_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_image_parity COMMAND veyra_vulkan_image_parity_test)
+
+  add_executable(veyra_vulkan_mask_parity_test tests/vulkan_mask_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_mask_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_mask_parity COMMAND veyra_vulkan_mask_parity_test)
  endif()
 endif()
 

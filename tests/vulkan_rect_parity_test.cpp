@@ -333,6 +333,97 @@ void check_rounded_parity(
     check_parity(context, pipeline, scene, expected, actual, "rounded", 1);
 }
 
+void check_unified_integer_parity(
+    veyra::VulkanContext& context,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    auto unified = veyra::VulkanRectPipeline{};
+
+    require(
+        veyra::create_vulkan_unified_pipeline(context, unified) ==
+            veyra::VulkanRenderResult::complete,
+        "unified pipeline comes up for plain rects"
+    );
+
+    const std::array<veyra::DisplayCommand, 3> storage{
+        veyra::FillRect{
+            .bounds = {.width = static_cast<float>(kWidth), .height = static_cast<float>(kHeight)},
+            .color = {.red = 240, .green = 240, .blue = 244, .alpha = 255},
+        },
+        veyra::FillRect{
+            .bounds = {.x = 10.0F, .y = 12.0F, .width = 40.0F, .height = 30.0F},
+            .color = {.red = 30, .green = 140, .blue = 60, .alpha = 200},
+        },
+        veyra::FillRect{
+            .bounds = {.x = -4.0F, .y = 50.0F, .width = 40.0F, .height = 30.0F},
+            .color = {.red = 210, .green = 60, .blue = 40, .alpha = 255},
+        },
+    };
+
+    const auto scene = std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
+
+    render_reference(scene, expected, kWidth, kHeight, rooms);
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, unified, scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "integer rects complete through the unified pipeline"
+    );
+    require(stats.rect_draws == 0, "unified draws no plain rects");
+
+    check_parity(context, unified, scene, expected, actual, "unified-integer", 1);
+
+    veyra::destroy_vulkan_rect_pipeline(context, unified);
+}
+
+void check_clipped_rounded_parity(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    const std::array<veyra::DisplayCommand, 4> storage{
+        veyra::FillRect{
+            .bounds = {.width = static_cast<float>(kWidth), .height = static_cast<float>(kHeight)},
+            .color = {.red = 240, .green = 240, .blue = 244, .alpha = 255},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 10.5F, .y = 12.0F, .width = 40.0F, .height = 30.0F},
+            .radius = 8.0F,
+            .color = {.red = 30, .green = 140, .blue = 60, .alpha = 255},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = -8.0F, .y = 56.0F, .width = 40.0F, .height = 30.0F},
+            .radius = 10.0F,
+            .color = {.red = 210, .green = 60, .blue = 40, .alpha = 200},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 70.0F, .y = 60.0F, .width = 40.0F, .height = 30.0F},
+            .radius = 10.0F,
+            .color = {.red = 40, .green = 70, .blue = 210, .alpha = 200},
+        },
+    };
+
+    const auto scene = std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
+
+    render_reference(scene, expected, kWidth, kHeight, rooms);
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "fractional and clipped rounded rects complete"
+    );
+
+    check_parity(context, pipeline, scene, expected, actual, "rounded-clipped", 2);
+}
+
 void check_capacity_limit(
     veyra::VulkanContext& context,
     veyra::VulkanRectPipeline& pipeline,
@@ -548,6 +639,21 @@ int run() {
     check_rounded_parity(
         context,
         pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
+        rooms
+    );
+
+    check_clipped_rounded_parity(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
+        rooms
+    );
+
+    check_unified_integer_parity(
+        context,
         std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
         std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
         rooms

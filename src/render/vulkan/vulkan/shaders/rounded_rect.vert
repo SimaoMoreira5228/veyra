@@ -1,31 +1,32 @@
 #version 450
 
-layout(location = 0) in vec4 inBounds;
+layout(location = 0) in vec4 inDest;
 layout(location = 1) in vec4 inColor;
-layout(location = 2) in float inRadius;
+layout(location = 2) in vec4 inShape;
+layout(location = 3) in float inRadius;
 
 layout(push_constant) uniform Push {
     vec2 extent;
 } push;
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outBounds;
+layout(location = 1) out vec4 outShape;
 layout(location = 2) out vec2 outPixel;
 layout(location = 3) out float outRadius;
 
 void main() {
-    vec2 pixel = inBounds.xy;
+    vec2 pixel = inDest.xy;
 
     if (gl_VertexIndex == 1 || gl_VertexIndex == 4) {
-        pixel = vec2(inBounds.z, inBounds.y);
+        pixel = vec2(inDest.z, inDest.y);
     } else if (gl_VertexIndex == 2 || gl_VertexIndex == 3) {
-        pixel = vec2(inBounds.x, inBounds.w);
+        pixel = vec2(inDest.x, inDest.w);
     } else if (gl_VertexIndex == 5) {
-        pixel = inBounds.zw;
+        pixel = inDest.zw;
     }
 
     outColor = inColor;
-    outBounds = inBounds;
+    outShape = inShape;
     outPixel = pixel;
     outRadius = inRadius;
 

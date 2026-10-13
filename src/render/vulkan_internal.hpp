@@ -62,10 +62,73 @@ struct RoundedRectInstance {
     float green{};
     float blue{};
     float alpha{};
+    float center_x{};
+    float center_y{};
+    float half_x{};
+    float half_y{};
     float radius{};
     float pad_a{};
     float pad_b{};
     float pad_c{};
+};
+
+struct ImageInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float min_u{};
+    float min_v{};
+    float max_u{};
+    float max_v{};
+    float opacity{};
+    float pad_a{};
+    float pad_b{};
+    float pad_c{};
+};
+
+struct MaskInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float start_x{};
+    float start_y{};
+    float pad_a{};
+    float pad_b{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+};
+
+constexpr std::size_t kVulkanImageStagingBytes = 1 << 20;
+
+struct ImageCacheEntry {
+    const SoftwareImage* key{};
+    std::uint64_t generation{};
+    std::uint64_t frame_tag{};
+    std::size_t width{};
+    std::size_t height{};
+    VkImage image{VK_NULL_HANDLE};
+    VkDeviceMemory memory{VK_NULL_HANDLE};
+    VkImageView view{VK_NULL_HANDLE};
+    VkDescriptorSet nearest{VK_NULL_HANDLE};
+    VkDescriptorSet linear{VK_NULL_HANDLE};
+    bool occupied{};
+};
+
+struct MaskCacheEntry {
+    const SoftwareMask* key{};
+    std::uint64_t generation{};
+    std::uint64_t frame_tag{};
+    std::size_t width{};
+    std::size_t height{};
+    VkImage image{VK_NULL_HANDLE};
+    VkDeviceMemory memory{VK_NULL_HANDLE};
+    VkImageView view{VK_NULL_HANDLE};
+    VkDescriptorSet set{VK_NULL_HANDLE};
+    bool occupied{};
 };
 
 struct PipelineState {
@@ -80,6 +143,30 @@ struct PipelineState {
     VkBuffer rounded_instances{VK_NULL_HANDLE};
     VkDeviceMemory rounded_instance_memory{VK_NULL_HANDLE};
     void* rounded_instance_mapped{nullptr};
+    bool unified{};
+    VkPipelineLayout image_layout{VK_NULL_HANDLE};
+    VkPipeline image_pipeline{VK_NULL_HANDLE};
+    VkBuffer image_instances{VK_NULL_HANDLE};
+    VkDeviceMemory image_instance_memory{VK_NULL_HANDLE};
+    void* image_instance_mapped{nullptr};
+    VkPipelineLayout mask_layout{VK_NULL_HANDLE};
+    VkPipeline mask_pipeline{VK_NULL_HANDLE};
+    VkBuffer mask_instances{VK_NULL_HANDLE};
+    VkDeviceMemory mask_instance_memory{VK_NULL_HANDLE};
+    void* mask_instance_mapped{nullptr};
+    VkSampler nearest_sampler{VK_NULL_HANDLE};
+    VkSampler linear_sampler{VK_NULL_HANDLE};
+    VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
+    VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
+    VkBuffer staging{VK_NULL_HANDLE};
+    VkDeviceMemory staging_memory{VK_NULL_HANDLE};
+    void* staging_mapped{nullptr};
+    std::size_t staging_used{};
+    std::uint64_t frame_seq{};
+    ImageCacheEntry images[kVulkanMaxFrameImages]{};
+    MaskCacheEntry masks[kVulkanMaxFrameImages]{};
+    std::size_t evict_cursor{};
+    std::size_t mask_evict_cursor{};
 };
 
 ContextState* state_of(VulkanContext& context) noexcept;
@@ -116,9 +203,84 @@ void destroy_instance_buffer(
     void*& mapped
 ) noexcept;
 
+bool create_pass(VkDevice device, VkRenderPass& pass) noexcept;
+
+enum class ImageResolveResult : std::uint8_t {
+    ready,
+    too_large,
+    device_error,
+};
+
+bool create_texture_cache(ContextState& state, PipelineState& pipeline) noexcept;
+
+void destroy_texture_cache(ContextState& state, PipelineState& pipeline) noexcept;
+
+void evict_mask_entry(ContextState& state, PipelineState& pipeline, MaskCacheEntry& entry) noexcept;
+
+void evict_frame_images(ContextState& state, PipelineState& pipeline) noexcept;
+
+VkDescriptorSet lookup_mask(const PipelineState& pipeline, const SoftwareMask& mask) noexcept;
+
+enum class MaskResolveResult : std::uint8_t {
+    ready,
+    too_large,
+    device_error,
+};
+
+MaskResolveResult resolve_mask(
+    ContextState& state,
+    PipelineState& pipeline,
+    const SoftwareMask& mask,
+    VkDescriptorSet& descriptor
+) noexcept;
+
+ImageResolveResult resolve_image(
+    ContextState& state,
+    PipelineState& pipeline,
+    const SoftwareImage& image,
+    SoftwareImageSampling sampling,
+    VkDescriptorSet& descriptor
+) noexcept;
+
+VkDescriptorSet lookup_image(
+    const PipelineState& pipeline,
+    const SoftwareImage& image,
+    SoftwareImageSampling sampling
+) noexcept;
+
 void copy_device_name(char (&output)[256], const char* source) noexcept;
 
 void copy_icd_hint(char (&output)[64]) noexcept;
+
+bool create_rect_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_rounded_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_image_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkDescriptorSetLayout descriptor_layout,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_mask_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkDescriptorSetLayout descriptor_layout,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
 
 }
 #endif
