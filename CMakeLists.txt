@@ -10,6 +10,7 @@ option(VEYRA_WITH_UNICODE "Build ICU-based Unicode editing, bidi, and line break
 option(VEYRA_WITH_FREETYPE "Build FreeType glyph rasterization support" OFF)
 option(VEYRA_WITH_SDL3 "Build the SDL3 software window backend" OFF)
 option(VEYRA_WITH_GLFW "Build the GLFW platform window backend" OFF)
+option(VEYRA_WITH_VULKAN "Build the Vulkan offscreen rect prototype" OFF)
 set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
 set(valid_paradigms arena reactive ecs all)
@@ -350,6 +351,54 @@ if(VEYRA_WITH_GLFW)
  target_link_libraries(veyra_glfw_window_test PRIVATE veyra_glfw ${veyra_glfw_target})
  add_test(NAME glfw_window_behavior COMMAND veyra_glfw_window_test)
  set_tests_properties(glfw_window_behavior PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(VEYRA_WITH_VULKAN)
+ find_package(Vulkan QUIET)
+ find_program(VEYRA_GLSLANG_VALIDATOR glslangValidator)
+ if(NOT Vulkan_FOUND OR NOT VEYRA_GLSLANG_VALIDATOR)
+  message(STATUS "Veyra: Vulkan headers/loader or glslangValidator missing, skipping offscreen target")
+ else()
+  set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
+  file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
+  set(veyra_vulkan_spv_headers "")
+  foreach(stage Vert Frag)
+   string(TOLOWER "${stage}" stage_lower)
+   set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/rect.${stage_lower}")
+   set(shader_spv "${veyra_vulkan_gen}/rect.${stage_lower}.spv")
+   set(shader_header "${veyra_vulkan_gen}/rect_${stage_lower}_spv.hpp")
+   add_custom_command(
+    OUTPUT "${shader_spv}"
+    COMMAND "${VEYRA_GLSLANG_VALIDATOR}" -V "${shader_source}" -o "${shader_spv}"
+    DEPENDS "${shader_source}"
+    COMMENT "Veyra: compiling rect.${stage_lower} to SPIR-V"
+   )
+   add_custom_command(
+    OUTPUT "${shader_header}"
+    COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
+     "-DVAR=kRect${stage}Spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    COMMENT "Veyra: embedding rect.${stage_lower}.spv"
+   )
+   list(APPEND veyra_vulkan_spv_headers "${shader_header}")
+  endforeach()
+  add_library(veyra_vulkan STATIC
+   src/render/vulkan_context.cpp
+   src/render/vulkan_internal.cpp
+   src/render/vulkan_rect_pipeline.cpp
+   ${veyra_vulkan_spv_headers}
+  )
+  target_include_directories(veyra_vulkan PUBLIC
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+  target_include_directories(veyra_vulkan PRIVATE "${veyra_vulkan_gen}")
+  target_link_libraries(veyra_vulkan PUBLIC veyra Vulkan::Vulkan)
+  target_compile_features(veyra_vulkan PUBLIC cxx_std_23)
+
+  add_executable(veyra_vulkan_rect_parity_test tests/vulkan_rect_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_rect_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_rect_parity COMMAND veyra_vulkan_rect_parity_test)
+ endif()
 endif()
 
 if(VEYRA_PARADIGM STREQUAL "all")

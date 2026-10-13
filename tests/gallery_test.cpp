@@ -7,7 +7,10 @@
 #include "veyra/widgets/basic/textfield.hpp"
 #include "veyra/widgets/basic/toggle.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <span>
 #include <stdexcept>
@@ -15,6 +18,13 @@
 #include <string_view>
 
 namespace {
+
+constexpr double kBaselineScales[]{1.0, 1.25, 1.5, 2.0};
+
+// NOTE: every fractional-coverage path quantizes coverage to 8 bits and the
+// over operator rounds once, so a blended channel lands within 2 LSB of the
+// source-destination segment over an opaque background.
+constexpr int kCoverageTolerance = 2;
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -160,6 +170,174 @@ void check_gallery_snapshot() {
     }
 }
 
+veyra::LayoutRect scaled_rect(float x, float y, float width, float height, double scale) {
+    const auto factor = static_cast<float>(scale);
+    return {.x = x * factor, .y = y * factor, .width = width * factor, .height = height * factor};
+}
+
+void render_scene(
+    std::span<const veyra::DisplayCommand> commands,
+    std::span<veyra::SoftwarePixel> pixels,
+    std::size_t width,
+    std::size_t height
+) {
+    std::array<veyra::SoftwareClipRect, 4> clips{};
+    std::array<veyra::LayoutPoint, 4> translations{};
+    const veyra::SoftwareSurface surface{
+        .width = width,
+        .height = height,
+        .stride = width,
+        .pixels = pixels,
+    };
+    const auto result =
+        veyra::render_software(commands, surface, {.clips = clips, .translations = translations});
+    require(result == veyra::SoftwareRenderResult::complete, "the scaled scene renders");
+}
+
+void render_solid_baseline(
+    double scale,
+    std::span<veyra::SoftwarePixel> pixels,
+    std::size_t width,
+    std::size_t height,
+    veyra::Srgba8 surface,
+    veyra::Srgba8 button,
+    veyra::Srgba8 checked
+) {
+    const std::array<veyra::DisplayCommand, 3> commands{
+        veyra::FillRect{.bounds = scaled_rect(0.0F, 0.0F, 8.0F, 8.0F, scale), .color = surface},
+        veyra::FillRect{.bounds = scaled_rect(0.0F, 0.0F, 4.0F, 4.0F, scale), .color = button},
+        veyra::FillRect{.bounds = scaled_rect(4.0F, 4.0F, 4.0F, 4.0F, scale), .color = checked},
+    };
+    render_scene(commands, pixels, width, height);
+}
+
+void check_scaled_solids_stay_exact() {
+    const veyra::Theme theme;
+    const veyra::Srgba8 surface = theme.color(veyra::tokens::color_surface);
+    const auto idle = veyra::PressableController{};
+    const veyra::Srgba8 button = veyra::button_appearance(theme, idle.state()).background;
+    auto toggle = veyra::ToggleController{};
+    toggle.configure({.value = veyra::ToggleValue::checked});
+    const veyra::Srgba8 checked = veyra::checkbox_appearance(theme, toggle.state()).box;
+    for (const double scale : kBaselineScales) {
+        const auto width = static_cast<std::size_t>(std::lround(8.0 * scale));
+        std::array<veyra::SoftwarePixel, 16 * 16> pixels{};
+        render_solid_baseline(
+            scale,
+            std::span(pixels).first(width * width),
+            width,
+            width,
+            surface,
+            button,
+            checked
+        );
+        const auto edge = static_cast<std::size_t>(std::lround(4.0 * scale));
+        for (std::size_t y = 0; y < width; ++y) {
+            for (std::size_t x = 0; x < width; ++x) {
+                const veyra::Srgba8 want =
+                    x < edge && y < edge ? button : (x >= edge && y >= edge ? checked : surface);
+                const auto& pixel = pixels[y * width + x];
+                require(
+                    pixel.red == want.red && pixel.green == want.green && pixel.blue == want.blue &&
+                        pixel.alpha == 255,
+                    "integer-mapped solids stay byte-exact at every baseline scale"
+                );
+            }
+        }
+    }
+}
+
+void check_double_scale_matches_blocks() {
+    const veyra::Theme theme;
+    const veyra::Srgba8 surface = theme.color(veyra::tokens::color_surface);
+    const auto idle = veyra::PressableController{};
+    const veyra::Srgba8 button = veyra::button_appearance(theme, idle.state()).background;
+    auto toggle = veyra::ToggleController{};
+    toggle.configure({.value = veyra::ToggleValue::checked});
+    const veyra::Srgba8 checked = veyra::checkbox_appearance(theme, toggle.state()).box;
+    std::array<veyra::SoftwarePixel, 8 * 8> single{};
+    render_solid_baseline(1.0, single, 8, 8, surface, button, checked);
+    std::array<veyra::SoftwarePixel, 16 * 16> doubled{};
+    render_solid_baseline(2.0, doubled, 16, 16, surface, button, checked);
+    for (std::size_t y = 0; y < 8; ++y) {
+        for (std::size_t x = 0; x < 8; ++x) {
+            const auto& want = single[y * 8 + x];
+            for (std::size_t dy = 0; dy < 2; ++dy) {
+                for (std::size_t dx = 0; dx < 2; ++dx) {
+                    const auto& pixel = doubled[(2 * y + dy) * 16 + 2 * x + dx];
+                    require(
+                        pixel.red == want.red && pixel.green == want.green &&
+                            pixel.blue == want.blue && pixel.alpha == want.alpha,
+                        "scale 2.0 repeats every scale 1.0 pixel as a 2x2 block"
+                    );
+                }
+            }
+        }
+    }
+}
+
+bool within_segment(std::uint8_t value, std::uint8_t end_a, std::uint8_t end_b) {
+    const auto low = std::min(end_a, end_b);
+    const auto high = std::max(end_a, end_b);
+    const int floor = low < kCoverageTolerance ? 0 : low - kCoverageTolerance;
+    const int ceiling = high > 255 - kCoverageTolerance ? 255 : high + kCoverageTolerance;
+    return value >= floor && value <= ceiling;
+}
+
+bool same_pixel(veyra::SoftwarePixel pixel, veyra::Srgba8 color) {
+    return pixel.red == color.red && pixel.green == color.green && pixel.blue == color.blue &&
+        pixel.alpha == 255;
+}
+
+void check_fractional_clip_and_overlap() {
+    constexpr double scale = 1.25;
+    const veyra::Theme theme;
+    const veyra::Srgba8 surface = theme.color(veyra::tokens::color_surface);
+    const auto idle = veyra::PressableController{};
+    const veyra::Srgba8 face = veyra::button_appearance(theme, idle.state()).background;
+    auto toggle = veyra::ToggleController{};
+    toggle.configure({.value = veyra::ToggleValue::checked});
+    const veyra::Srgba8 top = veyra::checkbox_appearance(theme, toggle.state()).box;
+    const std::array<veyra::DisplayCommand, 5> commands{
+        veyra::FillRect{.bounds = scaled_rect(0.0F, 0.0F, 8.0F, 8.0F, scale), .color = surface},
+        veyra::PushClip{.bounds = scaled_rect(1.0F, 1.0F, 6.0F, 6.0F, scale), .clip_id = 7},
+        veyra::StrokeLine{
+            .start = {.x = static_cast<float>(0.0 * scale), .y = static_cast<float>(0.0 * scale)},
+            .end = {.x = static_cast<float>(8.0 * scale), .y = static_cast<float>(8.0 * scale)},
+            .thickness = static_cast<float>(1.6 * scale),
+            .color = face,
+        },
+        veyra::PopClip{},
+        veyra::FillRect{.bounds = scaled_rect(4.0F, 4.0F, 4.0F, 4.0F, scale), .color = top},
+    };
+    std::array<veyra::SoftwarePixel, 10 * 10> pixels{};
+    render_scene(commands, pixels, 10, 10);
+    auto blended = false;
+    for (std::size_t y = 0; y < 10; ++y) {
+        for (std::size_t x = 0; x < 10; ++x) {
+            const auto& pixel = pixels[y * 10 + x];
+            if (x >= 5 && y >= 5) {
+                require(same_pixel(pixel, top), "the integer-mapped overlap stays byte-exact");
+                continue;
+            }
+            require(
+                within_segment(pixel.red, surface.red, face.red) &&
+                    within_segment(pixel.green, surface.green, face.green) &&
+                    within_segment(pixel.blue, surface.blue, face.blue) && pixel.alpha == 255,
+                "fractional clip coverage stays within 2 LSB of the blend segment"
+            );
+            if (!same_pixel(pixel, face) && !same_pixel(pixel, surface)) {
+                blended = true;
+            }
+        }
+    }
+    require(
+        same_pixel(pixels[9 * 10 + 0], surface) && same_pixel(pixels[0 * 10 + 9], surface),
+        "the mid-pixel clip keeps paint off far corners"
+    );
+    require(blended, "the fractional edge actually blends");
+}
+
 }
 
 int main() {
@@ -169,6 +347,9 @@ int main() {
         check_textfield_invalid_border();
         check_range_fractions_drive_thumbs();
         check_gallery_snapshot();
+        check_scaled_solids_stay_exact();
+        check_double_scale_matches_blocks();
+        check_fractional_clip_and_overlap();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

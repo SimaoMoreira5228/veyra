@@ -1,0 +1,47 @@
+#ifndef VEYRA_RENDER_VULKAN_CONTEXT_HPP
+#define VEYRA_RENDER_VULKAN_CONTEXT_HPP
+
+#include <cstddef>
+#include <cstdint>
+
+namespace veyra {
+
+enum class VulkanContextResult : std::uint8_t {
+    ready,
+    invalid_input,
+    unsupported,
+    creation_failed,
+};
+
+struct VulkanDeviceInfo {
+    char device_name[256]{};
+    char icd_hint[64]{};
+    std::uint32_t api_version{};
+    std::uint32_t driver_version{};
+    std::uint32_t vendor_id{};
+    std::uint32_t device_id{};
+    bool discrete{};
+    bool validation_layers{};
+};
+
+struct VulkanContext {
+    void* instance_state{};
+    std::size_t width{};
+    std::size_t height{};
+    VulkanDeviceInfo info{};
+    bool ready{};
+};
+
+VulkanContextResult
+create_vulkan_context(VulkanContext& context, std::size_t width, std::size_t height) noexcept;
+
+void destroy_vulkan_context(VulkanContext& context) noexcept;
+
+VulkanContextResult
+resize_vulkan_target(VulkanContext& context, std::size_t width, std::size_t height) noexcept;
+
+bool vulkan_context_ready(const VulkanContext& context) noexcept;
+
+}
+
+#endif

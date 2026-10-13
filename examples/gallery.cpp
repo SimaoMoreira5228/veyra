@@ -13,13 +13,16 @@
 
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -27,6 +30,10 @@ namespace {
 constexpr std::size_t kMargin = 16;
 constexpr std::size_t kRowGap = 14;
 constexpr std::size_t kMaxDimension = 2048;
+// NOTE: 8x the widest base canvas is 16384 pixels per side, the largest
+// canvas that stays comfortably addressable while keeping the suite fast.
+constexpr double kMinScale = 1.0;
+constexpr double kMaxScale = 8.0;
 constexpr std::size_t kSceneWidth = 528;
 constexpr std::size_t kMinWidth = 560;
 constexpr std::size_t kMinHeight = 416;
@@ -45,6 +52,7 @@ struct Options {
     const char* output{};
     std::size_t width{kMinWidth};
     std::size_t height{kMinHeight};
+    double scale{1.0};
 };
 
 std::size_t parse_size(const char* value) {
@@ -53,6 +61,19 @@ std::size_t parse_size(const char* value) {
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), parsed);
     if (error != std::errc{} || end != text.data() + text.size()) {
         throw std::invalid_argument("expected a non-negative integer");
+    }
+    return parsed;
+}
+
+double parse_scale(const char* value) {
+    const std::string_view text(value);
+    char* end{};
+    const double parsed = std::strtod(text.data(), &end);
+    if (end != text.data() + text.size() || !std::isfinite(parsed)) {
+        throw std::invalid_argument("gallery scale must be a finite number");
+    }
+    if (parsed < kMinScale || parsed > kMaxScale) {
+        throw std::invalid_argument("gallery scale must stay within 1 to 8");
     }
     return parsed;
 }
@@ -66,23 +87,124 @@ void check_dimension(std::size_t value, std::size_t minimum, std::string_view na
 }
 
 Options parse_options(int argc, char** argv) {
-    if (argc < 2 || argc > 4) {
-        throw std::invalid_argument("usage: veyra_gallery <output.ppm> [width height]");
+    if (argc < 2) {
+        throw std::invalid_argument("usage: veyra_gallery <output.ppm> [width height] [--scale S]");
     }
     auto options = Options{};
     options.output = argv[1];
     if (std::string_view(options.output).empty()) {
         throw std::invalid_argument("gallery output path must not be empty");
     }
-    if (argc >= 3) {
-        options.width = parse_size(argv[2]);
-    }
-    if (argc == 4) {
-        options.height = parse_size(argv[3]);
+    auto seen_scale = false;
+    auto seen_size = std::size_t{0};
+    for (auto index = 2; index < argc; ++index) {
+        const std::string_view token(argv[index]);
+        if (token == "--scale") {
+            ++index;
+            if (seen_scale || index >= argc) {
+                throw std::invalid_argument(
+                    "usage: veyra_gallery <output.ppm> [width height] [--scale S]"
+                );
+            }
+            options.scale = parse_scale(argv[index]);
+            seen_scale = true;
+            continue;
+        }
+        if (token.starts_with("--") || seen_size >= 2) {
+            throw std::invalid_argument(
+                "usage: veyra_gallery <output.ppm> [width height] [--scale S]"
+            );
+        }
+        const auto parsed = parse_size(argv[index]);
+        if (seen_size == 0) {
+            options.width = parsed;
+        } else {
+            options.height = parsed;
+        }
+        ++seen_size;
     }
     check_dimension(options.width, kMinWidth, "width");
     check_dimension(options.height, kMinHeight, "height");
     return options;
+}
+
+void scale_scalar(float& value, double scale) {
+    value = static_cast<float>(static_cast<double>(value) * scale);
+}
+
+void scale_rect(veyra::LayoutRect& rect, double scale) {
+    scale_scalar(rect.x, scale);
+    scale_scalar(rect.y, scale);
+    scale_scalar(rect.width, scale);
+    scale_scalar(rect.height, scale);
+}
+
+void scale_point(veyra::LayoutPoint& point, double scale) {
+    scale_scalar(point.x, scale);
+    scale_scalar(point.y, scale);
+}
+
+void scale_commands(std::vector<veyra::DisplayCommand>& commands, double scale) {
+    if (scale == 1.0) {
+        return;
+    }
+    for (auto& command : commands) {
+        if (auto* fill = std::get_if<veyra::FillRect>(&command)) {
+            scale_rect(fill->bounds, scale);
+            continue;
+        }
+        if (auto* rounded = std::get_if<veyra::FillRoundedRect>(&command)) {
+            scale_rect(rounded->bounds, scale);
+            scale_scalar(rounded->radius, scale);
+            continue;
+        }
+        if (auto* stroke = std::get_if<veyra::StrokeRect>(&command)) {
+            scale_rect(stroke->bounds, scale);
+            scale_scalar(stroke->thickness, scale);
+            continue;
+        }
+        if (auto* rounded = std::get_if<veyra::StrokeRoundedRect>(&command)) {
+            scale_rect(rounded->bounds, scale);
+            scale_scalar(rounded->radius, scale);
+            scale_scalar(rounded->thickness, scale);
+            continue;
+        }
+        if (auto* line = std::get_if<veyra::StrokeLine>(&command)) {
+            scale_point(line->start, scale);
+            scale_point(line->end, scale);
+            scale_scalar(line->thickness, scale);
+            continue;
+        }
+        if (auto* mask = std::get_if<veyra::DrawMask>(&command)) {
+            mask->x = static_cast<float>(static_cast<double>(mask->x) * scale);
+            mask->y = static_cast<float>(static_cast<double>(mask->y) * scale);
+            continue;
+        }
+        if (auto* image = std::get_if<veyra::DrawImage>(&command)) {
+            scale_rect(image->destination, scale);
+            continue;
+        }
+        if (auto* push = std::get_if<veyra::PushTranslation>(&command)) {
+            scale_point(push->offset, scale);
+            continue;
+        }
+        if (auto* clip = std::get_if<veyra::PushClip>(&command)) {
+            scale_rect(clip->bounds, scale);
+            continue;
+        }
+        if (std::holds_alternative<veyra::FillPath>(command) ||
+            std::holds_alternative<veyra::StrokePolyline>(command)) {
+            throw std::runtime_error("gallery scale cannot rewrite span-owned geometry");
+        }
+    }
+}
+
+std::size_t scaled_dimension(std::size_t base, double scale) {
+    const auto scaled = std::lround(static_cast<double>(base) * scale);
+    if (scaled <= 0 || static_cast<std::size_t>(scaled) > kMaxDimension) {
+        throw std::invalid_argument("gallery scaled canvas must stay within bounds");
+    }
+    return static_cast<std::size_t>(scaled);
 }
 
 void push_button(
@@ -626,7 +748,18 @@ int run(int argc, char** argv) {
     std::vector<veyra::DisplayCommand> commands;
     commands.reserve(128);
     build_scene(commands, theme, options.width, options.height);
-    std::vector<veyra::SoftwarePixel> pixels(options.width * options.height);
+    scale_commands(commands, options.scale);
+    const auto width = scaled_dimension(options.width, options.scale);
+    const auto height = scaled_dimension(options.height, options.scale);
+    auto* background = std::get_if<veyra::FillRect>(&commands.front());
+    if (background == nullptr) {
+        throw std::runtime_error("gallery scene lost its background");
+    }
+    background->bounds = {
+        .width = static_cast<float>(width),
+        .height = static_cast<float>(height),
+    };
+    std::vector<veyra::SoftwarePixel> pixels(width * height);
     std::array<veyra::SoftwareClipRect, 8> clips{};
     std::array<veyra::LayoutPoint, 8> translations{};
     const veyra::SoftwareRenderWorkspace workspace{
@@ -634,16 +767,16 @@ int run(int argc, char** argv) {
         .translations = translations,
     };
     const veyra::SoftwareSurface surface{
-        .width = options.width,
-        .height = options.height,
-        .stride = options.width,
+        .width = width,
+        .height = height,
+        .stride = width,
         .pixels = pixels,
     };
     const auto result = veyra::render_software(commands, surface, workspace);
     if (result != veyra::SoftwareRenderResult::complete) {
         throw std::runtime_error("gallery rendering failed");
     }
-    write_ppm(options.output, pixels, options.width, options.height);
+    write_ppm(options.output, pixels, width, height);
     return 0;
 }
 
