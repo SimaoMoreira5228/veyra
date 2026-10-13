@@ -11,6 +11,7 @@
 namespace veyra {
 
 constexpr std::size_t kVulkanMaxRects = 256;
+constexpr std::size_t kVulkanMaxRectDraws = 16;
 
 enum class VulkanRenderResult : std::uint8_t {
     complete,
@@ -22,7 +23,9 @@ enum class VulkanRenderResult : std::uint8_t {
 
 struct VulkanRectStats {
     std::size_t submitted{};
-    std::size_t skipped_translucent{};
+    std::size_t draws{};
+    std::size_t rect_draws{};
+    std::size_t rounded_draws{};
 };
 
 struct VulkanRectPipeline {

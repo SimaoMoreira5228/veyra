@@ -2,6 +2,9 @@
 #include "veyra/render/vulkan_context.hpp"
 #include "veyra/render/vulkan_rect_pipeline.hpp"
 
+#include "vulkan_parity_helpers.hpp"
+
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -15,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -55,17 +59,18 @@ void operator delete(void* ptr, std::size_t) noexcept {
 
 namespace {
 
-void require(bool condition, std::string_view message) {
-    if (!condition) {
-        throw std::runtime_error(std::string(message));
-    }
-}
-
 constexpr std::size_t kWidth = 96;
 constexpr std::size_t kHeight = 72;
 constexpr std::size_t kSmallWidth = 64;
 constexpr std::size_t kSmallHeight = 48;
 constexpr std::size_t kPixels = kWidth * kHeight;
+
+using veyra::vulkan_parity::check_parity;
+using veyra::vulkan_parity::elapsed_ns;
+using veyra::vulkan_parity::render_reference;
+using veyra::vulkan_parity::require;
+using veyra::vulkan_parity::SoftwareRooms;
+using veyra::vulkan_parity::TestClock;
 
 constexpr std::size_t kSceneCommands = 9;
 
@@ -105,37 +110,6 @@ build_scene(std::array<veyra::DisplayCommand, kSceneCommands>& storage) noexcept
     return std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
 }
 
-struct SoftwareRooms {
-    std::array<veyra::SoftwareClipRect, 1> clips{};
-    std::array<veyra::LayoutPoint, 2> translations{};
-};
-
-veyra::SoftwareRenderWorkspace workspace_view(SoftwareRooms& rooms) noexcept {
-    return veyra::SoftwareRenderWorkspace{
-        .clips = rooms.clips,
-        .translations = rooms.translations,
-        .path_intersections = {},
-        .path_windings = {},
-        .stroke_coverage = {},
-    };
-}
-
-void fill_black(std::span<veyra::SoftwarePixel> pixels) noexcept {
-    const auto black = veyra::SoftwarePixel{.alpha = 255};
-
-    for (auto& pixel : pixels) {
-        pixel = black;
-    }
-}
-
-using TestClock = std::chrono::steady_clock;
-
-std::uint64_t elapsed_ns(TestClock::time_point begin, TestClock::time_point end) noexcept {
-    return static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
-    );
-}
-
 void print_device(const veyra::VulkanDeviceInfo& info) {
     const auto api = info.api_version;
     const auto major = (api >> 22U) & 0x3FFU;
@@ -150,79 +124,6 @@ void print_device(const veyra::VulkanDeviceInfo& info) {
     std::cout << "vulkan discrete=" << (info.discrete ? "yes" : "no");
     std::cout << " layers=" << (info.validation_layers ? "on" : "off");
     std::cout << " icd=" << info.icd_hint << '\n';
-}
-
-void render_reference(
-    std::span<const veyra::DisplayCommand> commands,
-    std::span<veyra::SoftwarePixel> pixels,
-    std::size_t width,
-    std::size_t height,
-    SoftwareRooms& rooms
-) {
-    fill_black(pixels);
-
-    const auto surface = veyra::SoftwareSurface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = pixels,
-    };
-
-    const auto result = veyra::render_software(commands, surface, workspace_view(rooms));
-
-    require(result == veyra::SoftwareRenderResult::complete, "software reference renders");
-}
-
-void check_parity(
-    veyra::VulkanContext& context,
-    veyra::VulkanRectPipeline& pipeline,
-    std::span<const veyra::DisplayCommand> commands,
-    std::span<veyra::SoftwarePixel> expected,
-    std::span<veyra::SoftwarePixel> actual,
-    std::string_view stage
-) {
-    auto stats = veyra::VulkanRectStats{};
-
-    const auto begin = TestClock::now();
-    const auto result = veyra::render_vulkan_rects(context, pipeline, commands, actual, stats);
-    const auto render_ns = elapsed_ns(begin, TestClock::now());
-
-    require(result == veyra::VulkanRenderResult::complete, "vulkan submit completes");
-
-    std::cout << "vulkan stage=" << stage << " render_ns=" << render_ns;
-    std::cout << " submitted=" << stats.submitted;
-    std::cout << " skipped=" << stats.skipped_translucent << '\n';
-
-    require(expected.size() == actual.size(), "parity compares equal extents");
-
-    auto mismatches = std::size_t{};
-
-    for (auto i = std::size_t{}; i < expected.size(); ++i) {
-        const auto& want = expected[i];
-        const auto& got = actual[i];
-
-        if (want.red != got.red || want.green != got.green || want.blue != got.blue ||
-            want.alpha != got.alpha) {
-            if (mismatches < 8) {
-                std::cout << "vulkan mismatch x=" << (i % context.width)
-                          << " y=" << (i / context.width);
-                std::cout << " want=" << static_cast<int>(want.red) << ','
-                          << static_cast<int>(want.green) << ',' << static_cast<int>(want.blue)
-                          << ',' << static_cast<int>(want.alpha);
-                std::cout << " got=" << static_cast<int>(got.red) << ','
-                          << static_cast<int>(got.green) << ',' << static_cast<int>(got.blue) << ','
-                          << static_cast<int>(got.alpha) << '\n';
-            }
-
-            ++mismatches;
-        }
-    }
-
-    if (mismatches != 0) {
-        std::cout << "vulkan mismatched_pixels=" << mismatches << '\n';
-    }
-
-    require(mismatches == 0, "vulkan pixels match software byte-exact");
 }
 
 void check_rejections(
@@ -250,8 +151,8 @@ void check_rejections(
         translucent_result == veyra::VulkanRenderResult::complete,
         "translucent frame completes"
     );
-    require(stats.submitted == 1, "opaque rect still submits");
-    require(stats.skipped_translucent == 1, "translucent rect is skipped and counted");
+    require(stats.submitted == 2, "translucent rects submit instead of skipping");
+    require(stats.draws == 1, "one draw covers the pair");
 
     const std::array<veyra::DisplayCommand, 1> stroked{
         veyra::StrokeRect{
@@ -279,6 +180,257 @@ void check_rejections(
     require(
         clip_result == veyra::VulkanRenderResult::unsupported_commands,
         "clips are rejected, not misrendered"
+    );
+}
+
+void check_chunked_translucent(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    constexpr auto chunk_commands = std::size_t{300};
+
+    auto storage = std::array<veyra::DisplayCommand, chunk_commands>{};
+
+    for (auto index = std::size_t{}; index < chunk_commands; ++index) {
+        const auto opaque = index % 2U == 0U;
+
+        storage[index] = veyra::FillRect{
+            .bounds =
+                {
+                    .x = static_cast<float>((index * 7) % kWidth),
+                    .y = static_cast<float>((index * 11) % kHeight),
+                    .width = 24.0F,
+                    .height = 18.0F,
+                },
+            .color = {
+                .red = static_cast<std::uint8_t>((index * 37) % 256),
+                .green = static_cast<std::uint8_t>((index * 91) % 256),
+                .blue = static_cast<std::uint8_t>((index * 53) % 256),
+                .alpha = static_cast<std::uint8_t>(opaque ? 255 : 128),
+            },
+        };
+    }
+
+    const auto scene = std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
+
+    render_reference(scene, expected, kWidth, kHeight, rooms);
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "oversized translucent scene completes"
+    );
+    require(stats.submitted == chunk_commands, "every rect submits across chunks");
+    require(stats.draws == 2, "two draws cover three hundred rects");
+
+    check_parity(context, pipeline, scene, expected, actual, "chunked", 1);
+}
+
+void check_full_budget(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    constexpr auto budget = veyra::kVulkanMaxRects * veyra::kVulkanMaxRectDraws;
+
+    auto storage = std::vector<veyra::DisplayCommand>(budget);
+
+    for (auto index = std::size_t{}; index < budget; ++index) {
+        storage[index] = veyra::FillRect{
+            .bounds =
+                {
+                    .x = static_cast<float>((index * 7) % kWidth),
+                    .y = static_cast<float>((index * 11) % kHeight),
+                    .width = 24.0F,
+                    .height = 18.0F,
+                },
+            .color = {
+                .red = static_cast<std::uint8_t>((index * 37) % 256),
+                .green = static_cast<std::uint8_t>((index * 91) % 256),
+                .blue = static_cast<std::uint8_t>((index * 53) % 256),
+                .alpha = 255,
+            },
+        };
+    }
+
+    const auto scene = std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
+
+    render_reference(scene, expected, kWidth, kHeight, rooms);
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "a frame exactly at budget completes"
+    );
+    require(stats.submitted == budget, "budget frames submit every rect");
+    require(stats.draws == veyra::kVulkanMaxRectDraws, "budget frames fill every draw");
+
+    check_parity(context, pipeline, scene, expected, actual, "budget", 0);
+}
+
+void check_rounded_parity(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    const std::array<veyra::DisplayCommand, 6> storage{
+        veyra::FillRect{
+            .bounds = {.width = static_cast<float>(kWidth), .height = static_cast<float>(kHeight)},
+            .color = {.red = 240, .green = 240, .blue = 244, .alpha = 255},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 8.0F, .y = 10.0F, .width = 40.0F, .height = 30.0F},
+            .radius = 8.0F,
+            .color = {.red = 30, .green = 140, .blue = 60, .alpha = 255},
+        },
+        veyra::FillRect{
+            .bounds = {.x = 24.0F, .y = 20.0F, .width = 50.0F, .height = 24.0F},
+            .color = {.red = 210, .green = 60, .blue = 40, .alpha = 160},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 40.0F, .y = 32.0F, .width = 44.0F, .height = 28.0F},
+            .radius = 14.0F,
+            .color = {.red = 40, .green = 70, .blue = 210, .alpha = 128},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 4.0F, .y = 50.0F, .width = 60.0F, .height = 16.0F},
+            .radius = 0.0F,
+            .color = {.red = 230, .green = 180, .blue = 20, .alpha = 255},
+        },
+        veyra::FillRoundedRect{
+            .bounds = {.x = 60.0F, .y = 4.0F, .width = 30.0F, .height = 20.0F},
+            .radius = 40.0F,
+            .color = {.red = 150, .green = 40, .blue = 170, .alpha = 255},
+        },
+    };
+
+    const auto scene = std::span<const veyra::DisplayCommand>{storage.data(), storage.size()};
+
+    render_reference(scene, expected, kWidth, kHeight, rooms);
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "mixed rect and rounded scene completes"
+    );
+    require(stats.submitted == 6, "every rect submits");
+    require(stats.rect_draws >= 1, "rects draw through the rect pipeline");
+    require(stats.rounded_draws >= 1, "rounded rects draw through the rounded pipeline");
+
+    check_parity(context, pipeline, scene, expected, actual, "rounded", 1);
+}
+
+void check_capacity_limit(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> scratch
+) {
+    auto storage =
+        std::vector<veyra::DisplayCommand>(veyra::kVulkanMaxRects * veyra::kVulkanMaxRectDraws + 1);
+
+    for (auto& slot : storage) {
+        slot = veyra::FillRect{
+            .bounds = {.width = 8.0F, .height = 8.0F},
+            .color = {.red = 200, .alpha = 255},
+        };
+    }
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(
+            context,
+            pipeline,
+            std::span<const veyra::DisplayCommand>(storage),
+            scratch,
+            stats
+        ) == veyra::VulkanRenderResult::insufficient_capacity,
+        "frames beyond the instance budget are rejected, not clipped"
+    );
+
+    auto scene_storage = std::array<veyra::DisplayCommand, kSceneCommands>{};
+    const auto scene = build_scene(scene_storage);
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, scratch, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "the pipeline stays usable after a rejection"
+    );
+    require(stats.submitted == 6, "recovery submits the visible scene rects");
+    require(stats.draws == 1, "recovery draws in a single batch");
+}
+
+void check_frame_boundaries(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> scratch
+) {
+    const std::array<veyra::DisplayCommand, 0> empty{};
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(
+            context,
+            pipeline,
+            std::span<const veyra::DisplayCommand>{empty.data(), empty.size()},
+            scratch,
+            stats
+        ) == veyra::VulkanRenderResult::complete,
+        "empty scenes clear instead of failing"
+    );
+    require(stats.submitted == 0, "empty scenes submit nothing");
+    require(stats.draws == 0, "empty scenes draw nothing");
+
+    for (const auto& pixel : scratch) {
+        require(
+            pixel.red == 0 && pixel.green == 0 && pixel.blue == 0 && pixel.alpha == 255,
+            "cleared pixels match the clear color"
+        );
+    }
+
+    const std::array<veyra::DisplayCommand, 1> unbalanced{
+        veyra::PushTranslation{.offset = {.x = 1.0F}},
+    };
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, unbalanced, scratch, stats) ==
+            veyra::VulkanRenderResult::invalid_input,
+        "unbalanced translation is rejected"
+    );
+
+    const std::array<veyra::DisplayCommand, 1> popped{
+        veyra::PopTranslation{},
+    };
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, popped, scratch, stats) ==
+            veyra::VulkanRenderResult::invalid_input,
+        "popping an empty translation stack is rejected"
+    );
+
+    auto undersized = std::span<veyra::SoftwarePixel>{scratch.data(), scratch.size() - 1};
+
+    auto scene_storage = std::array<veyra::DisplayCommand, kSceneCommands>{};
+    const auto scene = build_scene(scene_storage);
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, undersized, stats) ==
+            veyra::VulkanRenderResult::invalid_input,
+        "output extents must match the target"
     );
 }
 
@@ -375,7 +527,8 @@ int run() {
         scene,
         std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
         std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
-        "full"
+        "full",
+        0
     );
 
     check_rejections(
@@ -390,6 +543,42 @@ int run() {
         scene,
         std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
         std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight}
+    );
+
+    check_rounded_parity(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
+        rooms
+    );
+
+    check_chunked_translucent(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
+        rooms
+    );
+
+    check_capacity_limit(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight}
+    );
+
+    check_frame_boundaries(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight}
+    );
+
+    check_full_budget(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), kWidth * kHeight},
+        std::span<veyra::SoftwarePixel>{actual.data(), kWidth * kHeight},
+        rooms
     );
 
     const auto resize_result = veyra::resize_vulkan_target(context, kSmallWidth, kSmallHeight);
@@ -410,7 +599,8 @@ int run() {
         scene,
         std::span<veyra::SoftwarePixel>{expected.data(), kSmallWidth * kSmallHeight},
         std::span<veyra::SoftwarePixel>{actual.data(), kSmallWidth * kSmallHeight},
-        "resized"
+        "resized",
+        0
     );
 
     veyra::destroy_vulkan_rect_pipeline(context, pipeline);
@@ -420,7 +610,6 @@ int run() {
 
     return 0;
 }
-
 }
 
 void* operator new[](std::size_t size) {

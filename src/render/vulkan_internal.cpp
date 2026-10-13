@@ -327,4 +327,100 @@ void destroy_framebuffer(ContextState& state) noexcept {
     }
 }
 
+bool create_instance_buffer(
+    ContextState& state,
+    VkBuffer& buffer,
+    VkDeviceMemory& memory,
+    void*& mapped,
+    std::size_t bytes
+) noexcept {
+    const auto buffer_info = VkBufferCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = bytes,
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    if (vkCreateBuffer(state.device, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
+        return false;
+    }
+
+    auto requirements = VkMemoryRequirements{};
+
+    vkGetBufferMemoryRequirements(state.device, buffer, &requirements);
+
+    auto memory_index = std::uint32_t{};
+
+    const auto flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    if (!find_memory_type(state.physical, requirements.memoryTypeBits, flags, memory_index)) {
+        vkDestroyBuffer(state.device, buffer, nullptr);
+
+        buffer = VK_NULL_HANDLE;
+
+        return false;
+    }
+
+    const auto alloc_info = VkMemoryAllocateInfo{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = requirements.size,
+        .memoryTypeIndex = memory_index,
+    };
+
+    if (vkAllocateMemory(state.device, &alloc_info, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyBuffer(state.device, buffer, nullptr);
+
+        buffer = VK_NULL_HANDLE;
+
+        return false;
+    }
+
+    if (vkBindBufferMemory(state.device, buffer, memory, 0) != VK_SUCCESS) {
+        vkFreeMemory(state.device, memory, nullptr);
+        vkDestroyBuffer(state.device, buffer, nullptr);
+
+        memory = VK_NULL_HANDLE;
+        buffer = VK_NULL_HANDLE;
+
+        return false;
+    }
+
+    if (vkMapMemory(state.device, memory, 0, requirements.size, 0, &mapped) != VK_SUCCESS) {
+        vkFreeMemory(state.device, memory, nullptr);
+        vkDestroyBuffer(state.device, buffer, nullptr);
+
+        memory = VK_NULL_HANDLE;
+        buffer = VK_NULL_HANDLE;
+
+        return false;
+    }
+
+    return true;
+}
+
+void destroy_instance_buffer(
+    ContextState& state,
+    VkBuffer& buffer,
+    VkDeviceMemory& memory,
+    void*& mapped
+) noexcept {
+    if (mapped != nullptr) {
+        vkUnmapMemory(state.device, memory);
+
+        mapped = nullptr;
+    }
+
+    if (buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(state.device, buffer, nullptr);
+
+        buffer = VK_NULL_HANDLE;
+    }
+
+    if (memory != VK_NULL_HANDLE) {
+        vkFreeMemory(state.device, memory, nullptr);
+
+        memory = VK_NULL_HANDLE;
+    }
+}
+
 }

@@ -53,6 +53,21 @@ struct RectInstance {
     float alpha{};
 };
 
+struct RoundedRectInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+    float radius{};
+    float pad_a{};
+    float pad_b{};
+    float pad_c{};
+};
+
 struct PipelineState {
     VkRenderPass pass{VK_NULL_HANDLE};
     VkPipelineLayout layout{VK_NULL_HANDLE};
@@ -60,6 +75,11 @@ struct PipelineState {
     VkBuffer instances{VK_NULL_HANDLE};
     VkDeviceMemory instance_memory{VK_NULL_HANDLE};
     void* instance_mapped{nullptr};
+    VkPipelineLayout rounded_layout{VK_NULL_HANDLE};
+    VkPipeline rounded_pipeline{VK_NULL_HANDLE};
+    VkBuffer rounded_instances{VK_NULL_HANDLE};
+    VkDeviceMemory rounded_instance_memory{VK_NULL_HANDLE};
+    void* rounded_instance_mapped{nullptr};
 };
 
 ContextState* state_of(VulkanContext& context) noexcept;
@@ -80,6 +100,21 @@ void destroy_target(ContextState& state) noexcept;
 bool create_framebuffer(ContextState& state) noexcept;
 
 void destroy_framebuffer(ContextState& state) noexcept;
+
+bool create_instance_buffer(
+    ContextState& state,
+    VkBuffer& buffer,
+    VkDeviceMemory& memory,
+    void*& mapped,
+    std::size_t bytes
+) noexcept;
+
+void destroy_instance_buffer(
+    ContextState& state,
+    VkBuffer& buffer,
+    VkDeviceMemory& memory,
+    void*& mapped
+) noexcept;
 
 void copy_device_name(char (&output)[256], const char* source) noexcept;
 

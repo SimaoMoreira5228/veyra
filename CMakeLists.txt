@@ -53,6 +53,8 @@ add_library(veyra STATIC
  src/render/software_polyline.cpp
  src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
+ src/render/e3_scenes.cpp
+ src/render/display_command_hash.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/text_edit_history.cpp
@@ -362,30 +364,36 @@ if(VEYRA_WITH_VULKAN)
   set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
   file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
   set(veyra_vulkan_spv_headers "")
-  foreach(stage Vert Frag)
-   string(TOLOWER "${stage}" stage_lower)
-   set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/rect.${stage_lower}")
-   set(shader_spv "${veyra_vulkan_gen}/rect.${stage_lower}.spv")
-   set(shader_header "${veyra_vulkan_gen}/rect_${stage_lower}_spv.hpp")
-   add_custom_command(
-    OUTPUT "${shader_spv}"
-    COMMAND "${VEYRA_GLSLANG_VALIDATOR}" -V "${shader_source}" -o "${shader_spv}"
-    DEPENDS "${shader_source}"
-    COMMENT "Veyra: compiling rect.${stage_lower} to SPIR-V"
-   )
-   add_custom_command(
-    OUTPUT "${shader_header}"
-    COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
-     "-DVAR=kRect${stage}Spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
-    DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
-    COMMENT "Veyra: embedding rect.${stage_lower}.spv"
-   )
-   list(APPEND veyra_vulkan_spv_headers "${shader_header}")
+  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect")
+   string(REPLACE ":" ";" shader_parts "${shader_spec}")
+   list(GET shader_parts 0 shader_name)
+   list(GET shader_parts 1 shader_prefix)
+   foreach(stage Vert Frag)
+    string(TOLOWER "${stage}" stage_lower)
+    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/${shader_name}.${stage_lower}")
+    set(shader_spv "${veyra_vulkan_gen}/${shader_name}.${stage_lower}.spv")
+    set(shader_header "${veyra_vulkan_gen}/${shader_name}_${stage_lower}_spv.hpp")
+    add_custom_command(
+     OUTPUT "${shader_spv}"
+     COMMAND "${VEYRA_GLSLANG_VALIDATOR}" -V "${shader_source}" -o "${shader_spv}"
+     DEPENDS "${shader_source}"
+     COMMENT "Veyra: compiling ${shader_name}.${stage_lower} to SPIR-V"
+    )
+    add_custom_command(
+     OUTPUT "${shader_header}"
+     COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
+      "-DVAR=k${shader_prefix}${stage}Spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+     DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+     COMMENT "Veyra: embedding ${shader_name}.${stage_lower}.spv"
+    )
+    list(APPEND veyra_vulkan_spv_headers "${shader_header}")
+   endforeach()
   endforeach()
   add_library(veyra_vulkan STATIC
    src/render/vulkan_context.cpp
    src/render/vulkan_internal.cpp
    src/render/vulkan_rect_pipeline.cpp
+   src/render/vulkan_rect_frame.cpp
    ${veyra_vulkan_spv_headers}
   )
   target_include_directories(veyra_vulkan PUBLIC
@@ -398,6 +406,10 @@ if(VEYRA_WITH_VULKAN)
   add_executable(veyra_vulkan_rect_parity_test tests/vulkan_rect_parity_test.cpp)
   target_link_libraries(veyra_vulkan_rect_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_rect_parity COMMAND veyra_vulkan_rect_parity_test)
+
+  add_executable(veyra_vulkan_e3_shadowed_test tests/vulkan_e3_shadowed_test.cpp)
+  target_link_libraries(veyra_vulkan_e3_shadowed_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_e3_shadowed COMMAND veyra_vulkan_e3_shadowed_test)
  endif()
 endif()
 
@@ -724,6 +736,10 @@ add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
 
+add_executable(veyra_e3_scenes_test tests/e3_scenes_test.cpp)
+target_link_libraries(veyra_e3_scenes_test PRIVATE veyra)
+add_test(NAME e3_scenes_behavior COMMAND veyra_e3_scenes_test)
+
 add_executable(veyra_glyph_bounds_cache_test tests/glyph_bounds_cache_test.cpp)
 target_link_libraries(veyra_glyph_bounds_cache_test PRIVATE veyra)
 add_test(NAME glyph_bounds_cache_behavior COMMAND veyra_glyph_bounds_cache_test)
@@ -805,6 +821,8 @@ if(VEYRA_BUILD_BENCH)
  target_link_libraries(veyra_glyph_mask_cache_bench PRIVATE veyra)
  add_executable(veyra_glyph_image_cache_bench bench/glyph_image_cache.cpp)
  target_link_libraries(veyra_glyph_image_cache_bench PRIVATE veyra)
+ add_executable(veyra_e3_scenes_bench bench/e3_scenes.cpp)
+ target_link_libraries(veyra_e3_scenes_bench PRIVATE veyra)
  add_executable(veyra_text_editor_buffer_bench bench/text_editor_buffer.cpp)
  target_link_libraries(veyra_text_editor_buffer_bench PRIVATE veyra)
  add_executable(veyra_animation_timeline_bench bench/animation_timeline.cpp)
@@ -866,6 +884,11 @@ if(VEYRA_BUILD_BENCH)
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
  )
  target_compile_definitions(veyra_glyph_image_cache_bench PRIVATE
+  "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+  "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+  "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
+ )
+ target_compile_definitions(veyra_e3_scenes_bench PRIVATE
   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
   "VEYRA_BUILD_CONFIG=\"${veyra_build_config}\""
@@ -1009,6 +1032,10 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME glyph_image_cache_benchmark_smoke
   COMMAND veyra_glyph_image_cache_bench
+ )
+ add_test(
+  NAME e3_scenes_benchmark_smoke
+  COMMAND veyra_e3_scenes_bench --scene dashboard-12 --frames 3 --warmup 1
  )
  add_test(
   NAME animation_timeline_benchmark_smoke
