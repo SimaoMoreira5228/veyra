@@ -123,8 +123,8 @@ void require(bool condition, std::string_view message) {
     }
 }
 
-constexpr std::uint64_t kE0GoldenFrame0 = 8193082570054505212ULL;
-constexpr std::uint64_t kE0GoldenFrame1 = 2516950723534075551ULL;
+constexpr std::uint64_t kE0GoldenFrame0 = 11463938727468498053ULL;
+constexpr std::uint64_t kE0GoldenFrame1 = 2775304537190214027ULL;
 
 std::uint64_t hash_pixels(std::span<const veyra::SoftwarePixel> pixels) noexcept {
     auto hash = std::uint64_t{14695981039346656037ULL};
@@ -144,7 +144,6 @@ struct E0Workspace {
     std::array<veyra::LayoutPoint, 2> translations{};
     std::array<double, 16> intersections{};
     std::array<std::int8_t, 8> windings{};
-    std::array<std::uint8_t, veyra::kE0Width> coverage{};
 };
 
 veyra::SoftwareRenderWorkspace workspace_view(E0Workspace& rooms) noexcept {
@@ -153,7 +152,6 @@ veyra::SoftwareRenderWorkspace workspace_view(E0Workspace& rooms) noexcept {
         .translations = rooms.translations,
         .path_intersections = rooms.intersections,
         .path_windings = rooms.windings,
-        .stroke_coverage = rooms.coverage,
     };
 }
 

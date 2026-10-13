@@ -1,10 +1,13 @@
 #include "vulkan_internal.hpp"
 
+#include "software_renderer_internal.hpp"
+
 #include <vulkan/vulkan.h>
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 
 namespace veyra::vulkan_detail {
 
@@ -676,6 +679,78 @@ ImageResolveResult resolve_image(
     descriptor = cached;
 
     return ImageResolveResult::ready;
+}
+
+VulkanRenderResult upload_textures(
+    vulkan_detail::ContextState& state,
+    vulkan_detail::PipelineState& stored,
+    std::span<const DisplayCommand> commands
+) noexcept {
+    for (const auto& command : commands) {
+        if (const auto* drawn = std::get_if<DrawImage>(&command)) {
+            if (drawn->image == nullptr || !render_detail::valid_image(*drawn->image) ||
+                !render_detail::valid_image_placement(*drawn)) {
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (drawn->opacity == 0) {
+                continue;
+            }
+
+            if (drawn->source.width <= 0.0F || drawn->source.height <= 0.0F) {
+                continue;
+            }
+
+            auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+
+            const auto resolved = vulkan_detail::resolve_image(
+                state,
+                stored,
+                *drawn->image,
+                drawn->sampling,
+                descriptor
+            );
+
+            if (resolved == vulkan_detail::ImageResolveResult::too_large) {
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            if (resolved != vulkan_detail::ImageResolveResult::ready) {
+                return VulkanRenderResult::device_error;
+            }
+
+            continue;
+        }
+
+        const auto* masked = std::get_if<DrawMask>(&command);
+
+        if (masked == nullptr) {
+            continue;
+        }
+
+        if (masked->mask == nullptr || masked->mask->stride < masked->mask->width ||
+            masked->mask->coverage.size() < masked->mask->height * masked->mask->stride) {
+            return VulkanRenderResult::invalid_input;
+        }
+
+        if (masked->color.alpha == 0 || masked->mask->width == 0 || masked->mask->height == 0) {
+            continue;
+        }
+
+        auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+
+        const auto resolved = vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor);
+
+        if (resolved == vulkan_detail::MaskResolveResult::too_large) {
+            return VulkanRenderResult::insufficient_capacity;
+        }
+
+        if (resolved != vulkan_detail::MaskResolveResult::ready) {
+            return VulkanRenderResult::device_error;
+        }
+    }
+
+    return VulkanRenderResult::complete;
 }
 
 }

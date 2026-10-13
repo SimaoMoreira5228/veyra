@@ -220,7 +220,6 @@ void check_truncation_and_invalid_scene() {
 void check_software_renders_every_scene() {
     auto pixels = std::vector<veyra::SoftwarePixel>(veyra::kE3Width * veyra::kE3Height);
     auto clips = std::array<veyra::SoftwareClipRect, 1>{};
-    auto stroke_coverage = std::vector<std::uint8_t>(veyra::kE3Width);
 
     const auto surface = veyra::SoftwareSurface{
         .width = veyra::kE3Width,
@@ -231,7 +230,6 @@ void check_software_renders_every_scene() {
 
     const auto workspace = veyra::SoftwareRenderWorkspace{
         .clips = clips,
-        .stroke_coverage = stroke_coverage,
     };
 
     for (const auto scene : kAllScenes) {

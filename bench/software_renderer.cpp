@@ -527,7 +527,6 @@ int run(const Options& options) {
     std::array<veyra::LayoutPoint, 1> translations{};
     std::array<double, 5> path_intersections{};
     std::array<std::int8_t, 5> path_windings{};
-    std::vector<std::uint8_t> stroke_coverage(options.polyline ? options.width : 0);
     if (options.translated) {
         commands.front() = veyra::PushTranslation{
             .offset = {.x = 0.25F, .y = -0.25F},
@@ -541,7 +540,6 @@ int run(const Options& options) {
             path_mode ? std::span<double>(path_intersections) : std::span<double>{},
         .path_windings =
             options.winding ? std::span<std::int8_t>(path_windings) : std::span<std::int8_t>{},
-        .stroke_coverage = stroke_coverage,
     };
     const auto damage = veyra::LayoutRect{
         .x = static_cast<float>(options.width) / 4.0F,

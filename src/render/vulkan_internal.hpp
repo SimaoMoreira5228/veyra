@@ -131,6 +131,44 @@ struct MaskCacheEntry {
     bool occupied{};
 };
 
+struct StrokeInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+    float start_x{};
+    float start_y{};
+    float end_x{};
+    float end_y{};
+    float thickness{};
+    float pad_a{};
+    float pad_b{};
+    float pad_c{};
+};
+
+struct RoundedStrokeInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+    float center_x{};
+    float center_y{};
+    float half_x{};
+    float half_y{};
+    float radius{};
+    float thickness{};
+    float pad_b{};
+    float pad_c{};
+};
+
 struct PipelineState {
     VkRenderPass pass{VK_NULL_HANDLE};
     VkPipelineLayout layout{VK_NULL_HANDLE};
@@ -154,6 +192,16 @@ struct PipelineState {
     VkBuffer mask_instances{VK_NULL_HANDLE};
     VkDeviceMemory mask_instance_memory{VK_NULL_HANDLE};
     void* mask_instance_mapped{nullptr};
+    VkPipelineLayout stroke_layout{VK_NULL_HANDLE};
+    VkPipeline stroke_pipeline{VK_NULL_HANDLE};
+    VkBuffer stroke_instances{VK_NULL_HANDLE};
+    VkDeviceMemory stroke_instance_memory{VK_NULL_HANDLE};
+    void* stroke_instance_mapped{nullptr};
+    VkPipelineLayout rounded_stroke_layout{VK_NULL_HANDLE};
+    VkPipeline rounded_stroke_pipeline{VK_NULL_HANDLE};
+    VkBuffer rounded_stroke_instances{VK_NULL_HANDLE};
+    VkDeviceMemory rounded_stroke_instance_memory{VK_NULL_HANDLE};
+    void* rounded_stroke_instance_mapped{nullptr};
     VkSampler nearest_sampler{VK_NULL_HANDLE};
     VkSampler linear_sampler{VK_NULL_HANDLE};
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
@@ -215,6 +263,12 @@ bool create_texture_cache(ContextState& state, PipelineState& pipeline) noexcept
 
 void destroy_texture_cache(ContextState& state, PipelineState& pipeline) noexcept;
 
+VulkanRenderResult upload_textures(
+    ContextState& state,
+    PipelineState& pipeline,
+    std::span<const DisplayCommand> commands
+) noexcept;
+
 void evict_mask_entry(ContextState& state, PipelineState& pipeline, MaskCacheEntry& entry) noexcept;
 
 void evict_frame_images(ContextState& state, PipelineState& pipeline) noexcept;
@@ -275,6 +329,28 @@ bool create_image_pipeline(
 ) noexcept;
 
 bool create_mask_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkDescriptorSetLayout descriptor_layout,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_stroke_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_rounded_stroke_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_stroke_pipeline(
     VkDevice device,
     VkRenderPass pass,
     VkDescriptorSetLayout descriptor_layout,

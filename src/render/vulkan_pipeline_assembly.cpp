@@ -8,6 +8,10 @@
 #include "rect_vert_spv.hpp"
 #include "rounded_rect_frag_spv.hpp"
 #include "rounded_rect_vert_spv.hpp"
+#include "rounded_stroke_frag_spv.hpp"
+#include "rounded_stroke_vert_spv.hpp"
+#include "stroke_frag_spv.hpp"
+#include "stroke_vert_spv.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -461,6 +465,119 @@ bool create_mask_pipeline(
         binding,
         attributes,
         descriptor_layout,
+        layout,
+        pipeline
+    );
+}
+bool create_stroke_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept {
+    const auto binding = VkVertexInputBindingDescription{
+        .binding = 0,
+        .stride = sizeof(StrokeInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+    };
+
+    const auto attributes = std::array<VkVertexInputAttributeDescription, 4>{
+        VkVertexInputAttributeDescription{
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 0,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 1,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 16,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 32,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 3,
+            .binding = 0,
+            .format = VK_FORMAT_R32_SFLOAT,
+            .offset = 48,
+        },
+    };
+
+    return create_pipeline_with_modules(
+        device,
+        pass,
+        kStrokeVertSpv,
+        kStrokeVertSpvWords,
+        kStrokeFragSpv,
+        kStrokeFragSpvWords,
+        binding,
+        attributes,
+        VK_NULL_HANDLE,
+        layout,
+        pipeline
+    );
+}
+
+bool create_rounded_stroke_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept {
+    const auto binding = VkVertexInputBindingDescription{
+        .binding = 0,
+        .stride = sizeof(RoundedStrokeInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+    };
+
+    const auto attributes = std::array<VkVertexInputAttributeDescription, 5>{
+        VkVertexInputAttributeDescription{
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 0,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 1,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 16,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 32,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 3,
+            .binding = 0,
+            .format = VK_FORMAT_R32_SFLOAT,
+            .offset = 48,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 4,
+            .binding = 0,
+            .format = VK_FORMAT_R32_SFLOAT,
+            .offset = 52,
+        },
+    };
+
+    return create_pipeline_with_modules(
+        device,
+        pass,
+        kRoundedStrokeVertSpv,
+        kRoundedStrokeVertSpvWords,
+        kRoundedStrokeFragSpv,
+        kRoundedStrokeFragSpvWords,
+        binding,
+        attributes,
+        VK_NULL_HANDLE,
         layout,
         pipeline
     );

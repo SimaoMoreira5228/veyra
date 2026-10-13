@@ -23,12 +23,10 @@ bool valid_commands(
     std::size_t& maximum_clip_depth,
     std::size_t& maximum_translation_depth,
     std::size_t& maximum_path_intersections,
-    std::size_t& maximum_path_windings,
-    bool& uses_polyline
+    std::size_t& maximum_path_windings
 ) noexcept {
     std::size_t clip_depth = 0;
     std::size_t translation_depth = 0;
-    uses_polyline = false;
     for (const auto& command : commands) {
         if (const auto* fill = std::get_if<FillRect>(&command)) {
             if (!valid_rect(fill->bounds)) {
@@ -76,9 +74,6 @@ bool valid_commands(
                     return false;
                 }
             }
-            uses_polyline = uses_polyline ||
-                (polyline->points.size() > 2 && polyline->thickness > 0.0F &&
-                 polyline->color.alpha != 0);
             continue;
         }
         if (const auto* mask = std::get_if<DrawMask>(&command)) {

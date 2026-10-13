@@ -42,7 +42,6 @@ inline SoftwareRenderWorkspace workspace_view(SoftwareRooms& rooms) noexcept {
         .translations = rooms.translations,
         .path_intersections = {},
         .path_windings = {},
-        .stroke_coverage = {},
     };
 }
 
@@ -140,6 +139,8 @@ inline void check_parity(
     std::cout << " rounded_draws=" << stats.rounded_draws;
     std::cout << " image_draws=" << stats.image_draws;
     std::cout << " mask_draws=" << stats.mask_draws;
+    std::cout << " stroke_draws=" << stats.stroke_draws;
+    std::cout << " rounded_stroke_draws=" << stats.rounded_stroke_draws;
     std::cout << " max_abs_error=" << max_error << '\n';
 }
 

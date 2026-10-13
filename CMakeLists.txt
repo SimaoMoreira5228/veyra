@@ -50,7 +50,6 @@ add_library(veyra STATIC
  src/render/scroll_shift.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
- src/render/software_polyline.cpp
  src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
  src/render/e3_scenes.cpp
@@ -364,7 +363,7 @@ if(VEYRA_WITH_VULKAN)
   set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
   file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
   set(veyra_vulkan_spv_headers "")
-  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask")
+  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask" "stroke:Stroke" "rounded_stroke:RoundedStroke")
    string(REPLACE ":" ";" shader_parts "${shader_spec}")
    list(GET shader_parts 0 shader_name)
    list(GET shader_parts 1 shader_prefix)
@@ -421,6 +420,17 @@ if(VEYRA_WITH_VULKAN)
   add_executable(veyra_vulkan_mask_parity_test tests/vulkan_mask_parity_test.cpp)
   target_link_libraries(veyra_vulkan_mask_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_mask_parity COMMAND veyra_vulkan_mask_parity_test)
+
+  add_executable(veyra_vulkan_stroke_parity_test tests/vulkan_stroke_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_stroke_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_stroke_parity COMMAND veyra_vulkan_stroke_parity_test)
+
+  add_executable(
+    veyra_vulkan_rounded_stroke_parity_test
+    tests/vulkan_rounded_stroke_parity_test.cpp
+  )
+  target_link_libraries(veyra_vulkan_rounded_stroke_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_rounded_stroke_parity COMMAND veyra_vulkan_rounded_stroke_parity_test)
  endif()
 endif()
 

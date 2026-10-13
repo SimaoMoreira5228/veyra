@@ -270,10 +270,10 @@ void check_abandoned_upload_rolls_back(
             .sampling = veyra::SoftwareImageSampling::nearest,
             .opacity = 255,
         },
-        veyra::StrokeRect{
-            .bounds = {.width = 8.0F, .height = 8.0F},
-            .thickness = 1.0F,
+        veyra::FillPath{
+            .contours = {},
             .color = {.red = 255, .alpha = 255},
+            .fill_rule = veyra::SoftwarePathFillRule::even_odd,
         },
     };
 

@@ -29,6 +29,8 @@ struct VulkanRectStats {
     std::size_t rounded_draws{};
     std::size_t image_draws{};
     std::size_t mask_draws{};
+    std::size_t stroke_draws{};
+    std::size_t rounded_stroke_draws{};
 };
 
 struct VulkanRectPipeline {

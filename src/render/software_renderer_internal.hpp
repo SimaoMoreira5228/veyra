@@ -19,21 +19,12 @@ bool valid_commands(
     std::size_t& maximum_clip_depth,
     std::size_t& maximum_translation_depth,
     std::size_t& maximum_path_intersections,
-    std::size_t& maximum_path_windings,
-    bool& uses_polyline
+    std::size_t& maximum_path_windings
 ) noexcept;
 
 bool valid_translated_commands(
     std::span<const DisplayCommand> commands,
     std::span<LayoutPoint> translations
-) noexcept;
-
-void stroke_polyline(
-    const StrokePolyline& command,
-    LayoutPoint translation,
-    SoftwareSurface surface,
-    SoftwareClipRect clip,
-    std::span<std::uint8_t> coverage_row
 ) noexcept;
 
 void draw_rounded_rect(
@@ -89,6 +80,33 @@ pixel_bounds(const LayoutRect& rect, std::size_t width, std::size_t height) noex
         .top = floor_coordinate(top, height),
         .right = ceil_coordinate(right, width),
         .bottom = ceil_coordinate(bottom, height),
+    };
+}
+
+inline SoftwareClipRect pixel_interior_bounds(
+    double x,
+    double y,
+    double rectangle_width,
+    double rectangle_height,
+    std::size_t width,
+    std::size_t height
+) noexcept {
+    const auto maximum_x = static_cast<double>(width);
+    const auto maximum_y = static_cast<double>(height);
+    const auto left = std::clamp(x, 0.0, maximum_x);
+    const auto top = std::clamp(y, 0.0, maximum_y);
+    const auto right = std::clamp(x + rectangle_width, 0.0, maximum_x);
+    const auto bottom = std::clamp(y + rectangle_height, 0.0, maximum_y);
+    const auto interior_left = ceil_coordinate(left, width);
+    const auto interior_top = ceil_coordinate(top, height);
+    const auto interior_right = std::max(interior_left, floor_coordinate(right, width));
+    const auto interior_bottom = std::max(interior_top, floor_coordinate(bottom, height));
+
+    return {
+        .left = interior_left,
+        .top = interior_top,
+        .right = interior_right,
+        .bottom = interior_bottom,
     };
 }
 

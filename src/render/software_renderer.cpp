@@ -15,6 +15,7 @@ using render_detail::composite;
 using render_detail::floor_coordinate;
 using render_detail::intersect;
 using render_detail::pixel_bounds;
+using render_detail::pixel_interior_bounds;
 using render_detail::valid_rect;
 
 bool valid_surface(const SoftwareSurface& surface) noexcept {
@@ -25,35 +26,6 @@ bool valid_surface(const SoftwareSurface& surface) noexcept {
     }
 
     return surface.pixels.size() >= surface.height * surface.stride;
-}
-
-SoftwareClipRect pixel_interior_bounds(
-    double x,
-    double y,
-    double rectangle_width,
-    double rectangle_height,
-    std::size_t width,
-    std::size_t height
-) noexcept {
-    const auto maximum_x = static_cast<double>(width);
-    const auto maximum_y = static_cast<double>(height);
-    const auto left = std::clamp(x, 0.0, maximum_x);
-    const auto top = std::clamp(y, 0.0, maximum_y);
-    const auto right = std::clamp(x + rectangle_width, 0.0, maximum_x);
-    const auto bottom = std::clamp(y + rectangle_height, 0.0, maximum_y);
-    const auto interior_left = render_detail::ceil_coordinate(left, width);
-    const auto interior_top = render_detail::ceil_coordinate(top, height);
-    const auto interior_right =
-        std::max(interior_left, render_detail::floor_coordinate(right, width));
-    const auto interior_bottom =
-        std::max(interior_top, render_detail::floor_coordinate(bottom, height));
-
-    return {
-        .left = interior_left,
-        .top = interior_top,
-        .right = interior_right,
-        .bottom = interior_bottom,
-    };
 }
 
 bool overlaps(SoftwareClipRect left, SoftwareClipRect right) noexcept {
@@ -459,27 +431,22 @@ void render_commands(
             continue;
         }
         if (const auto* polyline = std::get_if<StrokePolyline>(&command)) {
-            if (polyline->points.size() == 2) {
-                auto translated = StrokeLine{
-                    .start = polyline->points[0],
-                    .end = polyline->points[1],
+            const auto point_count = polyline->points.size();
+            const auto segment_count =
+                polyline->closed && point_count > 2 ? point_count : point_count - 1;
+            for (auto index = std::size_t{}; index < segment_count; ++index) {
+                auto segment = StrokeLine{
+                    .start = polyline->points[index],
+                    .end = polyline->points[(index + 1) % point_count],
                     .thickness = polyline->thickness,
                     .color = polyline->color,
                 };
-                translated.start.x += translation.x;
-                translated.start.y += translation.y;
-                translated.end.x += translation.x;
-                translated.end.y += translation.y;
-                stroke_line(translated, surface, current_clip);
-                continue;
+                segment.start.x += translation.x;
+                segment.start.y += translation.y;
+                segment.end.x += translation.x;
+                segment.end.y += translation.y;
+                stroke_line(segment, surface, current_clip);
             }
-            render_detail::stroke_polyline(
-                *polyline,
-                translation,
-                surface,
-                current_clip,
-                workspace.stroke_coverage
-            );
             continue;
         }
         if (const auto* mask = std::get_if<DrawMask>(&command)) {
@@ -545,22 +512,19 @@ SoftwareRenderResult render(
     std::size_t maximum_translation_depth = 0;
     std::size_t maximum_path_intersections = 0;
     std::size_t maximum_path_windings = 0;
-    auto uses_polyline = false;
     if (!render_detail::valid_commands(
             commands,
             maximum_clip_depth,
             maximum_translation_depth,
             maximum_path_intersections,
-            maximum_path_windings,
-            uses_polyline
+            maximum_path_windings
         )) {
         return SoftwareRenderResult::invalid_input;
     }
     if (workspace.clips.size() < maximum_clip_depth ||
         workspace.translations.size() < maximum_translation_depth ||
         workspace.path_intersections.size() < maximum_path_intersections ||
-        workspace.path_windings.size() < maximum_path_windings ||
-        (uses_polyline && workspace.stroke_coverage.size() < surface.width)) {
+        workspace.path_windings.size() < maximum_path_windings) {
         return SoftwareRenderResult::insufficient_workspace;
     }
     if (maximum_translation_depth != 0 &&

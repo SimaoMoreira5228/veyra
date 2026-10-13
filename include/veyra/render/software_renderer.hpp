@@ -174,7 +174,6 @@ struct SoftwareRenderWorkspace {
     std::span<LayoutPoint> translations;
     std::span<double> path_intersections;
     std::span<std::int8_t> path_windings;
-    std::span<std::uint8_t> stroke_coverage;
 };
 
 enum class SoftwareRenderResult : std::uint8_t {

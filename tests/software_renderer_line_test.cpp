@@ -85,7 +85,7 @@ void check_round_caps_and_thickness() {
     require(pixels[0].alpha == 0, "point bounds leave distant pixels empty");
 }
 
-void check_polyline_matches_line_and_composites_joins_once() {
+void check_polyline_matches_line_and_blends_joins_per_segment() {
     constexpr auto width = std::size_t{8};
     constexpr auto height = std::size_t{8};
     const std::array points{
@@ -140,10 +140,6 @@ void check_polyline_matches_line_and_composites_joins_once() {
         );
     }
 
-    std::array<std::uint8_t, width> coverage_row{};
-    const auto polyline_workspace = veyra::SoftwareRenderWorkspace{
-        .stroke_coverage = coverage_row,
-    };
     const std::array joined_points{
         veyra::LayoutPoint{.x = 1.5F, .y = 3.5F},
         veyra::LayoutPoint{.x = 3.5F, .y = 3.5F},
@@ -166,11 +162,50 @@ void check_polyline_matches_line_and_composites_joins_once() {
             .stride = width,
             .pixels = joined_pixels,
         },
-        polyline_workspace
+        {}
     );
 
     require(joined_result == veyra::SoftwareRenderResult::complete, "polyline joins render");
-    require(joined_pixels[3 * width + 3].alpha == 128, "translucent join blends once");
+
+    const std::array<veyra::DisplayCommand, 2> segment_commands{
+        veyra::StrokeLine{
+            .start = joined_points[0],
+            .end = joined_points[1],
+            .thickness = 2.0F,
+            .color = {.red = 200, .alpha = 128},
+        },
+        veyra::StrokeLine{
+            .start = joined_points[1],
+            .end = joined_points[2],
+            .thickness = 2.0F,
+            .color = {.red = 200, .alpha = 128},
+        },
+    };
+    std::array<veyra::SoftwarePixel, width * height> segment_pixels{};
+    segment_pixels.fill({.alpha = 0});
+    require(
+        veyra::render_software(
+            segment_commands,
+            {
+                .width = width,
+                .height = height,
+                .stride = width,
+                .pixels = segment_pixels,
+            },
+            {}
+        ) == veyra::SoftwareRenderResult::complete,
+        "join segments render on their own"
+    );
+    for (std::size_t index = 0; index < joined_pixels.size(); ++index) {
+        require(
+            joined_pixels[index].red == segment_pixels[index].red &&
+                joined_pixels[index].green == segment_pixels[index].green &&
+                joined_pixels[index].blue == segment_pixels[index].blue &&
+                joined_pixels[index].alpha == segment_pixels[index].alpha,
+            "polyline joins blend like sequential segments"
+        );
+    }
+    require(joined_pixels[3 * width + 3].alpha > 128, "shared joints blend once per segment");
 }
 
 void check_closed_polyline_and_invalid_input() {
@@ -197,17 +232,10 @@ void check_closed_polyline_and_invalid_input() {
         .stride = width,
         .pixels = pixels,
     };
-    std::array<std::uint8_t, width> coverage_row{};
     require(
         veyra::render_software(closed_commands, surface, {}) ==
-            veyra::SoftwareRenderResult::insufficient_workspace,
-        "polyline reports a missing coverage row before drawing"
-    );
-    require(pixels[3 * width + 3].alpha == 0, "missing coverage storage leaves pixels unchanged");
-    require(
-        veyra::render_software(closed_commands, surface, {.stroke_coverage = coverage_row}) ==
             veyra::SoftwareRenderResult::complete,
-        "closed polyline renders its final segment"
+        "closed polyline needs no extra workspace"
     );
     require(
         pixels[3 * width + 3].blue == 255,
@@ -242,7 +270,7 @@ void check_closed_polyline_and_invalid_input() {
     require(
         veyra::render_software(invisible_commands, surface, {}) ==
             veyra::SoftwareRenderResult::complete,
-        "invisible polylines need no coverage storage"
+        "invisible polylines need no workspace"
     );
     require(pixels[3 * width + 3].alpha == 0, "zero-width polyline leaves pixels unchanged");
 }
@@ -269,14 +297,12 @@ void check_polyline_translation_and_clipping() {
     pixels.fill({.alpha = 0});
     std::array<veyra::SoftwareClipRect, 1> clips{};
     std::array<veyra::LayoutPoint, 1> translations{};
-    std::array<std::uint8_t, width> coverage_row{};
     const auto result = veyra::render_software(
         commands,
         {.width = width, .height = height, .stride = width, .pixels = pixels},
         {
             .clips = clips,
             .translations = translations,
-            .stroke_coverage = coverage_row,
         }
     );
 
@@ -350,7 +376,7 @@ int main() {
     try {
         check_coverage_and_clip();
         check_round_caps_and_thickness();
-        check_polyline_matches_line_and_composites_joins_once();
+        check_polyline_matches_line_and_blends_joins_per_segment();
         check_closed_polyline_and_invalid_input();
         check_polyline_translation_and_clipping();
         check_damage_and_invalid_input();

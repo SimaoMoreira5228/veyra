@@ -77,7 +77,6 @@ void run_scene(veyra::E3Scene scene, const Options& options, bool header) {
     auto scratch = veyra::E3Scratch{};
     auto pixels = std::vector<veyra::SoftwarePixel>(veyra::kE3Width * veyra::kE3Height);
     auto clips = std::array<veyra::SoftwareClipRect, 1>{};
-    auto stroke_coverage = std::vector<std::uint8_t>(veyra::kE3Width);
 
     const auto surface = veyra::SoftwareSurface{
         .width = veyra::kE3Width,
@@ -88,7 +87,6 @@ void run_scene(veyra::E3Scene scene, const Options& options, bool header) {
 
     const auto workspace = veyra::SoftwareRenderWorkspace{
         .clips = clips,
-        .stroke_coverage = stroke_coverage,
     };
 
     auto runs = std::vector<veyra::BatchRun>(needed);
