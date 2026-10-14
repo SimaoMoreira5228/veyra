@@ -42,6 +42,8 @@ resize_vulkan_target(VulkanContext& context, std::size_t width, std::size_t heig
 
 bool vulkan_context_ready(const VulkanContext& context) noexcept;
 
+bool vulkan_context_device_lost(const VulkanContext& context) noexcept;
+
 }
 
 #endif

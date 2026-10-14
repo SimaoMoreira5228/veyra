@@ -37,6 +37,8 @@ struct ContextState {
     VkQueryPool timestamp_pool{VK_NULL_HANDLE};
     float timestamp_period{};
     std::uint64_t timestamp_mask{~0ULL};
+    bool target_valid{};
+    bool device_lost{};
     VkRenderPass shared_pass{VK_NULL_HANDLE};
     VkRenderPass shared_load_pass{VK_NULL_HANDLE};
     VkFramebuffer framebuffer{VK_NULL_HANDLE};
@@ -241,6 +243,7 @@ struct PipelineState {
 };
 
 ContextState* state_of(VulkanContext& context) noexcept;
+const ContextState* state_of(const VulkanContext& context) noexcept;
 
 PipelineState* pipeline_of(VulkanRectPipeline& pipeline) noexcept;
 

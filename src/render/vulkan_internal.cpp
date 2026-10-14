@@ -14,6 +14,10 @@ ContextState* state_of(VulkanContext& context) noexcept {
     return static_cast<ContextState*>(context.instance_state);
 }
 
+const ContextState* state_of(const VulkanContext& context) noexcept {
+    return static_cast<const ContextState*>(context.instance_state);
+}
+
 PipelineState* pipeline_of(VulkanRectPipeline& pipeline) noexcept {
     return static_cast<PipelineState*>(pipeline.pipeline_state);
 }
@@ -83,7 +87,8 @@ bool create_image(ContextState& state, std::size_t width, std::size_t height) no
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
@@ -168,7 +173,7 @@ bool create_staging(ContextState& state, std::size_t width, std::size_t height) 
     const auto buffer_info = VkBufferCreateInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = static_cast<VkDeviceSize>(state.target.staging_bytes),
-        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 

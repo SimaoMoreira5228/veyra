@@ -156,10 +156,13 @@ struct PathRectSink {
 
 }
 
-bool end_frame(
+VulkanRenderResult end_frame(
     vulkan_detail::ContextState& state,
     std::uint64_t& gpu_ns,
-    std::span<const LayoutRect> damage
+    std::span<const LayoutRect> damage,
+    const SoftwareClipRect* exposed,
+    std::size_t exposed_count,
+    bool full_copy
 ) noexcept {
     gpu_ns = 0;
 
@@ -228,7 +231,7 @@ bool end_frame(
         &to_transfer
     );
 
-    if (damage.empty()) {
+    if (full_copy) {
         copy_image(
             SoftwareClipRect{
                 .left = 0,
@@ -246,6 +249,10 @@ bool end_frame(
             }
 
             copy_image(bounds);
+        }
+
+        for (auto index = std::size_t{}; index < exposed_count; ++index) {
+            copy_image(exposed[index]);
         }
     }
 
@@ -288,7 +295,7 @@ bool end_frame(
     }
 
     if (vkEndCommandBuffer(state.commands) != VK_SUCCESS) {
-        return false;
+        return VulkanRenderResult::device_error;
     }
 
     vkResetFences(state.device, 1, &state.fence);
@@ -299,14 +306,30 @@ bool end_frame(
         .pCommandBuffers = &state.commands,
     };
 
-    if (vkQueueSubmit(state.queue, 1, &submit, state.fence) != VK_SUCCESS) {
-        return false;
+    const auto submitted = vkQueueSubmit(state.queue, 1, &submit, state.fence);
+
+    if (submitted == VK_ERROR_DEVICE_LOST) {
+        state.device_lost = true;
+
+        return VulkanRenderResult::device_lost;
+    }
+
+    if (submitted != VK_SUCCESS) {
+        return VulkanRenderResult::device_error;
     }
 
     constexpr auto timeout_ns = 10'000'000'000ULL;
 
-    if (vkWaitForFences(state.device, 1, &state.fence, VK_TRUE, timeout_ns) != VK_SUCCESS) {
-        return false;
+    const auto waited = vkWaitForFences(state.device, 1, &state.fence, VK_TRUE, timeout_ns);
+
+    if (waited == VK_ERROR_DEVICE_LOST) {
+        state.device_lost = true;
+
+        return VulkanRenderResult::device_lost;
+    }
+
+    if (waited != VK_SUCCESS) {
+        return VulkanRenderResult::device_error;
     }
 
     if (state.timestamp_pool != VK_NULL_HANDLE) {
@@ -329,7 +352,7 @@ bool end_frame(
         }
     }
 
-    return true;
+    return VulkanRenderResult::complete;
 }
 
 static VulkanRenderResult render_frame(
@@ -339,7 +362,9 @@ static VulkanRenderResult render_frame(
     std::span<SoftwarePixel> output,
     VulkanRectStats& stats,
     std::span<const LayoutRect> damage,
-    bool full_repaint
+    bool full_repaint,
+    std::int32_t scroll_x,
+    std::int32_t scroll_y
 ) noexcept;
 
 VulkanRenderResult render_vulkan_rects(
@@ -349,7 +374,7 @@ VulkanRenderResult render_vulkan_rects(
     std::span<SoftwarePixel> output,
     VulkanRectStats& stats
 ) noexcept {
-    return render_frame(context, pipeline, commands, output, stats, {}, true);
+    return render_frame(context, pipeline, commands, output, stats, {}, true, 0, 0);
 }
 
 VulkanRenderResult render_vulkan_rects(
@@ -360,7 +385,35 @@ VulkanRenderResult render_vulkan_rects(
     VulkanRectStats& stats,
     std::span<const LayoutRect> damage
 ) noexcept {
-    return render_frame(context, pipeline, commands, output, stats, damage, false);
+    return render_frame(context, pipeline, commands, output, stats, damage, damage.empty(), 0, 0);
+}
+
+VulkanRenderResult render_vulkan_scrolled(
+    VulkanContext& context,
+    VulkanRectPipeline& pipeline,
+    std::span<const DisplayCommand> commands,
+    std::span<SoftwarePixel> output,
+    VulkanRectStats& stats,
+    std::span<const LayoutRect> damage,
+    std::int32_t scroll_x,
+    std::int32_t scroll_y
+) noexcept {
+    const auto wide_enough = scroll_x > -static_cast<std::int32_t>(context.width) &&
+        scroll_x < static_cast<std::int32_t>(context.width);
+    const auto high_enough = scroll_y > -static_cast<std::int32_t>(context.height) &&
+        scroll_y < static_cast<std::int32_t>(context.height);
+
+    return render_frame(
+        context,
+        pipeline,
+        commands,
+        output,
+        stats,
+        damage,
+        !(wide_enough && high_enough),
+        scroll_x,
+        scroll_y
+    );
 }
 
 static VulkanRenderResult render_frame(
@@ -370,7 +423,9 @@ static VulkanRenderResult render_frame(
     std::span<SoftwarePixel> output,
     VulkanRectStats& stats,
     std::span<const LayoutRect> damage,
-    bool full_repaint
+    bool full_repaint,
+    std::int32_t scroll_x,
+    std::int32_t scroll_y
 ) noexcept {
     auto* state = vulkan_detail::state_of(context);
     auto* stored = vulkan_detail::pipeline_of(pipeline);
@@ -389,7 +444,15 @@ static VulkanRenderResult render_frame(
 
     stats = VulkanRectStats{};
 
-    const auto full = full_repaint || damage.empty();
+    if (state->device_lost) {
+        return VulkanRenderResult::device_lost;
+    }
+
+    const auto surface_width = static_cast<std::int64_t>(state->width);
+    const auto surface_height = static_cast<std::int64_t>(state->height);
+    const auto scroll_x_64 = static_cast<std::int64_t>(scroll_x);
+    const auto scroll_y_64 = static_cast<std::int64_t>(scroll_y);
+    const auto full = full_repaint || !state->target_valid;
 
     auto batch =
         FrameBatch{*state, *stored, stats, full ? state->shared_pass : state->shared_load_pass};
@@ -420,15 +483,15 @@ static VulkanRenderResult render_frame(
         }
     }
 
-    auto copy_bounds = SoftwareClipRect{
+    auto damage_union = SoftwareClipRect{
         .left = 0,
         .top = 0,
         .right = state->width,
         .bottom = state->height,
     };
 
-    if (!full) {
-        copy_bounds = SoftwareClipRect{
+    if (!damage.empty()) {
+        damage_union = SoftwareClipRect{
             .left = state->width,
             .top = state->height,
             .right = 0,
@@ -459,32 +522,223 @@ static VulkanRenderResult render_frame(
                 }
             }
 
-            copy_bounds.left = std::min(copy_bounds.left, bounds.left);
-            copy_bounds.top = std::min(copy_bounds.top, bounds.top);
-            copy_bounds.right = std::max(copy_bounds.right, bounds.right);
-            copy_bounds.bottom = std::max(copy_bounds.bottom, bounds.bottom);
+            damage_union.left = std::min(damage_union.left, bounds.left);
+            damage_union.top = std::min(damage_union.top, bounds.top);
+            damage_union.right = std::max(damage_union.right, bounds.right);
+            damage_union.bottom = std::max(damage_union.bottom, bounds.bottom);
         }
 
-        if (copy_bounds.left >= copy_bounds.right || copy_bounds.top >= copy_bounds.bottom) {
+        if (damage_union.left >= damage_union.right || damage_union.top >= damage_union.bottom) {
             return VulkanRenderResult::complete;
         }
     }
 
-    const auto region_total = full ? std::size_t{1} : damage.size();
+    const auto retain = !full && (scroll_x != 0 || scroll_y != 0);
 
-    for (auto region = std::size_t{}; region < region_total; ++region) {
-        auto region_clip = SoftwareClipRect{
-            .left = 0,
-            .top = 0,
-            .right = state->width,
-            .bottom = state->height,
-        };
+    auto exposed = std::array<SoftwareClipRect, 2>{};
+    auto exposed_count = std::size_t{};
 
-        if (!full) {
-            region_clip = render_detail::pixel_bounds(damage[region], state->width, state->height);
+    if (retain) {
+        if (scroll_y_64 > 0) {
+            exposed[exposed_count++] = SoftwareClipRect{
+                .left = 0,
+                .top = 0,
+                .right = state->width,
+                .bottom = static_cast<std::size_t>(scroll_y_64),
+            };
+        } else if (scroll_y_64 < 0) {
+            exposed[exposed_count++] = SoftwareClipRect{
+                .left = 0,
+                .top = static_cast<std::size_t>(surface_height + scroll_y_64),
+                .right = state->width,
+                .bottom = state->height,
+            };
         }
 
-        batch.begin_region(region_clip);
+        if (scroll_x_64 != 0) {
+            auto band_top = std::size_t{};
+            auto band_bottom = state->height;
+
+            if (scroll_y_64 > 0) {
+                band_top = static_cast<std::size_t>(scroll_y_64);
+            } else if (scroll_y_64 < 0) {
+                band_bottom = static_cast<std::size_t>(surface_height + scroll_y_64);
+            }
+
+            if (scroll_x_64 > 0) {
+                exposed[exposed_count++] = SoftwareClipRect{
+                    .left = 0,
+                    .top = band_top,
+                    .right = static_cast<std::size_t>(scroll_x_64),
+                    .bottom = band_bottom,
+                };
+            } else {
+                exposed[exposed_count++] = SoftwareClipRect{
+                    .left = static_cast<std::size_t>(surface_width + scroll_x_64),
+                    .top = band_top,
+                    .right = state->width,
+                    .bottom = band_bottom,
+                };
+            }
+        }
+
+        for (auto exposed_index = std::size_t{}; exposed_index < exposed_count; ++exposed_index) {
+            for (const auto& region : damage) {
+                if (render_detail::overlaps(
+                        exposed[exposed_index],
+                        render_detail::pixel_bounds(region, state->width, state->height)
+                    )) {
+                    batch.abandon();
+
+                    return VulkanRenderResult::invalid_input;
+                }
+            }
+        }
+
+        const auto source_left = static_cast<std::size_t>(scroll_x_64 < 0 ? -scroll_x_64 : 0);
+        const auto source_top = static_cast<std::size_t>(scroll_y_64 < 0 ? -scroll_y_64 : 0);
+        const auto source_right =
+            static_cast<std::size_t>(scroll_x_64 > 0 ? surface_width - scroll_x_64 : surface_width);
+        const auto source_bottom = static_cast<std::size_t>(
+            scroll_y_64 > 0 ? surface_height - scroll_y_64 : surface_height
+        );
+        const auto destination_left = static_cast<std::size_t>(scroll_x_64 > 0 ? scroll_x_64 : 0);
+        const auto destination_top = static_cast<std::size_t>(scroll_y_64 > 0 ? scroll_y_64 : 0);
+
+        const auto acquire = VkImageMemoryBarrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = state->target.image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
+        };
+
+        vkCmdPipelineBarrier(
+            state->commands,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            0,
+            1,
+            &acquire
+        );
+
+        const auto shift = VkBufferImageCopy{
+            .bufferOffset = static_cast<VkDeviceSize>(
+                (source_top * state->width + source_left) * sizeof(SoftwarePixel)
+            ),
+            .bufferRowLength = static_cast<std::uint32_t>(state->width),
+            .bufferImageHeight = static_cast<std::uint32_t>(state->height),
+            .imageSubresource =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .layerCount = 1,
+                },
+            .imageOffset =
+                {
+                    .x = static_cast<std::int32_t>(source_left),
+                    .y = static_cast<std::int32_t>(source_top),
+                },
+            .imageExtent = {
+                .width = static_cast<std::uint32_t>(source_right - source_left),
+                .height = static_cast<std::uint32_t>(source_bottom - source_top),
+                .depth = 1,
+            },
+        };
+
+        vkCmdCopyImageToBuffer(
+            state->commands,
+            state->target.image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            state->target.staging,
+            1,
+            &shift
+        );
+
+        const auto place = VkBufferImageCopy{
+            .bufferOffset = shift.bufferOffset,
+            .bufferRowLength = shift.bufferRowLength,
+            .bufferImageHeight = shift.bufferImageHeight,
+            .imageSubresource = shift.imageSubresource,
+            .imageOffset =
+                {
+                    .x = static_cast<std::int32_t>(destination_left),
+                    .y = static_cast<std::int32_t>(destination_top),
+                },
+            .imageExtent = shift.imageExtent,
+        };
+
+        vkCmdCopyBufferToImage(
+            state->commands,
+            state->target.staging,
+            state->target.image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            1,
+            &place
+        );
+
+        const auto release = VkImageMemoryBarrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = {},
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = state->target.image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
+        };
+
+        vkCmdPipelineBarrier(
+            state->commands,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            0,
+            1,
+            &release
+        );
+    }
+
+    const auto region_at = [&](std::size_t index) noexcept {
+        if (full) {
+            return SoftwareClipRect{
+                .left = 0,
+                .top = 0,
+                .right = state->width,
+                .bottom = state->height,
+            };
+        }
+
+        if (index < damage.size()) {
+            return render_detail::pixel_bounds(damage[index], state->width, state->height);
+        }
+
+        return exposed[index - damage.size()];
+    };
+
+    const auto region_total = full ? std::size_t{1} : damage.size() + exposed_count;
+
+    for (auto region = std::size_t{}; region < region_total; ++region) {
+        batch.begin_region(region_at(region));
 
         auto translation = LayoutPoint{};
         auto translation_stack = std::array<LayoutPoint, 8>{};
@@ -1226,10 +1480,13 @@ static VulkanRenderResult render_frame(
 
     auto gpu_ns = std::uint64_t{};
 
-    if (!end_frame(*state, gpu_ns, damage)) {
+    const auto finished =
+        end_frame(*state, gpu_ns, damage, exposed.data(), exposed_count, full || retain);
+
+    if (finished != VulkanRenderResult::complete) {
         vulkan_detail::evict_frame_images(*state, *stored);
 
-        return VulkanRenderResult::device_error;
+        return finished;
     }
 
     stats.gpu_ns = gpu_ns;
@@ -1249,7 +1506,7 @@ static VulkanRenderResult render_frame(
         }
     };
 
-    if (damage.empty()) {
+    if (full || retain || (damage.empty() && exposed_count == 0)) {
         copy_back(
             SoftwareClipRect{
                 .left = 0,
@@ -1268,7 +1525,13 @@ static VulkanRenderResult render_frame(
 
             copy_back(bounds);
         }
+
+        for (auto index = std::size_t{}; index < exposed_count; ++index) {
+            copy_back(exposed[index]);
+        }
     }
+
+    state->target_valid = true;
 
     return VulkanRenderResult::complete;
 }

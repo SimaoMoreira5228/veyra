@@ -20,6 +20,7 @@ enum class VulkanRenderResult : std::uint8_t {
     insufficient_capacity,
     unsupported_commands,
     device_error,
+    device_lost,
 };
 
 struct VulkanRectStats {
@@ -64,6 +65,17 @@ VulkanRenderResult render_vulkan_rects(
     std::span<SoftwarePixel> output,
     VulkanRectStats& stats,
     std::span<const LayoutRect> damage
+) noexcept;
+
+VulkanRenderResult render_vulkan_scrolled(
+    VulkanContext& context,
+    VulkanRectPipeline& pipeline,
+    std::span<const DisplayCommand> commands,
+    std::span<SoftwarePixel> output,
+    VulkanRectStats& stats,
+    std::span<const LayoutRect> damage,
+    std::int32_t scroll_x,
+    std::int32_t scroll_y
 ) noexcept;
 
 }

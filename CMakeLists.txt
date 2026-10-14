@@ -470,6 +470,14 @@ if(VEYRA_WITH_VULKAN)
   target_link_libraries(veyra_vulkan_damage_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_damage_parity COMMAND veyra_vulkan_damage_parity_test)
 
+  add_executable(veyra_vulkan_device_health_test tests/vulkan_device_health_test.cpp)
+  target_link_libraries(veyra_vulkan_device_health_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_device_health COMMAND veyra_vulkan_device_health_test)
+
+  add_executable(veyra_vulkan_scroll_parity_test tests/vulkan_scroll_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_scroll_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_scroll_parity COMMAND veyra_vulkan_scroll_parity_test)
+
   add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
   target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)
   target_compile_definitions(veyra_vulkan_e3_bench PRIVATE

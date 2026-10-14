@@ -80,15 +80,8 @@ void render_damaged_reference(
     std::span<const veyra::DisplayCommand> scene,
     std::span<veyra::SoftwarePixel> pixels,
     std::span<const veyra::LayoutRect> damage,
-    SoftwareRooms& rooms,
-    bool prime
+    SoftwareRooms& rooms
 ) {
-    if (prime) {
-        for (auto& pixel : pixels) {
-            pixel = veyra::SoftwarePixel{.red = 7, .green = 11, .blue = 13, .alpha = 255};
-        }
-    }
-
     const auto surface = veyra::SoftwareSurface{
         .width = kWidth,
         .height = kHeight,
@@ -203,20 +196,23 @@ void check_partial_damage_parity(
     };
     const auto damaged = std::span<const veyra::LayoutRect>{damage.data(), damage.size()};
 
-    render_damaged_reference(scene, expected, damaged, rooms, true);
-
-    require(
-        expected[2 * kWidth + 2].red == 7 && expected[2 * kWidth + 2].green == 11,
-        "undamaged pixels keep the sentinel"
-    );
-    require(expected[20 * kWidth + 20].green < 200, "damaged rounded rect inks inside the damage");
-    require(expected[45 * kWidth + 70].green < 200, "damaged band inks inside the damage");
-
-    for (auto& pixel : actual) {
-        pixel = veyra::SoftwarePixel{.red = 7, .green = 11, .blue = 13, .alpha = 255};
-    }
+    render_reference(scene, expected, kWidth, kHeight, rooms);
 
     auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(
+            context,
+            pipeline,
+            scene,
+            std::span<veyra::SoftwarePixel>(actual),
+            stats
+        ) == veyra::VulkanRenderResult::complete,
+        "sync full repaint completes"
+    );
+    require(expected[2 * kWidth + 50].green == 240, "undamaged pixels keep the full repaint");
+
+    render_damaged_reference(scene, expected, damaged, rooms);
 
     require(
         veyra::render_vulkan_rects(
@@ -310,7 +306,7 @@ void check_distant_damage_skips_everything(
     );
     require(stats.submitted == 1, "sync repaint submits the rect");
 
-    render_damaged_reference(scene, expected, damaged, rooms, false);
+    render_damaged_reference(scene, expected, damaged, rooms);
 
     require(
         veyra::render_vulkan_rects(context, pipeline, scene, actual, stats, damaged) ==
@@ -398,13 +394,22 @@ void check_steady_damage_allocate_nothing(
     };
     const auto damaged = std::span<const veyra::LayoutRect>{damage.data(), damage.size()};
 
-    render_damaged_reference(scene, expected, damaged, rooms, true);
-
-    for (auto& pixel : actual) {
-        pixel = veyra::SoftwarePixel{.red = 7, .green = 11, .blue = 13, .alpha = 255};
-    }
+    render_reference(scene, expected, kWidth, kHeight, rooms);
 
     auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(
+            context,
+            pipeline,
+            scene,
+            std::span<veyra::SoftwarePixel>(actual),
+            stats
+        ) == veyra::VulkanRenderResult::complete,
+        "sync full repaint completes"
+    );
+
+    render_damaged_reference(scene, expected, damaged, rooms);
 
     require(
         veyra::render_vulkan_rects(

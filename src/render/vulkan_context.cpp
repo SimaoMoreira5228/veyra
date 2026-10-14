@@ -475,6 +475,7 @@ resize_vulkan_target(VulkanContext& context, std::size_t width, std::size_t heig
 
     state->width = width;
     state->height = height;
+    state->target_valid = false;
 
     if (!vulkan_detail::create_target(*state, width, height)) {
         context.ready = false;
@@ -496,6 +497,12 @@ resize_vulkan_target(VulkanContext& context, std::size_t width, std::size_t heig
 
 bool vulkan_context_ready(const VulkanContext& context) noexcept {
     return context.ready && context.instance_state != nullptr;
+}
+
+bool vulkan_context_device_lost(const VulkanContext& context) noexcept {
+    const auto* state = vulkan_detail::state_of(context);
+
+    return state != nullptr && state->device_lost;
 }
 
 }
