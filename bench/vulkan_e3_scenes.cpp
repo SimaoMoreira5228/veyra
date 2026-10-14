@@ -3,6 +3,7 @@
 #include "veyra/render/vulkan_rect_pipeline.hpp"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
@@ -18,11 +19,18 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+enum class BenchMode : std::uint8_t {
+    full,
+    scroll,
+    damage,
+};
+
 struct Options {
     bool all{};
     veyra::E3Scene scene{veyra::E3Scene::dashboard_12};
     std::size_t frames{200};
     std::size_t warmup{20};
+    BenchMode mode{BenchMode::full};
 };
 
 std::size_t parse_size(const char* value) {
@@ -50,6 +58,16 @@ Options parse_options(int argc, char** argv) {
         if (argument == "--scene") {
             if (!veyra::e3_parse_scene(value, options.scene)) {
                 throw std::invalid_argument("unknown scene: " + std::string(value));
+            }
+        } else if (argument == "--mode") {
+            if (value == "full") {
+                options.mode = BenchMode::full;
+            } else if (value == "scroll") {
+                options.mode = BenchMode::scroll;
+            } else if (value == "damage") {
+                options.mode = BenchMode::damage;
+            } else {
+                throw std::invalid_argument("unknown mode: " + std::string(value));
             }
         } else if (argument == "--frames") {
             options.frames = parse_size(argv[index]);
@@ -85,6 +103,73 @@ struct VariantResult {
     std::size_t submitted{};
 };
 
+const char* mode_name(BenchMode mode) noexcept {
+    switch (mode) {
+    case BenchMode::full:
+        return "full";
+    case BenchMode::scroll:
+        return "scroll";
+    case BenchMode::damage:
+        return "damage";
+    }
+
+    return "full";
+}
+
+void render_once(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<const veyra::DisplayCommand> commands,
+    std::span<veyra::SoftwarePixel> pixels,
+    const Options& options,
+    veyra::VulkanRectStats& stats
+) {
+    if (options.mode == BenchMode::scroll) {
+        const auto scrolled = veyra::render_vulkan_scrolled(
+            context,
+            pipeline,
+            commands,
+            pixels,
+            stats,
+            std::span<const veyra::LayoutRect>{},
+            0,
+            -8
+        );
+
+        require(scrolled == veyra::VulkanRenderResult::complete, "scrolled frame completes");
+
+        return;
+    }
+
+    if (options.mode == BenchMode::damage) {
+        const std::array<veyra::LayoutRect, 1> damaged{
+            veyra::LayoutRect{
+                .x = static_cast<float>((veyra::kE3Width - 256) / 2),
+                .y = static_cast<float>((veyra::kE3Height - 144) / 2),
+                .width = 256.0F,
+                .height = 144.0F,
+            },
+        };
+
+        const auto rendered = veyra::render_vulkan_rects(
+            context,
+            pipeline,
+            commands,
+            pixels,
+            stats,
+            std::span<const veyra::LayoutRect>{damaged.data(), damaged.size()}
+        );
+
+        require(rendered == veyra::VulkanRenderResult::complete, "damaged frame completes");
+
+        return;
+    }
+
+    const auto rendered = veyra::render_vulkan_rects(context, pipeline, commands, pixels, stats);
+
+    require(rendered == veyra::VulkanRenderResult::complete, "full frame completes");
+}
+
 void run_variant(
     veyra::E3Scene scene,
     veyra::VulkanContext& context,
@@ -100,23 +185,25 @@ void run_variant(
 
     for (std::size_t frame = 0; frame < options.warmup + options.frames; ++frame) {
         const auto measuring = frame >= options.warmup;
-        const auto built =
-            veyra::e3_build_scene(scene, 0x9E3779B97F4A7C15ULL, frame, commands, scratch);
 
-        require(built.status == veyra::E3BuildStatus::complete, "e3 scene builds during bench");
+        if (options.mode == BenchMode::full || frame == 0) {
+            const auto built =
+                veyra::e3_build_scene(scene, 0x9E3779B97F4A7C15ULL, frame, commands, scratch);
+
+            require(built.status == veyra::E3BuildStatus::complete, "e3 scene builds during bench");
+        }
 
         auto stats = veyra::VulkanRectStats{};
         const auto render_begin = Clock::now();
-        const auto rendered = veyra::render_vulkan_rects(
+        render_once(
             context,
             pipeline,
             std::span<const veyra::DisplayCommand>(commands),
             pixels,
+            options,
             stats
         );
         const auto render_end = Clock::now();
-
-        require(rendered == veyra::VulkanRenderResult::complete, "e3 scene renders during bench");
 
         if (measuring) {
             result.cpu_ns.push_back(
@@ -185,7 +272,7 @@ void run_scene(
     veyra::destroy_vulkan_rect_pipeline(context, specialized);
 
     if (header) {
-        std::cout << "scene,platform,compiler,build_config,variant,width,height,commands,"
+        std::cout << "scene,platform,compiler,build_config,variant,mode,width,height,commands,"
                      "warmup_frames,measured_frames,cpu_p50_ns,cpu_p95_ns,cpu_p99_ns,gpu_p50_ns,"
                      "gpu_p95_ns,gpu_p99_ns,draws,submitted\n";
     }
@@ -193,8 +280,8 @@ void run_scene(
     for (const auto* result : {&specialized_result, &unified_result}) {
         std::cout << veyra::e3_scene_name(scene) << ',' << VEYRA_BUILD_PLATFORM << ','
                   << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ',' << result->name << ','
-                  << veyra::kE3Width << ',' << veyra::kE3Height << ',' << needed << ','
-                  << options.warmup << ',' << options.frames << ','
+                  << mode_name(options.mode) << ',' << veyra::kE3Width << ',' << veyra::kE3Height
+                  << ',' << needed << ',' << options.warmup << ',' << options.frames << ','
                   << percentile(result->cpu_ns, 50) << ',' << percentile(result->cpu_ns, 95) << ','
                   << percentile(result->cpu_ns, 99) << ',' << percentile(result->gpu_ns, 50) << ','
                   << percentile(result->gpu_ns, 95) << ',' << percentile(result->gpu_ns, 99) << ','

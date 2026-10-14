@@ -2,14 +2,61 @@
 #include "veyra/render/software_renderer.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
 namespace {
+
+std::atomic<std::size_t> g_allocation_count{0};
+std::atomic<bool> g_counting{false};
+
+void note_allocation() noexcept {
+    if (g_counting.load(std::memory_order_relaxed)) {
+        g_allocation_count.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+void* allocate_unaligned(std::size_t size) {
+    note_allocation();
+    if (size == 0) {
+        size = 1;
+    }
+    void* result = std::malloc(size);
+    if (result == nullptr) {
+        throw std::bad_alloc{};
+    }
+    return result;
+}
+
+void release_unaligned(void* ptr) noexcept {
+    std::free(ptr);
+}
+
+class Measure {
+  public:
+    Measure() noexcept {
+        g_allocation_count.store(0, std::memory_order_relaxed);
+        g_counting.store(true, std::memory_order_relaxed);
+    }
+
+    ~Measure() noexcept {
+        g_counting.store(false, std::memory_order_relaxed);
+    }
+
+    Measure(const Measure&) = delete;
+    Measure& operator=(const Measure&) = delete;
+
+    std::size_t count() const noexcept {
+        return g_allocation_count.load(std::memory_order_relaxed);
+    }
+};
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -334,15 +381,162 @@ void check_glyph_draws() {
     );
 }
 
+constexpr std::size_t kChurnAtlasWidth = 128;
+constexpr std::size_t kChurnAtlasHeight = 128;
+constexpr std::size_t kChurnSlots = 256;
+constexpr std::uint32_t kChurnGlyphs = 2000;
+
+struct ChurnRooms {
+    std::array<veyra::GlyphAtlasSlot, kChurnSlots> slots{};
+    std::array<std::uint8_t, kChurnAtlasWidth * kChurnAtlasHeight> coverage{};
+    std::array<stbrp_node, kChurnAtlasWidth> nodes{};
+};
+
+std::uint8_t churn_byte(std::uint32_t id, std::size_t row, std::size_t column) noexcept {
+    return static_cast<std::uint8_t>((id * 31 + row * 13 + column * 7) % 251);
+}
+
+std::size_t churn_width(std::uint32_t id) noexcept {
+    return 8 + (id % 9);
+}
+
+std::size_t churn_height(std::uint32_t id) noexcept {
+    return 8 + ((id * 7) % 9);
+}
+
+void require_resident_exact(veyra::GlyphAtlas& atlas, std::uint32_t id, std::string_view message) {
+    const auto found = atlas.find(test_key(id));
+
+    if (!found.has_value()) {
+        return;
+    }
+
+    const auto width = churn_width(id);
+    const auto height = churn_height(id);
+
+    require(found->width == width && found->height == height, message);
+    require(
+        found->u + found->width <= kChurnAtlasWidth &&
+            found->v + found->height <= kChurnAtlasHeight,
+        message
+    );
+
+    const auto view = atlas.view();
+
+    for (auto row = std::size_t{}; row < height; ++row) {
+        for (auto column = std::size_t{}; column < width; ++column) {
+            require(
+                view.coverage[(found->v + row) * view.stride + found->u + column] ==
+                    churn_byte(id, row, column),
+                message
+            );
+        }
+    }
+}
+
+void check_cjk_churn() {
+    auto rooms = ChurnRooms{};
+    auto atlas = veyra::GlyphAtlas(
+        std::span<veyra::GlyphAtlasSlot>(rooms.slots),
+        std::span<std::uint8_t>(rooms.coverage),
+        std::span<stbrp_node>(rooms.nodes),
+        kChurnAtlasWidth,
+        kChurnAtlasHeight
+    );
+
+    require(atlas.valid(), "churn atlas validates");
+
+    auto pixels = std::array<std::uint8_t, 256>{};
+    auto evictions = std::size_t{};
+
+    for (auto id = std::uint32_t{1}; id <= kChurnGlyphs; ++id) {
+        const auto width = churn_width(id);
+        const auto height = churn_height(id);
+
+        for (auto row = std::size_t{}; row < height; ++row) {
+            for (auto column = std::size_t{}; column < width; ++column) {
+                pixels[row * width + column] = churn_byte(id, row, column);
+            }
+        }
+
+        const auto result = atlas.insert(test_key(id), test_mask(pixels, width, height));
+
+        require(
+            result == veyra::GlyphAtlasResult::inserted ||
+                result == veyra::GlyphAtlasResult::inserted_after_eviction,
+            "churn inserts pack"
+        );
+
+        if (result == veyra::GlyphAtlasResult::inserted_after_eviction) {
+            ++evictions;
+        }
+    }
+
+    require(evictions >= 1, "churn overflows the atlas at least once");
+    require(evictions <= 32, "churn clears the atlas a handful of times, not per glyph");
+    require(
+        atlas.generation() == kChurnGlyphs + evictions,
+        "every insert and every clear bumps the generation exactly once"
+    );
+
+    for (auto id = std::uint32_t{1}; id <= kChurnGlyphs; ++id) {
+        require_resident_exact(atlas, id, "residents stay byte-exact under eviction");
+    }
+
+    const auto last = atlas.find(test_key(kChurnGlyphs));
+    require(last.has_value(), "the freshest glyph always resolves");
+
+    auto steady_pixels = std::array<std::uint8_t, 256>{};
+    steady_pixels.fill(200);
+
+    const auto measure = Measure{};
+
+    for (auto repeat = 0; repeat < 60; ++repeat) {
+        require(
+            atlas.insert(test_key(5001), test_mask(steady_pixels, 16, 16)) !=
+                veyra::GlyphAtlasResult::invalid_workspace,
+            "steady traffic packs"
+        );
+        require(atlas.find(test_key(5001)).has_value(), "steady traffic resolves");
+    }
+
+    require(measure.count() == 0, "steady atlas traffic allocates nothing");
+}
+
 int run() {
     check_insert_and_find();
     check_eviction_and_clear();
     check_rejections();
     check_glyph_draws();
+    check_cjk_churn();
 
     return 0;
 }
 
+}
+
+void* operator new(std::size_t size) {
+    return allocate_unaligned(size);
+}
+
+void* operator new[](std::size_t size) {
+    return allocate_unaligned(size);
+}
+
+void operator delete(void* ptr) noexcept {
+    release_unaligned(ptr);
+}
+
+void operator delete[](void* ptr) noexcept {
+    release_unaligned(ptr);
+}
+
+void operator delete(void* ptr, std::size_t) noexcept {
+    release_unaligned(ptr);
+}
+
+void operator delete[](void* ptr, std::size_t) noexcept {
+    release_unaligned(ptr);
 }
 
 int main() {

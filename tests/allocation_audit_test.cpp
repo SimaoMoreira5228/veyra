@@ -207,7 +207,6 @@ void apply_chat_edit(ChatModel& model, veyra::ChatRowHeightCache& cache, std::ui
     require(model.list.set_extent(row, height, delta), "steady edit moves its extent");
 }
 
-// NOTE: steady is a fixed row count with edits over cached rows; the queue drains every cycle.
 std::uint64_t run_chat_steady_cycle(
     ChatModel& model,
     veyra::ChatRowHeightCache& cache,
@@ -356,7 +355,6 @@ void append_refreshed_file(FileAuditState& state, const AuditFile& file) {
     );
 }
 
-// NOTE: steady is the same eight-row listing twice with no new rows.
 std::uint64_t run_file_steady_cycle(FileAuditState& state) {
     require(
         veyra::build_file_list_order(state.entries, u8"", {}, state.name_order, state.name_count) ==
@@ -606,7 +604,6 @@ veyra::GlyphMaskKey audit_glyph_key(std::uint32_t glyph_id) {
     };
 }
 
-// NOTE: steady is reads only: cursor roams, caller-span copies, glyph hits.
 std::uint64_t run_editor_steady_cycle(
     veyra::TextEditorBuffer& buffer,
     veyra::EditableTextController& field,

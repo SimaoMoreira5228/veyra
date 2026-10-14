@@ -64,7 +64,6 @@ inline Srgba8 e0_color(std::uint64_t& state) noexcept {
     };
 }
 
-// NOTE: pure function of (seed, frame). Same inputs rebuild identical lists.
 inline std::span<const DisplayCommand>
 e0_build_scene(std::uint64_t seed, std::size_t frame, E0SceneStorage& storage) noexcept {
     auto random = static_cast<std::uint64_t>(seed ^ 0xD1B54A32D192ED03ULL);

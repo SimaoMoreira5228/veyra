@@ -6,9 +6,8 @@
 namespace veyra {
 
 // NOTE: scroll generations count committed geometry changes, not frames.
-// Fresh means the retained layer saw the current counter value exactly.
 constexpr bool same_scroll_generation(std::uint64_t current, std::uint64_t retained) noexcept {
-    return (current - retained) == 0;
+    return current == retained;
 }
 
 class ScrollAxis {

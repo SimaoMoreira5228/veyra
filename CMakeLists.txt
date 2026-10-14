@@ -489,6 +489,14 @@ if(VEYRA_WITH_VULKAN)
    NAME vulkan_e3_benchmark_smoke
    COMMAND veyra_vulkan_e3_bench --scene shadowed-boxes-600 --frames 2 --warmup 1
   )
+  add_test(
+   NAME vulkan_e3_benchmark_scroll_smoke
+   COMMAND veyra_vulkan_e3_bench --scene row-scroll-1000 --mode scroll --frames 2 --warmup 1
+  )
+  add_test(
+   NAME vulkan_e3_benchmark_damage_smoke
+   COMMAND veyra_vulkan_e3_bench --scene dashboard-12 --mode damage --frames 2 --warmup 1
+  )
  endif()
 endif()
 

@@ -155,7 +155,6 @@ bool PressableController::write_semantics(
     return true;
 }
 
-// NOTE: hover answers slower than press; both attack fast and settle soft.
 constexpr std::uint64_t kPressableHoverDurationMs = 120;
 constexpr std::uint64_t kPressablePressDurationMs = 80;
 

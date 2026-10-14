@@ -30,8 +30,6 @@ namespace {
 constexpr std::size_t kMargin = 16;
 constexpr std::size_t kRowGap = 14;
 constexpr std::size_t kMaxDimension = 2048;
-// NOTE: 8x the widest base canvas is 16384 pixels per side, the largest
-// canvas that stays comfortably addressable while keeping the suite fast.
 constexpr double kMinScale = 1.0;
 constexpr double kMaxScale = 8.0;
 constexpr std::size_t kSceneWidth = 528;
