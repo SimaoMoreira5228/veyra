@@ -408,9 +408,17 @@ if(VEYRA_WITH_VULKAN)
   target_link_libraries(veyra_vulkan PUBLIC veyra Vulkan::Vulkan)
   target_compile_features(veyra_vulkan PUBLIC cxx_std_23)
 
-  add_executable(veyra_vulkan_rect_parity_test tests/vulkan_rect_parity_test.cpp)
-  target_link_libraries(veyra_vulkan_rect_parity_test PRIVATE veyra_vulkan)
-  add_test(NAME vulkan_rect_parity COMMAND veyra_vulkan_rect_parity_test)
+  add_executable(veyra_vulkan_rect_fill_parity_test tests/vulkan_rect_fill_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_rect_fill_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_rect_fill_parity COMMAND veyra_vulkan_rect_fill_parity_test)
+
+  add_executable(veyra_vulkan_rounded_rect_parity_test tests/vulkan_rounded_rect_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_rounded_rect_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_rounded_rect_parity COMMAND veyra_vulkan_rounded_rect_parity_test)
+
+  add_executable(veyra_vulkan_rect_validation_parity_test tests/vulkan_rect_validation_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_rect_validation_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_rect_validation_parity COMMAND veyra_vulkan_rect_validation_parity_test)
 
   add_executable(veyra_vulkan_e3_scenes_test tests/vulkan_e3_scenes_test.cpp)
   target_link_libraries(veyra_vulkan_e3_scenes_test PRIVATE veyra_vulkan)
@@ -755,9 +763,13 @@ add_executable(veyra_image_controller_test tests/image_controller_test.cpp)
 target_link_libraries(veyra_image_controller_test PRIVATE veyra)
 add_test(NAME image_controller_behavior COMMAND veyra_image_controller_test)
 
-add_executable(veyra_software_renderer_test tests/software_renderer_test.cpp)
-target_link_libraries(veyra_software_renderer_test PRIVATE veyra)
-add_test(NAME software_renderer_behavior COMMAND veyra_software_renderer_test)
+add_executable(veyra_software_renderer_correctness_test tests/software_renderer_correctness_test.cpp)
+target_link_libraries(veyra_software_renderer_correctness_test PRIVATE veyra)
+add_test(NAME software_renderer_correctness COMMAND veyra_software_renderer_correctness_test)
+
+add_executable(veyra_software_renderer_transaction_test tests/software_renderer_transaction_test.cpp)
+target_link_libraries(veyra_software_renderer_transaction_test PRIVATE veyra)
+add_test(NAME software_renderer_transaction COMMAND veyra_software_renderer_transaction_test)
 
 add_executable(
  veyra_software_renderer_image_sampling_test

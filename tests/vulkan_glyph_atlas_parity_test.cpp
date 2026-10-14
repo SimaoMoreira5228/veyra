@@ -81,6 +81,8 @@ constexpr std::size_t kGlyphsPerRun = 3;
 constexpr std::size_t kRuns = 4;
 constexpr std::size_t kAtlasWidth = 32;
 constexpr std::size_t kAtlasHeight = 32;
+constexpr std::size_t kEvictionAtlasWidth = 16;
+constexpr std::size_t kEvictionAtlasHeight = 16;
 
 hb_bool_t map_codepoint(hb_font_t*, void*, hb_codepoint_t codepoint, hb_codepoint_t* glyph, void*) {
     *glyph = codepoint;
@@ -113,6 +115,12 @@ struct AtlasFixtures {
     std::array<stbrp_node, kAtlasWidth> nodes{};
     std::array<veyra::ShapedGlyph, kGlyphsPerRun> glyphs{};
     std::size_t glyph_count{};
+};
+
+struct EvictionRooms {
+    std::array<veyra::GlyphAtlasSlot, 4> slots{};
+    std::array<std::uint8_t, kEvictionAtlasWidth * kEvictionAtlasHeight> coverage{};
+    std::array<stbrp_node, kEvictionAtlasWidth> nodes{};
 };
 
 void insert_run_glyphs(veyra::GlyphAtlas& atlas, veyra::GlyphMaskKey key) {
@@ -382,6 +390,176 @@ void check_atlas_rejections(
     );
 }
 
+void check_atlas_eviction_parity(
+    veyra::VulkanContext& context,
+    veyra::VulkanRectPipeline& pipeline,
+    std::span<veyra::SoftwarePixel> expected,
+    std::span<veyra::SoftwarePixel> actual,
+    SoftwareRooms& rooms
+) {
+    auto font = SyntheticFont{};
+    auto fixtures = AtlasFixtures{};
+
+    auto churn = EvictionRooms{};
+    auto atlas = veyra::GlyphAtlas(
+        std::span<veyra::GlyphAtlasSlot>(churn.slots),
+        std::span<std::uint8_t>(churn.coverage),
+        std::span<stbrp_node>(churn.nodes),
+        kEvictionAtlasWidth,
+        kEvictionAtlasHeight
+    );
+
+    require(atlas.valid(), "eviction atlas validates");
+
+    insert_run_glyphs(atlas, {.face_id = 7, .pixel_size = 16});
+    shape_runs(font, fixtures);
+
+    auto run_commands = std::array<veyra::DisplayCommand, kGlyphsPerRun>{};
+
+    require(
+        build_run(
+            fixtures,
+            atlas,
+            {.x = 8.0F, .y = 24.0F},
+            {.red = 20, .green = 20, .blue = 24, .alpha = 255},
+            std::span<veyra::DisplayCommand>(run_commands)
+        ) == kGlyphsPerRun,
+        "pre-eviction run builds"
+    );
+
+    const std::array<veyra::DisplayCommand, 4> before{
+        veyra::FillRect{
+            .bounds = {.width = static_cast<float>(kWidth), .height = static_cast<float>(kHeight)},
+            .color = {.red = 240, .green = 240, .blue = 244, .alpha = 255},
+        },
+        run_commands[0],
+        run_commands[1],
+        run_commands[2],
+    };
+
+    const auto before_scene = std::span<const veyra::DisplayCommand>{before.data(), before.size()};
+
+    render_reference(before_scene, expected, kWidth, kHeight, rooms);
+    check_parity(context, pipeline, before_scene, expected, actual, "glyph-atlas-prefill", 1);
+
+    auto churn_pixels = std::array<std::uint8_t, 144>{};
+    churn_pixels.fill(128);
+
+    auto evicted = false;
+
+    for (auto id = std::uint32_t{100}; id < 124 && !evicted; ++id) {
+        const auto churned = atlas.insert(
+            veyra::GlyphMaskKey{.face_id = 7, .glyph_id = id, .pixel_size = 16},
+            veyra::GlyphMask{
+                .mask =
+                    {
+                        .width = 12,
+                        .height = 12,
+                        .stride = 12,
+                        .coverage = std::span<std::uint8_t>(churn_pixels),
+                        .generation = 0,
+                    },
+                .bearing_x = 0,
+                .bearing_y = 10,
+            }
+        );
+
+        require(
+            churned == veyra::GlyphAtlasResult::inserted ||
+                churned == veyra::GlyphAtlasResult::inserted_after_eviction,
+            "churn tiles pack"
+        );
+
+        evicted = churned == veyra::GlyphAtlasResult::inserted_after_eviction;
+    }
+
+    require(evicted, "churn overflows the small atlas");
+    require(
+        !atlas.find(veyra::GlyphMaskKey{.face_id = 7, .glyph_id = 97, .pixel_size = 16})
+             .has_value(),
+        "eviction drops old placements"
+    );
+
+    auto pattern = std::array<std::uint8_t, 35>{};
+
+    for (auto index = std::size_t{}; index < pattern.size(); ++index) {
+        pattern[index] = static_cast<std::uint8_t>(64 + (index % 5) * 48);
+    }
+
+    for (const auto id : {97U, 98U, 99U}) {
+        const auto remade = atlas.insert(
+            veyra::GlyphMaskKey{.face_id = 7, .glyph_id = id, .pixel_size = 16},
+            veyra::GlyphMask{
+                .mask =
+                    {
+                        .width = 5,
+                        .height = 7,
+                        .stride = 5,
+                        .coverage = std::span<std::uint8_t>(pattern),
+                        .generation = 0,
+                    },
+                .bearing_x = 0,
+                .bearing_y = 5,
+            }
+        );
+
+        require(
+            remade == veyra::GlyphAtlasResult::inserted ||
+                remade == veyra::GlyphAtlasResult::inserted_after_eviction,
+            "runs re-pack after eviction"
+        );
+    }
+
+    require(
+        build_run(
+            fixtures,
+            atlas,
+            {.x = 8.0F, .y = 24.0F},
+            {.red = 20, .green = 20, .blue = 24, .alpha = 255},
+            std::span<veyra::DisplayCommand>(run_commands)
+        ) == kGlyphsPerRun,
+        "post-eviction run rebuilds from fresh placements"
+    );
+
+    const std::array<veyra::DisplayCommand, 4> after{
+        veyra::FillRect{
+            .bounds = {.width = static_cast<float>(kWidth), .height = static_cast<float>(kHeight)},
+            .color = {.red = 240, .green = 240, .blue = 244, .alpha = 255},
+        },
+        run_commands[0],
+        run_commands[1],
+        run_commands[2],
+    };
+
+    const auto after_scene = std::span<const veyra::DisplayCommand>{after.data(), after.size()};
+
+    render_reference(after_scene, expected, kWidth, kHeight, rooms);
+
+    auto inked = false;
+
+    for (auto row = std::size_t{15}; row < 27 && !inked; ++row) {
+        for (auto column = std::size_t{6}; column < 46 && !inked; ++column) {
+            inked = expected[row * kWidth + column].red < 150;
+        }
+    }
+
+    require(inked, "rebuilt run inks the reference");
+
+    auto stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, after_scene, actual, stats) ==
+            veyra::VulkanRenderResult::complete,
+        "rebuilt run renders on the gpu path"
+    );
+
+    require(stats.submitted == 4, "rebuilt run submits fill and glyphs");
+    require(stats.mask_draws == 0, "rebuilt glyphs skip the mask pipeline");
+    require(stats.glyph_draws == 1, "rebuilt glyphs batch through the glyph pipeline");
+
+    check_parity(context, pipeline, after_scene, expected, actual, "glyph-atlas-post-eviction", 1);
+}
+
 void check_steady_atlas_allocate_nothing(
     veyra::VulkanContext& context,
     veyra::VulkanRectPipeline& pipeline,
@@ -482,6 +660,14 @@ int run() {
         context,
         pipeline,
         std::span<veyra::SoftwarePixel>{actual.data(), actual.size()}
+    );
+
+    check_atlas_eviction_parity(
+        context,
+        pipeline,
+        std::span<veyra::SoftwarePixel>{expected.data(), expected.size()},
+        std::span<veyra::SoftwarePixel>{actual.data(), actual.size()},
+        rooms
     );
 
     check_steady_atlas_allocate_nothing(
