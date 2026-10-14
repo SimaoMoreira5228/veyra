@@ -375,7 +375,26 @@ create_vulkan_context(VulkanContext& context, std::size_t width, std::size_t hei
         return VulkanContextResult::creation_failed;
     }
 
+    if (!vulkan_detail::create_load_pass(state->device, state->shared_load_pass)) {
+        vkDestroyRenderPass(state->device, state->shared_pass, nullptr);
+
+        state->shared_pass = VK_NULL_HANDLE;
+
+        vulkan_detail::destroy_target(*state);
+        destroy_commands(*state);
+        vkDestroyDevice(state->device, nullptr);
+        vkDestroyInstance(state->instance, nullptr);
+
+        delete state;
+
+        return VulkanContextResult::creation_failed;
+    }
+
     if (!vulkan_detail::create_framebuffer(*state)) {
+        vkDestroyRenderPass(state->device, state->shared_load_pass, nullptr);
+
+        state->shared_load_pass = VK_NULL_HANDLE;
+
         vkDestroyRenderPass(state->device, state->shared_pass, nullptr);
 
         state->shared_pass = VK_NULL_HANDLE;
@@ -407,6 +426,12 @@ void destroy_vulkan_context(VulkanContext& context) noexcept {
     }
 
     vulkan_detail::destroy_framebuffer(*state);
+
+    if (state->shared_load_pass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(state->device, state->shared_load_pass, nullptr);
+
+        state->shared_load_pass = VK_NULL_HANDLE;
+    }
 
     if (state->shared_pass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(state->device, state->shared_pass, nullptr);

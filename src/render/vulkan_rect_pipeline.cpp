@@ -28,13 +28,11 @@ create_vulkan_rect_pipeline(VulkanContext& context, VulkanRectPipeline& pipeline
         return VulkanRenderResult::device_error;
     }
 
-    if (state->shared_pass == VK_NULL_HANDLE) {
+    if (state->shared_pass == VK_NULL_HANDLE || state->shared_load_pass == VK_NULL_HANDLE) {
         delete stored;
 
         return VulkanRenderResult::device_error;
     }
-
-    stored->pass = state->shared_pass;
 
     if (!vulkan_detail::create_rect_pipeline(
             state->device,

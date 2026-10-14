@@ -397,6 +397,7 @@ if(VEYRA_WITH_VULKAN)
    src/render/vulkan_mask_cache.cpp
    src/render/vulkan_pipeline_assembly.cpp
    src/render/vulkan_rect_pipeline.cpp
+    src/render/vulkan_frame_batch.cpp
    src/render/vulkan_rect_frame.cpp
    ${veyra_vulkan_spv_headers}
   )
@@ -449,7 +450,25 @@ if(VEYRA_WITH_VULKAN)
    add_executable(veyra_vulkan_glyph_atlas_parity_test tests/vulkan_glyph_atlas_parity_test.cpp)
    target_link_libraries(veyra_vulkan_glyph_atlas_parity_test PRIVATE veyra_vulkan veyra_text)
    add_test(NAME vulkan_glyph_atlas_parity COMMAND veyra_vulkan_glyph_atlas_parity_test)
+   if(VEYRA_WITH_FREETYPE)
+    add_executable(
+      veyra_vulkan_raster_atlas_parity_test
+      tests/vulkan_raster_atlas_parity_test.cpp
+    )
+    target_link_libraries(
+      veyra_vulkan_raster_atlas_parity_test
+      PRIVATE
+      veyra_vulkan
+      veyra_text
+      veyra_freetype
+    )
+    add_test(NAME vulkan_raster_atlas_parity COMMAND veyra_vulkan_raster_atlas_parity_test)
+   endif()
   endif()
+
+  add_executable(veyra_vulkan_damage_parity_test tests/vulkan_damage_parity_test.cpp)
+  target_link_libraries(veyra_vulkan_damage_parity_test PRIVATE veyra_vulkan)
+  add_test(NAME vulkan_damage_parity COMMAND veyra_vulkan_damage_parity_test)
 
   add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
   target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)

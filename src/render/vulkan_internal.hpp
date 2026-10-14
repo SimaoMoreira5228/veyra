@@ -38,6 +38,7 @@ struct ContextState {
     float timestamp_period{};
     std::uint64_t timestamp_mask{~0ULL};
     VkRenderPass shared_pass{VK_NULL_HANDLE};
+    VkRenderPass shared_load_pass{VK_NULL_HANDLE};
     VkFramebuffer framebuffer{VK_NULL_HANDLE};
     TargetResources target{};
     VulkanDeviceInfo info{};
@@ -188,7 +189,6 @@ struct GlyphInstance {
 };
 
 struct PipelineState {
-    VkRenderPass pass{VK_NULL_HANDLE};
     VkPipelineLayout layout{VK_NULL_HANDLE};
     VkPipeline pipeline{VK_NULL_HANDLE};
     VkBuffer instances{VK_NULL_HANDLE};
@@ -275,6 +275,7 @@ void destroy_instance_buffer(
 ) noexcept;
 
 bool create_pass(VkDevice device, VkRenderPass& pass) noexcept;
+bool create_load_pass(VkDevice device, VkRenderPass& pass) noexcept;
 
 enum class ImageResolveResult : std::uint8_t {
     ready,

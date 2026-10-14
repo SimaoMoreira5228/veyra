@@ -48,6 +48,11 @@ inline SoftwareClipRect intersect(SoftwareClipRect left, SoftwareClipRect right)
     };
 }
 
+inline bool overlaps(SoftwareClipRect left, SoftwareClipRect right) noexcept {
+    return left.left < right.right && right.left < left.right && left.top < right.bottom &&
+        right.top < left.bottom;
+}
+
 inline std::size_t floor_coordinate(double value, std::size_t limit) noexcept {
     if (value >= static_cast<double>(limit)) {
         return limit;

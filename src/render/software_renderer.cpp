@@ -15,6 +15,7 @@ using render_detail::ceil_coordinate;
 using render_detail::composite;
 using render_detail::floor_coordinate;
 using render_detail::intersect;
+using render_detail::overlaps;
 using render_detail::pixel_bounds;
 using render_detail::pixel_interior_bounds;
 using render_detail::valid_rect;
@@ -27,11 +28,6 @@ bool valid_surface(const SoftwareSurface& surface) noexcept {
     }
 
     return surface.pixels.size() >= surface.height * surface.stride;
-}
-
-bool overlaps(SoftwareClipRect left, SoftwareClipRect right) noexcept {
-    return left.left < right.right && right.left < left.right && left.top < right.bottom &&
-        right.top < left.bottom;
 }
 
 void fill_pixels(

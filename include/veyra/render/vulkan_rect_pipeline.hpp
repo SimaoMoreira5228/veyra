@@ -57,6 +57,15 @@ VulkanRenderResult render_vulkan_rects(
     VulkanRectStats& stats
 ) noexcept;
 
+VulkanRenderResult render_vulkan_rects(
+    VulkanContext& context,
+    VulkanRectPipeline& pipeline,
+    std::span<const DisplayCommand> commands,
+    std::span<SoftwarePixel> output,
+    VulkanRectStats& stats,
+    std::span<const LayoutRect> damage
+) noexcept;
+
 }
 
 #endif

@@ -83,12 +83,13 @@ inline void check_parity(
     std::span<SoftwarePixel> expected,
     std::span<SoftwarePixel> actual,
     std::string_view stage,
-    std::uint64_t tolerance
+    std::uint64_t tolerance,
+    std::span<const LayoutRect> damage = {}
 ) {
     auto stats = VulkanRectStats{};
 
     const auto begin = TestClock::now();
-    const auto result = render_vulkan_rects(context, pipeline, commands, actual, stats);
+    const auto result = render_vulkan_rects(context, pipeline, commands, actual, stats, damage);
     const auto render_ns = elapsed_ns(begin, TestClock::now());
 
     require(result == VulkanRenderResult::complete, "vulkan submit completes");
