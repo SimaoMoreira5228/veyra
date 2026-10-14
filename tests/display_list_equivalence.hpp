@@ -159,6 +159,15 @@ inline bool same_command(const DisplayCommand& left, const DisplayCommand& right
             value->mask == other.mask && value->color == other.color;
     }
 
+    if (const auto* value = std::get_if<DrawGlyph>(&left)) {
+        const auto& other = std::get<DrawGlyph>(right);
+
+        return value->atlas == other.atlas && value->u == other.u && value->v == other.v &&
+            value->width == other.width && value->height == other.height &&
+            same_float_bits(value->x, other.x) && same_float_bits(value->y, other.y) &&
+            value->color == other.color;
+    }
+
     if (const auto* value = std::get_if<FillPath>(&left)) {
         const auto& other = std::get<FillPath>(right);
 

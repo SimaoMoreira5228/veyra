@@ -135,6 +135,83 @@ GlyphRunResult build_glyph_draw_commands(
     return GlyphRunResult::complete;
 }
 
+GlyphRunResult build_glyph_atlas_draws(
+    std::span<const ShapedGlyph> glyphs,
+    GlyphAtlas& atlas,
+    GlyphMaskKey key,
+    LayoutPoint baseline,
+    double x_position_units_per_pixel,
+    double y_position_units_per_pixel,
+    DisplayColor color,
+    std::span<DisplayCommand> commands,
+    std::size_t& command_count
+) noexcept {
+    command_count = 0;
+    if (!std::isfinite(baseline.x) || !std::isfinite(baseline.y) ||
+        !std::isfinite(x_position_units_per_pixel) || x_position_units_per_pixel <= 0.0 ||
+        !std::isfinite(y_position_units_per_pixel) || y_position_units_per_pixel <= 0.0) {
+        return GlyphRunResult::invalid_input;
+    }
+    if (commands.size() < glyphs.size()) {
+        return GlyphRunResult::insufficient_output;
+    }
+
+    std::int64_t pen_x = 0;
+    std::int64_t pen_y = 0;
+    for (std::size_t index = 0; index < glyphs.size(); ++index) {
+        const auto& shaped = glyphs[index];
+        key.glyph_id = shaped.id;
+        const auto placed = atlas.find(key);
+        if (!placed.has_value()) {
+            return GlyphRunResult::glyph_not_cached;
+        }
+
+        std::int32_t draw_x = 0;
+        std::int32_t draw_y = 0;
+        if (!draw_position(
+                shaped,
+                pen_x,
+                pen_y,
+                placed->bearing_x,
+                placed->bearing_y,
+                baseline,
+                x_position_units_per_pixel,
+                y_position_units_per_pixel,
+                draw_x,
+                draw_y
+            )) {
+            return GlyphRunResult::position_overflow;
+        }
+
+        commands[index] = DrawGlyph{
+            .atlas = &atlas,
+            .u = placed->u,
+            .v = placed->v,
+            .width = placed->width,
+            .height = placed->height,
+            .x = static_cast<float>(draw_x),
+            .y = static_cast<float>(draw_y),
+            .color = color,
+        };
+        command_count = index + 1;
+
+        if (index + 1 == glyphs.size()) {
+            continue;
+        }
+
+        std::int64_t next_pen_x = 0;
+        std::int64_t next_pen_y = 0;
+        if (!add_position(pen_x, shaped.x_advance, next_pen_x) ||
+            !add_position(pen_y, shaped.y_advance, next_pen_y)) {
+            return GlyphRunResult::position_overflow;
+        }
+        pen_x = next_pen_x;
+        pen_y = next_pen_y;
+    }
+
+    return GlyphRunResult::complete;
+}
+
 GlyphRunResult build_color_glyph_draw_commands(
     std::span<const ShapedGlyph> glyphs,
     GlyphImageCache& cache,

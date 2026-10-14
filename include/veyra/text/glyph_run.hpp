@@ -1,6 +1,7 @@
 #ifndef VEYRA_TEXT_GLYPH_RUN_HPP
 #define VEYRA_TEXT_GLYPH_RUN_HPP
 
+#include "veyra/render/glyph_atlas.hpp"
 #include "veyra/text/glyph_image_cache.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 #include "veyra/text/shaper.hpp"
@@ -33,6 +34,18 @@ GlyphRunResult build_glyph_draw_commands(
     double y_position_units_per_pixel,
     DisplayColor color,
     std::span<SoftwareMask> mask_views,
+    std::span<DisplayCommand> commands,
+    std::size_t& command_count
+) noexcept;
+
+GlyphRunResult build_glyph_atlas_draws(
+    std::span<const ShapedGlyph> glyphs,
+    GlyphAtlas& atlas,
+    GlyphMaskKey key,
+    LayoutPoint baseline,
+    double x_position_units_per_pixel,
+    double y_position_units_per_pixel,
+    DisplayColor color,
     std::span<DisplayCommand> commands,
     std::size_t& command_count
 ) noexcept;

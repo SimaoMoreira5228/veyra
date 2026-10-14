@@ -72,6 +72,12 @@ bool draw_key(const DisplayCommand& command, BatchKey& key) noexcept {
         return true;
     }
 
+    if (const auto* glyph = std::get_if<DrawGlyph>(&command)) {
+        key.primitive = BatchPrimitive::draw_glyph;
+        key.resource = glyph->atlas;
+        return true;
+    }
+
     if (std::get_if<FillPath>(&command) != nullptr) {
         key.primitive = BatchPrimitive::fill_path;
         key.resource = nullptr;

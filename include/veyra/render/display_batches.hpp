@@ -17,6 +17,7 @@ enum class BatchPrimitive : std::uint8_t {
     stroke_line,
     stroke_polyline,
     draw_mask,
+    draw_glyph,
     fill_path,
     draw_image,
 };

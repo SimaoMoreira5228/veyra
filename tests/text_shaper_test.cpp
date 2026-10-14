@@ -515,6 +515,113 @@ void check_color_glyph_draw_list() {
     require(command_count == 0, "color cache miss reports an empty command prefix");
 }
 
+void check_atlas_glyph_draw_list() {
+    auto rooms = std::array<veyra::GlyphAtlasSlot, 4>{};
+    auto coverage = std::array<std::uint8_t, 64>{};
+    auto nodes = std::array<stbrp_node, 8>{};
+    auto atlas = veyra::GlyphAtlas(
+        std::span<veyra::GlyphAtlasSlot>(rooms),
+        std::span<std::uint8_t>(coverage),
+        std::span<stbrp_node>(nodes),
+        8,
+        8
+    );
+
+    require(atlas.valid(), "atlas draw test starts valid");
+
+    auto pixels = std::array<std::uint8_t, 16>{};
+    pixels.fill(200);
+    const auto mask = veyra::GlyphMask{
+        .mask =
+            {
+                .width = 4,
+                .height = 4,
+                .stride = 4,
+                .coverage = pixels,
+                .generation = 0,
+            },
+        .bearing_x = 2,
+        .bearing_y = 1,
+    };
+
+    require(
+        atlas.insert({.face_id = 1, .glyph_id = 7, .pixel_size = 12}, mask) ==
+            veyra::GlyphAtlasResult::inserted,
+        "atlas draw test packs its glyph"
+    );
+
+    const auto placed = atlas.find({.face_id = 1, .glyph_id = 7, .pixel_size = 12});
+    require(placed.has_value(), "atlas draw test resolves its glyph");
+
+    const std::array glyphs{
+        veyra::ShapedGlyph{
+            .id = 7,
+            .x_advance = 96,
+            .y_advance = 64,
+        },
+    };
+    std::array<veyra::DisplayCommand, 1> commands{};
+    auto command_count = std::size_t{9};
+
+    const auto result = veyra::build_glyph_atlas_draws(
+        glyphs,
+        atlas,
+        {.face_id = 1, .pixel_size = 12},
+        {.x = 10.0F, .y = 20.0F},
+        64.0,
+        32.0,
+        {.red = 20, .green = 30, .blue = 40},
+        commands,
+        command_count
+    );
+    require(result == veyra::GlyphRunResult::complete, "atlas glyphs build a draw list");
+    require(command_count == 1, "atlas run emits one draw per glyph");
+
+    const auto* drawn = std::get_if<veyra::DrawGlyph>(&commands[0]);
+    require(drawn != nullptr, "atlas run emits glyph draws");
+    require(
+        drawn->atlas == &atlas && drawn->u == placed->u && drawn->v == placed->v &&
+            drawn->width == 4 && drawn->height == 4,
+        "atlas draw carries the packed placement"
+    );
+    require(drawn->x == 12 && drawn->y == 19, "atlas draw follows offset and bearing");
+
+    const std::array missing_glyph{
+        veyra::ShapedGlyph{.id = 99},
+    };
+
+    require(
+        veyra::build_glyph_atlas_draws(
+            missing_glyph,
+            atlas,
+            {.face_id = 1, .pixel_size = 12},
+            {.x = 0.0F, .y = 0.0F},
+            64.0,
+            32.0,
+            {},
+            commands,
+            command_count
+        ) == veyra::GlyphRunResult::glyph_not_cached,
+        "uncached atlas glyph is reported"
+    );
+    require(command_count == 0, "atlas cache miss writes no commands");
+
+    require(
+        veyra::build_glyph_atlas_draws(
+            glyphs,
+            atlas,
+            {.face_id = 1, .pixel_size = 12},
+            {.x = 10.0F, .y = 20.0F},
+            0.0,
+            32.0,
+            {},
+            commands,
+            command_count
+        ) == veyra::GlyphRunResult::invalid_input,
+        "zero atlas scale is rejected"
+    );
+}
+
 }
 
 int main() {
@@ -524,6 +631,7 @@ int main() {
         check_invalid_inputs_and_empty_text();
         check_glyph_draw_list();
         check_color_glyph_draw_list();
+        check_atlas_glyph_draw_list();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -151,6 +151,18 @@ std::uint64_t hash_command(std::uint64_t hash, const DisplayCommand& command) no
         return mix_color(hash, value->color);
     }
 
+    if (const auto* value = std::get_if<DrawGlyph>(&command)) {
+        hash = mix_hash(hash, reinterpret_cast<std::uint64_t>(value->atlas));
+        hash = mix_hash(hash, value->u);
+        hash = mix_hash(hash, value->v);
+        hash = mix_hash(hash, value->width);
+        hash = mix_hash(hash, value->height);
+        hash = mix_float(hash, value->x);
+        hash = mix_float(hash, value->y);
+
+        return mix_color(hash, value->color);
+    }
+
     if (const auto* value = std::get_if<FillPath>(&command)) {
         for (const auto& contour : value->contours) {
             hash = mix_point(hash, contour.start);

@@ -66,6 +66,19 @@ struct DrawMask {
     DisplayColor color;
 };
 
+class GlyphAtlas;
+
+struct DrawGlyph {
+    const GlyphAtlas* atlas{};
+    std::uint32_t u{};
+    std::uint32_t v{};
+    std::uint32_t width{};
+    std::uint32_t height{};
+    float x{};
+    float y{};
+    DisplayColor color;
+};
+
 struct SoftwareLineTo {
     LayoutPoint end;
 };
@@ -148,6 +161,7 @@ using DisplayCommand = std::variant<
     StrokeLine,
     StrokePolyline,
     DrawMask,
+    DrawGlyph,
     FillPath,
     DrawImage,
     PushTranslation,

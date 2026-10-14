@@ -1,5 +1,7 @@
 #include "vulkan_internal.hpp"
 
+#include "glyph_frag_spv.hpp"
+#include "glyph_vert_spv.hpp"
 #include "image_frag_spv.hpp"
 #include "image_vert_spv.hpp"
 #include "mask_frag_spv.hpp"
@@ -462,6 +464,55 @@ bool create_mask_pipeline(
         kMaskVertSpvWords,
         kMaskFragSpv,
         kMaskFragSpvWords,
+        binding,
+        attributes,
+        descriptor_layout,
+        layout,
+        pipeline
+    );
+}
+
+bool create_glyph_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkDescriptorSetLayout descriptor_layout,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept {
+    const auto binding = VkVertexInputBindingDescription{
+        .binding = 0,
+        .stride = sizeof(GlyphInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+    };
+
+    const auto attributes = std::array<VkVertexInputAttributeDescription, 3>{
+        VkVertexInputAttributeDescription{
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 0,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 1,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 16,
+        },
+        VkVertexInputAttributeDescription{
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 32,
+        },
+    };
+
+    return create_pipeline_with_modules(
+        device,
+        pass,
+        kGlyphVertSpv,
+        kGlyphVertSpvWords,
+        kGlyphFragSpv,
+        kGlyphFragSpvWords,
         binding,
         attributes,
         descriptor_layout,

@@ -1,6 +1,7 @@
 #include "veyra/render/vulkan_rect_pipeline.hpp"
 
 #include "software_renderer_internal.hpp"
+#include "veyra/render/glyph_atlas.hpp"
 #include "vulkan_internal.hpp"
 
 #include <vulkan/vulkan.h>
@@ -313,9 +314,10 @@ enum class DrawPipe : std::uint8_t {
     mask,
     stroke,
     rounded_stroke,
+    glyph,
 };
 
-constexpr std::size_t kVulkanPipeCount = 6;
+constexpr std::size_t kVulkanPipeCount = 7;
 
 constexpr std::size_t kPathSpanScratch = 256;
 
@@ -467,6 +469,7 @@ VulkanRenderResult render_vulkan_rects(
     auto* strokes = static_cast<vulkan_detail::StrokeInstance*>(stored->stroke_instance_mapped);
     auto* rounded_strokes =
         static_cast<vulkan_detail::RoundedStrokeInstance*>(stored->rounded_stroke_instance_mapped);
+    auto* glyphs = static_cast<vulkan_detail::GlyphInstance*>(stored->glyph_instance_mapped);
     std::size_t pipe_counts[kVulkanPipeCount] = {};
     std::size_t pipe_slots[kVulkanPipeCount] = {};
     auto pass_open = false;
@@ -561,7 +564,7 @@ VulkanRenderResult render_vulkan_rects(
                     stored->stroke_pipeline
                 );
                 vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->stroke_instances, &offset);
-            } else {
+            } else if (pipe == DrawPipe::rounded_stroke) {
                 vkCmdBindPipeline(
                     state->commands,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -574,6 +577,13 @@ VulkanRenderResult render_vulkan_rects(
                     &stored->rounded_stroke_instances,
                     &offset
                 );
+            } else {
+                vkCmdBindPipeline(
+                    state->commands,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    stored->glyph_pipeline
+                );
+                vkCmdBindVertexBuffers(state->commands, 0, 1, &stored->glyph_instances, &offset);
             }
 
             bound = pipe;
@@ -581,11 +591,20 @@ VulkanRenderResult render_vulkan_rects(
             bound_set = VkDescriptorSet{VK_NULL_HANDLE};
         }
 
-        if ((pipe == DrawPipe::image || pipe == DrawPipe::mask) && set != bound_set) {
+        if ((pipe == DrawPipe::image || pipe == DrawPipe::mask || pipe == DrawPipe::glyph) &&
+            set != bound_set) {
+            auto layout = stored->glyph_layout;
+
+            if (pipe == DrawPipe::image) {
+                layout = stored->image_layout;
+            } else if (pipe == DrawPipe::mask) {
+                layout = stored->mask_layout;
+            }
+
             vkCmdBindDescriptorSets(
                 state->commands,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                pipe == DrawPipe::image ? stored->image_layout : stored->mask_layout,
+                layout,
                 0,
                 1,
                 &set,
@@ -608,8 +627,10 @@ VulkanRenderResult render_vulkan_rects(
             ++stats.mask_draws;
         } else if (pipe == DrawPipe::stroke) {
             ++stats.stroke_draws;
-        } else {
+        } else if (pipe == DrawPipe::rounded_stroke) {
             ++stats.rounded_stroke_draws;
+        } else {
+            ++stats.glyph_draws;
         }
 
         ++stats.draws;
@@ -719,6 +740,7 @@ VulkanRenderResult render_vulkan_rects(
         const auto* rounded_fill = std::get_if<FillRoundedRect>(&command);
         const auto* drawn = std::get_if<DrawImage>(&command);
         const auto* masked = std::get_if<DrawMask>(&command);
+        const auto* glyphed = std::get_if<DrawGlyph>(&command);
         const auto* stroked = std::get_if<StrokeRect>(&command);
         const auto* pathed = std::get_if<FillPath>(&command);
         const auto* rounded_stroked = std::get_if<StrokeRoundedRect>(&command);
@@ -726,8 +748,8 @@ VulkanRenderResult render_vulkan_rects(
         const auto* polylined = std::get_if<StrokePolyline>(&command);
 
         if (fill == nullptr && rounded_fill == nullptr && drawn == nullptr && masked == nullptr &&
-            stroked == nullptr && pathed == nullptr && rounded_stroked == nullptr &&
-            lined == nullptr && polylined == nullptr) {
+            glyphed == nullptr && stroked == nullptr && pathed == nullptr &&
+            rounded_stroked == nullptr && lined == nullptr && polylined == nullptr) {
             abandon_frame(*state, *stored, pass_open);
 
             return VulkanRenderResult::unsupported_commands;
@@ -741,6 +763,7 @@ VulkanRenderResult render_vulkan_rects(
         auto thickness = 0.0F;
         LayoutRect shape{};
         DisplayColor color{};
+        LayoutPoint glyph_uv{};
 
         if (drawn != nullptr) {
             const auto* image = drawn->image;
@@ -798,6 +821,44 @@ VulkanRenderResult render_vulkan_rects(
                 .y = masked->y,
                 .width = static_cast<float>(mask->width),
                 .height = static_cast<float>(mask->height),
+            };
+        } else if (glyphed != nullptr) {
+            const auto* atlas = glyphed->atlas;
+
+            if (atlas == nullptr || !std::isfinite(glyphed->x) || !std::isfinite(glyphed->y) ||
+                glyphed->width == 0 || glyphed->height == 0 ||
+                static_cast<std::uint64_t>(glyphed->u) + glyphed->width > atlas->width() ||
+                static_cast<std::uint64_t>(glyphed->v) + glyphed->height > atlas->height()) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (glyphed->color.alpha == 0) {
+                continue;
+            }
+
+            const auto& view = atlas->view();
+            const auto found = vulkan_detail::lookup_mask(*stored, view);
+
+            if (found == VK_NULL_HANDLE) {
+                abandon_frame(*state, *stored, pass_open);
+
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            pipe = DrawPipe::glyph;
+            set = found;
+            color = glyphed->color;
+            shape = LayoutRect{
+                .x = glyphed->x,
+                .y = glyphed->y,
+                .width = static_cast<float>(glyphed->width),
+                .height = static_cast<float>(glyphed->height),
+            };
+            glyph_uv = LayoutPoint{
+                .x = static_cast<float>(glyphed->u),
+                .y = static_cast<float>(glyphed->v),
             };
         } else if (stroked != nullptr) {
             shape = stroked->bounds;
@@ -1349,7 +1410,7 @@ VulkanRenderResult render_vulkan_rects(
                 .blue = static_cast<float>(color.blue) * channel_scale,
                 .alpha = static_cast<float>(color.alpha) * channel_scale,
             };
-        } else {
+        } else if (pipe == DrawPipe::rounded_stroke) {
             const auto slot = pipe_slots[index]++;
             const auto half_thickness = thickness * 0.5F;
 
@@ -1368,6 +1429,38 @@ VulkanRenderResult render_vulkan_rects(
                 .half_y = translated.height * 0.5F - half_thickness,
                 .radius = radius,
                 .thickness = thickness,
+            };
+        } else {
+            const auto slot = pipe_slots[index]++;
+
+            const auto start_u = std::clamp(
+                std::floor(
+                    static_cast<double>(bounds.left) + 0.5 - static_cast<double>(translated.x)
+                ),
+                0.0,
+                static_cast<double>(translated.width - 1.0F)
+            );
+            const auto start_v = std::clamp(
+                std::floor(
+                    static_cast<double>(bounds.top) + 0.5 - static_cast<double>(translated.y)
+                ),
+                0.0,
+                static_cast<double>(translated.height - 1.0F)
+            );
+
+            glyphs[slot] = vulkan_detail::GlyphInstance{
+                .min_x = static_cast<float>(bounds.left),
+                .min_y = static_cast<float>(bounds.top),
+                .max_x = static_cast<float>(bounds.right),
+                .max_y = static_cast<float>(bounds.bottom),
+                .red = static_cast<float>(color.red) * channel_scale,
+                .green = static_cast<float>(color.green) * channel_scale,
+                .blue = static_cast<float>(color.blue) * channel_scale,
+                .alpha = static_cast<float>(color.alpha) * channel_scale,
+                .origin_u = glyph_uv.x + static_cast<float>(start_u),
+                .origin_v = glyph_uv.y + static_cast<float>(start_v),
+                .size_w = translated.width,
+                .size_h = translated.height,
             };
         }
 

@@ -1,6 +1,7 @@
 #include "vulkan_internal.hpp"
 
 #include "software_renderer_internal.hpp"
+#include "veyra/render/glyph_atlas.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -723,29 +724,63 @@ VulkanRenderResult upload_textures(
         }
 
         const auto* masked = std::get_if<DrawMask>(&command);
+        const auto* glyphed = std::get_if<DrawGlyph>(&command);
 
-        if (masked == nullptr) {
+        if (masked == nullptr && glyphed == nullptr) {
             continue;
         }
 
-        if (masked->mask == nullptr || masked->mask->stride < masked->mask->width ||
-            masked->mask->coverage.size() < masked->mask->height * masked->mask->stride) {
+        if (masked != nullptr) {
+            if (masked->mask == nullptr || masked->mask->stride < masked->mask->width ||
+                masked->mask->coverage.size() < masked->mask->height * masked->mask->stride) {
+                return VulkanRenderResult::invalid_input;
+            }
+
+            if (masked->color.alpha == 0 || masked->mask->width == 0 || masked->mask->height == 0) {
+                continue;
+            }
+
+            auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+
+            const auto resolved =
+                vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor);
+
+            if (resolved == vulkan_detail::MaskResolveResult::too_large) {
+                return VulkanRenderResult::insufficient_capacity;
+            }
+
+            if (resolved != vulkan_detail::MaskResolveResult::ready) {
+                return VulkanRenderResult::device_error;
+            }
+
+            continue;
+        }
+
+        if (glyphed->atlas == nullptr) {
             return VulkanRenderResult::invalid_input;
         }
 
-        if (masked->color.alpha == 0 || masked->mask->width == 0 || masked->mask->height == 0) {
+        const auto& atlas_view = glyphed->atlas->view();
+
+        if (atlas_view.stride < atlas_view.width ||
+            atlas_view.coverage.size() < atlas_view.height * atlas_view.stride) {
+            return VulkanRenderResult::invalid_input;
+        }
+
+        if (glyphed->color.alpha == 0 || glyphed->width == 0 || glyphed->height == 0) {
             continue;
         }
 
-        auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
+        auto glyph_descriptor = VkDescriptorSet{VK_NULL_HANDLE};
 
-        const auto resolved = vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor);
+        const auto glyph_resolved =
+            vulkan_detail::resolve_mask(state, stored, atlas_view, glyph_descriptor);
 
-        if (resolved == vulkan_detail::MaskResolveResult::too_large) {
+        if (glyph_resolved == vulkan_detail::MaskResolveResult::too_large) {
             return VulkanRenderResult::insufficient_capacity;
         }
 
-        if (resolved != vulkan_detail::MaskResolveResult::ready) {
+        if (glyph_resolved != vulkan_detail::MaskResolveResult::ready) {
             return VulkanRenderResult::device_error;
         }
     }

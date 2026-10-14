@@ -1,6 +1,7 @@
 #include "veyra/render/software_renderer.hpp"
 
 #include "software_renderer_internal.hpp"
+#include "veyra/render/glyph_atlas.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -258,6 +259,91 @@ void stroke_line(
     }
 }
 
+void draw_glyph(const DrawGlyph& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept {
+    if (command.color.alpha == 0 || command.width == 0 || command.height == 0) {
+        return;
+    }
+
+    const auto atlas = command.atlas->view();
+    const auto source_stride = atlas.stride;
+    const auto source = atlas.coverage.data();
+
+    const auto maximum_x = static_cast<double>(surface.width);
+    const auto maximum_y = static_cast<double>(surface.height);
+    const auto left =
+        floor_coordinate(std::clamp(static_cast<double>(command.x), 0.0, maximum_x), surface.width);
+    const auto top = floor_coordinate(
+        std::clamp(static_cast<double>(command.y), 0.0, maximum_y),
+        surface.height
+    );
+    const auto right = ceil_coordinate(
+        std::clamp(
+            static_cast<double>(command.x) + static_cast<double>(command.width),
+            0.0,
+            maximum_x
+        ),
+        surface.width
+    );
+    const auto bottom = ceil_coordinate(
+        std::clamp(
+            static_cast<double>(command.y) + static_cast<double>(command.height),
+            0.0,
+            maximum_y
+        ),
+        surface.height
+    );
+    const auto bounds = intersect(
+        SoftwareClipRect{.left = left, .top = top, .right = right, .bottom = bottom},
+        clip
+    );
+    if (bounds.left >= bounds.right || bounds.top >= bounds.bottom) {
+        return;
+    }
+
+    const auto last_u = static_cast<std::size_t>(command.u) + command.width - 1;
+    const auto last_v = static_cast<std::size_t>(command.v) + command.height - 1;
+    auto glyph_y = static_cast<std::size_t>(command.v) +
+        static_cast<std::size_t>(std::clamp(
+            std::floor(static_cast<double>(bounds.top) + 0.5 - static_cast<double>(command.y)),
+            0.0,
+            static_cast<double>(command.height - 1)
+        ));
+    for (auto destination_y = bounds.top; destination_y < bounds.bottom; ++destination_y) {
+        const auto destination_row = destination_y * surface.stride;
+        const auto glyph_row = glyph_y * source_stride;
+        auto glyph_x = static_cast<std::size_t>(command.u) +
+            static_cast<std::size_t>(std::clamp(
+                std::floor(static_cast<double>(bounds.left) + 0.5 - static_cast<double>(command.x)),
+                0.0,
+                static_cast<double>(command.width - 1)
+            ));
+        for (auto destination_x = bounds.left; destination_x < bounds.right; ++destination_x) {
+            const auto coverage = source[glyph_row + glyph_x];
+            if (coverage != 0) {
+                const auto alpha = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(command.color.alpha) * coverage + 127) / 255
+                );
+                auto& destination = surface.pixels[destination_row + destination_x];
+                destination = composite(
+                    DisplayColor{
+                        .red = command.color.red,
+                        .green = command.color.green,
+                        .blue = command.color.blue,
+                        .alpha = alpha,
+                    },
+                    destination
+                );
+            }
+            if (glyph_x < last_u) {
+                ++glyph_x;
+            }
+        }
+        if (glyph_y < last_v) {
+            ++glyph_y;
+        }
+    }
+}
+
 void draw_mask(const DrawMask& command, SoftwareSurface surface, SoftwareClipRect clip) noexcept {
     const auto& mask = *command.mask;
     if (command.color.alpha == 0 || mask.width == 0 || mask.height == 0) {
@@ -454,6 +540,13 @@ void render_commands(
             translated.x += translation.x;
             translated.y += translation.y;
             draw_mask(translated, surface, current_clip);
+            continue;
+        }
+        if (const auto* glyph = std::get_if<DrawGlyph>(&command)) {
+            auto translated = *glyph;
+            translated.x += translation.x;
+            translated.y += translation.y;
+            draw_glyph(translated, surface, current_clip);
             continue;
         }
         if (const auto* path = std::get_if<FillPath>(&command)) {

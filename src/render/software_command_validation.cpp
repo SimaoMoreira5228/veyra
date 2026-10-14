@@ -1,4 +1,5 @@
 #include "software_renderer_internal.hpp"
+#include "veyra/render/glyph_atlas.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -79,6 +80,15 @@ bool valid_commands(
         if (const auto* mask = std::get_if<DrawMask>(&command)) {
             if (mask->mask == nullptr || !std::isfinite(mask->x) || !std::isfinite(mask->y) ||
                 !valid_mask(*mask->mask)) {
+                return false;
+            }
+            continue;
+        }
+        if (const auto* glyph = std::get_if<DrawGlyph>(&command)) {
+            if (glyph->atlas == nullptr || !std::isfinite(glyph->x) || !std::isfinite(glyph->y) ||
+                glyph->width == 0 || glyph->height == 0 ||
+                static_cast<std::uint64_t>(glyph->u) + glyph->width > glyph->atlas->width() ||
+                static_cast<std::uint64_t>(glyph->v) + glyph->height > glyph->atlas->height()) {
                 return false;
             }
             continue;
@@ -191,6 +201,10 @@ bool valid_translated_commands(
             }
         } else if (const auto* mask = std::get_if<DrawMask>(&command)) {
             if (!finite(mask->x, mask->y)) {
+                return false;
+            }
+        } else if (const auto* glyph = std::get_if<DrawGlyph>(&command)) {
+            if (!finite(glyph->x, glyph->y)) {
                 return false;
             }
         } else if (const auto* path = std::get_if<FillPath>(&command)) {

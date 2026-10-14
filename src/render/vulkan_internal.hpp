@@ -172,6 +172,21 @@ struct RoundedStrokeInstance {
     float pad_c{};
 };
 
+struct GlyphInstance {
+    float min_x{};
+    float min_y{};
+    float max_x{};
+    float max_y{};
+    float red{};
+    float green{};
+    float blue{};
+    float alpha{};
+    float origin_u{};
+    float origin_v{};
+    float size_w{};
+    float size_h{};
+};
+
 struct PipelineState {
     VkRenderPass pass{VK_NULL_HANDLE};
     VkPipelineLayout layout{VK_NULL_HANDLE};
@@ -205,6 +220,11 @@ struct PipelineState {
     VkBuffer rounded_stroke_instances{VK_NULL_HANDLE};
     VkDeviceMemory rounded_stroke_instance_memory{VK_NULL_HANDLE};
     void* rounded_stroke_instance_mapped{nullptr};
+    VkPipelineLayout glyph_layout{VK_NULL_HANDLE};
+    VkPipeline glyph_pipeline{VK_NULL_HANDLE};
+    VkBuffer glyph_instances{VK_NULL_HANDLE};
+    VkDeviceMemory glyph_instance_memory{VK_NULL_HANDLE};
+    void* glyph_instance_mapped{nullptr};
     VkSampler nearest_sampler{VK_NULL_HANDLE};
     VkSampler linear_sampler{VK_NULL_HANDLE};
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
@@ -349,6 +369,14 @@ bool create_stroke_pipeline(
 bool create_rounded_stroke_pipeline(
     VkDevice device,
     VkRenderPass pass,
+    VkPipelineLayout& layout,
+    VkPipeline& pipeline
+) noexcept;
+
+bool create_glyph_pipeline(
+    VkDevice device,
+    VkRenderPass pass,
+    VkDescriptorSetLayout descriptor_layout,
     VkPipelineLayout& layout,
     VkPipeline& pipeline
 ) noexcept;

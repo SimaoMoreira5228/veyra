@@ -143,6 +143,7 @@ inline void check_parity(
     std::cout << " mask_draws=" << stats.mask_draws;
     std::cout << " stroke_draws=" << stats.stroke_draws;
     std::cout << " rounded_stroke_draws=" << stats.rounded_stroke_draws;
+    std::cout << " glyph_draws=" << stats.glyph_draws;
     std::cout << " gpu_ns=" << stats.gpu_ns;
     std::cout << " max_abs_error=" << max_error << '\n';
 }

@@ -50,6 +50,7 @@ add_library(veyra STATIC
  src/render/scroll_shift.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
+ src/render/glyph_atlas.cpp
  src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
  src/render/e3_scenes.cpp
@@ -65,6 +66,7 @@ add_library(veyra STATIC
  src/platform/window_router.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
 add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp)
@@ -363,7 +365,7 @@ if(VEYRA_WITH_VULKAN)
   set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
   file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
   set(veyra_vulkan_spv_headers "")
-  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask" "stroke:Stroke" "rounded_stroke:RoundedStroke")
+  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask" "stroke:Stroke" "rounded_stroke:RoundedStroke" "glyph:Glyph")
    string(REPLACE ":" ";" shader_parts "${shader_spec}")
    list(GET shader_parts 0 shader_name)
    list(GET shader_parts 1 shader_prefix)
@@ -439,6 +441,15 @@ if(VEYRA_WITH_VULKAN)
   add_executable(veyra_vulkan_clip_parity_test tests/vulkan_clip_parity_test.cpp)
   target_link_libraries(veyra_vulkan_clip_parity_test PRIVATE veyra_vulkan)
   add_test(NAME vulkan_clip_parity COMMAND veyra_vulkan_clip_parity_test)
+
+  if(VEYRA_WITH_TEXT)
+   add_executable(veyra_vulkan_glyph_parity_test tests/vulkan_glyph_parity_test.cpp)
+   target_link_libraries(veyra_vulkan_glyph_parity_test PRIVATE veyra_vulkan veyra_text)
+   add_test(NAME vulkan_glyph_parity COMMAND veyra_vulkan_glyph_parity_test)
+   add_executable(veyra_vulkan_glyph_atlas_parity_test tests/vulkan_glyph_atlas_parity_test.cpp)
+   target_link_libraries(veyra_vulkan_glyph_atlas_parity_test PRIVATE veyra_vulkan veyra_text)
+   add_test(NAME vulkan_glyph_atlas_parity COMMAND veyra_vulkan_glyph_atlas_parity_test)
+  endif()
 
   add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
   target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)
@@ -776,6 +787,10 @@ add_test(NAME printing_behavior COMMAND veyra_printing_test)
 add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
+
+add_executable(veyra_glyph_atlas_test tests/glyph_atlas_test.cpp)
+target_link_libraries(veyra_glyph_atlas_test PRIVATE veyra)
+add_test(NAME glyph_atlas_behavior COMMAND veyra_glyph_atlas_test)
 
 add_executable(veyra_e3_scenes_test tests/e3_scenes_test.cpp)
 target_link_libraries(veyra_e3_scenes_test PRIVATE veyra)
