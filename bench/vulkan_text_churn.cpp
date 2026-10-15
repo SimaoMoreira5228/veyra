@@ -30,7 +30,7 @@ constexpr std::size_t kMaxLineBytes = 128;
 constexpr std::size_t kMaxLineGlyphs = 64;
 constexpr std::size_t kAtlasWidth = 512;
 constexpr std::size_t kAtlasHeight = 512;
-constexpr std::size_t kAtlasSlots = 2048;
+constexpr std::size_t kAtlasSlots = 4096;
 constexpr std::size_t kCacheSlots = 64;
 constexpr std::size_t kCacheTextBytes = 128;
 constexpr std::size_t kCacheGlyphs = 64;
@@ -321,17 +321,16 @@ std::size_t build_frame(
 
     for (auto line = std::size_t{}; line < options.lines; ++line) {
         const auto* stored = work.line_glyphs.data() + line * kMaxLineGlyphs;
-        auto resident = true;
+        auto missing = std::size_t{};
 
         for (auto index = std::size_t{}; index < work.line_counts[line]; ++index) {
             if (!atlas.find(glyph_key(stored[index].id)).has_value()) {
-                resident = false;
-                break;
+                ++missing;
             }
         }
 
-        if (!resident) {
-            dropped += work.line_counts[line];
+        if (missing != 0) {
+            dropped += missing;
             continue;
         }
 

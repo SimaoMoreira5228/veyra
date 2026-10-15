@@ -471,6 +471,19 @@ if(VEYRA_WITH_VULKAN)
       veyra_freetype
     )
     add_test(NAME vulkan_raster_atlas_parity COMMAND veyra_vulkan_raster_atlas_parity_test)
+
+    add_executable(veyra_real_font_text_test tests/real_font_text_test.cpp)
+    target_link_libraries(
+      veyra_real_font_text_test
+      PRIVATE
+      veyra_vulkan
+      veyra_text
+      veyra_freetype
+    )
+    target_compile_definitions(veyra_real_font_text_test PRIVATE
+     "VEYRA_TESTDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/testdata\""
+    )
+    add_test(NAME real_font_text COMMAND veyra_real_font_text_test)
    endif()
   endif()
 

@@ -25,6 +25,7 @@ struct Options {
     std::size_t visible{60};
     std::uint32_t seed{42};
     std::string paradigm{"all"};
+    std::string pattern{"random"};
 };
 
 struct FrameTiming {
@@ -61,6 +62,12 @@ Options parse_options(int argc, char** argv) {
         const char* value = argv[++index];
         if (argument == "--paradigm") {
             options.paradigm = value;
+        } else if (argument == "--pattern") {
+            const std::string_view pattern = value;
+            if (pattern != "random" && pattern != "burst") {
+                throw std::invalid_argument("pattern must be random or burst");
+            }
+            options.pattern = std::string(pattern);
         } else if (argument == "--items") {
             options.items = parse_size(value);
         } else if (argument == "--frames") {
@@ -95,7 +102,7 @@ Options parse_options(int argc, char** argv) {
     return options;
 }
 
-std::vector<veyra::Update> make_updates(const Options& options) {
+std::vector<veyra::Update> make_random_updates(const Options& options) {
     const auto total_frames = options.warmup + options.frames;
     if (options.updates != 0 && total_frames > SIZE_MAX / options.updates) {
         throw std::length_error("update stream is too large");
@@ -113,6 +120,36 @@ std::vector<veyra::Update> make_updates(const Options& options) {
         }
     }
     return updates;
+}
+
+std::vector<veyra::Update> make_burst_updates(const Options& options) {
+    const auto total_frames = options.warmup + options.frames;
+    if (options.updates != 0 && total_frames > SIZE_MAX / options.updates) {
+        throw std::length_error("update stream is too large");
+    }
+
+    const auto tail = std::max<std::size_t>(1, std::min(options.items, options.visible * 4));
+
+    std::vector<veyra::Update> updates(total_frames * options.updates);
+    for (std::size_t frame = 0; frame < total_frames; ++frame) {
+        const auto offset = frame * options.updates;
+        for (std::size_t index = 0; index < options.updates; ++index) {
+            const auto slot = (frame * options.updates + index) % tail;
+            updates[offset + index] = {
+                static_cast<std::uint32_t>(options.items - 1 - slot),
+                static_cast<std::uint32_t>(frame + 1),
+            };
+        }
+    }
+    return updates;
+}
+
+std::vector<veyra::Update> make_updates(const Options& options) {
+    if (options.pattern == "burst") {
+        return make_burst_updates(options);
+    }
+
+    return make_random_updates(options);
 }
 
 double percentile(
@@ -141,6 +178,7 @@ TimingSummary summarize(std::vector<FrameTiming>& timings, double FrameTiming::*
 template <typename EngineT>
 void run_engine(
     std::string_view label,
+    std::string_view scenario,
     const Options& options,
     const std::vector<veyra::Update>& updates
 ) {
@@ -187,7 +225,7 @@ void run_engine(
     const auto frame_summary = summarize(timings, &FrameTiming::frame_us);
     const auto total_summary = summarize(timings, &FrameTiming::total_us);
 
-    std::cout << "random_updates_visible_suffix," << label << ',' << VEYRA_BUILD_PLATFORM << ','
+    std::cout << scenario << ',' << label << ',' << VEYRA_BUILD_PLATFORM << ','
               << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG << ','
               << std::thread::hardware_concurrency() << ',' << options.seed << ',' << options.items
               << ',' << options.warmup << ',' << options.frames << ',' << options.updates << ','
@@ -201,24 +239,25 @@ void run_engine(
 
 void run_named(
     std::string_view name,
+    std::string_view scenario,
     const Options& options,
     const std::vector<veyra::Update>& updates
 ) {
 #ifdef VEYRA_ARENA
     if (name == "arena") {
-        run_engine<veyra::ArenaEngine>(name, options, updates);
+        run_engine<veyra::ArenaEngine>(name, scenario, options, updates);
         return;
     }
 #endif
 #ifdef VEYRA_REACTIVE
     if (name == "reactive") {
-        run_engine<veyra::ReactiveEngine>(name, options, updates);
+        run_engine<veyra::ReactiveEngine>(name, scenario, options, updates);
         return;
     }
 #endif
 #ifdef VEYRA_ECS
     if (name == "ecs") {
-        run_engine<veyra::EcsEngine>(name, options, updates);
+        run_engine<veyra::EcsEngine>(name, scenario, options, updates);
         return;
     }
 #endif
@@ -232,6 +271,7 @@ int main(int argc, char** argv) {
     try {
         const auto options = parse_options(argc, argv);
         const auto updates = make_updates(options);
+        const std::string scenario = options.pattern + "_updates_visible_suffix";
 
         std::cout << "scenario,engine,platform,compiler,build_config,hardware_threads,seed,items,"
                      "warmup_frames,measured_frames,updates_per_frame,visible,update_p50_us,"
@@ -240,10 +280,10 @@ int main(int argc, char** argv) {
                      "total_max_us,checksum,invalidations,rects\n";
         if (options.paradigm == "all") {
             for (const auto name : veyra::available_engines()) {
-                run_named(name, options, updates);
+                run_named(name, scenario, options, updates);
             }
         } else {
-            run_named(options.paradigm, options, updates);
+            run_named(options.paradigm, scenario, options, updates);
         }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
