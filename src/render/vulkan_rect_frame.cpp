@@ -475,7 +475,11 @@ static VulkanRenderResult render_frame(
     stored->frame_seq += 1;
 
     {
-        const auto uploaded = vulkan_detail::upload_textures(*state, *stored, commands);
+        auto frame_uploads = std::size_t{};
+        const auto uploaded =
+            vulkan_detail::upload_textures(*state, *stored, commands, frame_uploads);
+
+        stats.uploads += frame_uploads;
 
         if (uploaded != VulkanRenderResult::complete) {
             batch.abandon();

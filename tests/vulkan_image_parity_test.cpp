@@ -174,6 +174,16 @@ void check_image_parity(
     );
     require(stats.submitted == 4, "opacity-zero and offscreen images never submit");
     require(stats.image_draws >= 2, "both samplings draw through the image pipeline");
+    require(stats.uploads == 2, "each distinct image uploads once");
+
+    auto repeat_stats = veyra::VulkanRectStats{};
+
+    require(
+        veyra::render_vulkan_rects(context, pipeline, scene, actual, repeat_stats) ==
+            veyra::VulkanRenderResult::complete,
+        "resident images render again"
+    );
+    require(repeat_stats.uploads == 0, "resident images never re-upload");
 
     check_parity(context, pipeline, scene, expected, actual, "image", 2);
 }

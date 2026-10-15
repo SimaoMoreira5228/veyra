@@ -505,6 +505,19 @@ if(VEYRA_WITH_VULKAN)
    NAME vulkan_e3_benchmark_damage_smoke
    COMMAND veyra_vulkan_e3_bench --scene dashboard-12 --mode damage --frames 2 --warmup 1
   )
+  if(VEYRA_WITH_TEXT)
+   add_executable(veyra_vulkan_text_churn_bench bench/vulkan_text_churn.cpp)
+   target_link_libraries(veyra_vulkan_text_churn_bench PRIVATE veyra_vulkan veyra_text)
+   target_compile_definitions(veyra_vulkan_text_churn_bench PRIVATE
+    "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
+    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
+    "VEYRA_BUILD_CONFIG=\"$<CONFIG>\""
+   )
+   add_test(
+    NAME vulkan_text_churn_benchmark_smoke
+    COMMAND veyra_vulkan_text_churn_bench --lines 8 --fresh-per-frame 1 --frames 2 --warmup 1
+   )
+  endif()
  endif()
 endif()
 

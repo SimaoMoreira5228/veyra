@@ -239,6 +239,7 @@ GlyphAtlasResult GlyphAtlas::insert(const GlyphMaskKey& key, const GlyphMask& ma
         mark_recent(slot_index);
     } else {
         auto oldest = bucket;
+        slot_index = slots_.size();
         for (auto way = std::size_t{}; way < ways_per_bucket; ++way) {
             const auto candidate = bucket + way;
             if (!slots_[candidate].occupied) {
@@ -249,7 +250,7 @@ GlyphAtlasResult GlyphAtlas::insert(const GlyphMaskKey& key, const GlyphMask& ma
                 oldest = candidate;
             }
         }
-        if (slots_[slot_index].occupied) {
+        if (slot_index == slots_.size()) {
             slot_index = oldest;
         }
         mark_recent(slot_index);

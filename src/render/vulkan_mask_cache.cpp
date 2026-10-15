@@ -57,8 +57,11 @@ MaskResolveResult resolve_mask(
     ContextState& state,
     PipelineState& pipeline,
     const SoftwareMask& mask,
-    VkDescriptorSet& descriptor
+    VkDescriptorSet& descriptor,
+    bool& uploaded
 ) noexcept {
+    uploaded = false;
+
     for (auto& entry : pipeline.masks) {
         if (!entry.occupied || entry.key != &mask || entry.generation != mask.generation ||
             entry.width != mask.width || entry.height != mask.height) {
@@ -367,6 +370,7 @@ MaskResolveResult resolve_mask(
     entry.occupied = true;
 
     descriptor = entry.set;
+    uploaded = true;
 
     return MaskResolveResult::ready;
 }

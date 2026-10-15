@@ -603,6 +603,7 @@ void check_steady_atlas_allocate_nothing(
         "steady window opens clean"
     );
     require(stats.glyph_draws == 1, "one atlas run draws once");
+    require(stats.uploads == 1, "one atlas run uploads once");
 
     g_allocation_count.store(0, std::memory_order_relaxed);
     g_counting.store(true, std::memory_order_relaxed);
@@ -626,6 +627,7 @@ void check_steady_atlas_allocate_nothing(
         g_allocation_count.load(std::memory_order_relaxed) == 0,
         "atlas draws allocate nothing"
     );
+    require(stats.uploads == 0, "steady atlas repeats never re-upload");
 }
 
 int run() {

@@ -221,6 +221,55 @@ void check_eviction_and_clear() {
     );
 }
 
+void check_full_bucket_reuses_oldest() {
+    auto rooms = AtlasRooms{};
+    auto atlas = veyra::GlyphAtlas(
+        std::span<veyra::GlyphAtlasSlot>(rooms.slots),
+        std::span<std::uint8_t>(rooms.coverage),
+        std::span<stbrp_node>(rooms.nodes),
+        kAtlasWidth,
+        kAtlasHeight
+    );
+
+    require(atlas.valid(), "reuse atlas validates");
+
+    auto pixels = std::array<std::uint8_t, 35>{};
+    pixels.fill(200);
+
+    for (auto id = std::uint32_t{1}; id <= 4; ++id) {
+        require(
+            atlas.insert(test_key(id), test_mask(pixels, 5, 7)) ==
+                veyra::GlyphAtlasResult::inserted,
+            "bucket fills one way at a time"
+        );
+    }
+
+    require(
+        atlas.insert(test_key(5), test_mask(pixels, 5, 7)) == veyra::GlyphAtlasResult::inserted,
+        "a full bucket reuses its oldest slot"
+    );
+    require(!atlas.find(test_key(1)).has_value(), "reuse drops the previous key");
+
+    const auto placed = atlas.find(test_key(5));
+    require(placed.has_value(), "reused slot resolves the new key");
+
+    for (auto id = std::uint32_t{2}; id <= 4; ++id) {
+        const auto kept = atlas.find(test_key(id));
+        require(kept.has_value(), "reuse keeps the other residents");
+        require(kept->width == 5 && kept->height == 7, "kept placements keep their extents");
+    }
+
+    const auto view = atlas.view();
+    for (auto row = std::size_t{}; row < placed->height; ++row) {
+        for (auto column = std::size_t{}; column < placed->width; ++column) {
+            require(
+                view.coverage[(placed->v + row) * view.stride + placed->u + column] == 200,
+                "reused slot holds the new pixels"
+            );
+        }
+    }
+}
+
 void check_rejections() {
     auto rooms = AtlasRooms{};
     auto atlas = veyra::GlyphAtlas(
@@ -506,6 +555,7 @@ void check_cjk_churn() {
 int run() {
     check_insert_and_find();
     check_eviction_and_clear();
+    check_full_bucket_reuses_oldest();
     check_rejections();
     check_glyph_draws();
     check_cjk_churn();
