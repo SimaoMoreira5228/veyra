@@ -168,6 +168,46 @@ void check_rejections_leave_outputs_unchanged() {
         "grayscale bitmaps need at least two levels"
     );
 
+    auto negative_rows = bitmap;
+    negative_rows.rows = -1;
+    negative_rows.width = 0;
+    negative_rows.pitch = 0;
+    require(
+        veyra::copy_freetype_bitmap(
+            negative_rows,
+            0,
+            0,
+            veyra::GlyphRasterMode::grayscale,
+            output,
+            0,
+            glyph
+        ) == veyra::GlyphRasterizeResult::invalid_input,
+        "negative row counts are rejected"
+    );
+    require(
+        output[0] == 7 && output[1] == 7 && output[2] == 7 && output[3] == 7,
+        "negative rows leave output bytes unchanged"
+    );
+    require(
+        glyph.mask.width == 1 && glyph.bearing_x == 5 && glyph.bearing_y == 6,
+        "negative rows leave glyph metadata unchanged"
+    );
+
+    auto negative_width = bitmap;
+    negative_width.width = -1;
+    require(
+        veyra::copy_freetype_bitmap(
+            negative_width,
+            0,
+            0,
+            veyra::GlyphRasterMode::grayscale,
+            output,
+            2,
+            glyph
+        ) == veyra::GlyphRasterizeResult::glyph_too_large,
+        "wrapped widths do not fit the output"
+    );
+
     require(
         veyra::rasterize_freetype_glyph(
             nullptr,
@@ -276,6 +316,18 @@ void check_color_bitmap_conversion_and_rendering() {
             veyra::GlyphRasterizeResult::unsupported_bitmap,
         "non-color bitmaps are rejected"
     );
+
+    auto negative_color_rows = bitmap;
+    negative_color_rows.rows = -1;
+    negative_color_rows.width = 0;
+    negative_color_rows.pitch = 0;
+    require(
+        veyra::copy_freetype_color_bitmap(negative_color_rows, 0, 0, output, 0, glyph) ==
+            veyra::GlyphRasterizeResult::invalid_input,
+        "negative color row counts are rejected"
+    );
+    require(output[0].red == 255, "negative color rows leave pixels unchanged");
+    require(glyph.image.width == 3, "negative color rows leave metadata unchanged");
     require(
         veyra::rasterize_freetype_color_glyph(nullptr, 1, output, 4, glyph) ==
             veyra::GlyphRasterizeResult::invalid_input,

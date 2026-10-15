@@ -34,6 +34,9 @@ GlyphRasterizeResult copy_freetype_bitmap(
 
     const auto width = static_cast<std::size_t>(bitmap.width);
     const auto height = static_cast<std::size_t>(bitmap.rows);
+    if (height != 0 && output_stride == 0) {
+        return GlyphRasterizeResult::invalid_input;
+    }
     if (width > output_stride ||
         (height != 0 && output_stride > std::numeric_limits<std::size_t>::max() / height)) {
         return GlyphRasterizeResult::glyph_too_large;
@@ -127,6 +130,9 @@ GlyphRasterizeResult copy_freetype_color_bitmap(
 ) noexcept {
     const auto width = static_cast<std::size_t>(bitmap.width);
     const auto height = static_cast<std::size_t>(bitmap.rows);
+    if (height != 0 && output_stride == 0) {
+        return GlyphRasterizeResult::invalid_input;
+    }
     if (bitmap.pixel_mode != FT_PIXEL_MODE_BGRA) {
         return GlyphRasterizeResult::unsupported_bitmap;
     }
