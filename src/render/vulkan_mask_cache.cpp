@@ -58,9 +58,9 @@ MaskResolveResult resolve_mask(
     PipelineState& pipeline,
     const SoftwareMask& mask,
     VkDescriptorSet& descriptor,
-    bool& uploaded
+    std::size_t& uploaded_bytes
 ) noexcept {
-    uploaded = false;
+    uploaded_bytes = 0;
 
     for (auto& entry : pipeline.masks) {
         if (!entry.occupied || entry.key != &mask || entry.generation != mask.generation ||
@@ -370,7 +370,7 @@ MaskResolveResult resolve_mask(
     entry.occupied = true;
 
     descriptor = entry.set;
-    uploaded = true;
+    uploaded_bytes = upload_bytes;
 
     return MaskResolveResult::ready;
 }

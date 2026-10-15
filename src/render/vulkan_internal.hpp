@@ -294,7 +294,8 @@ VulkanRenderResult upload_textures(
     ContextState& state,
     PipelineState& pipeline,
     std::span<const DisplayCommand> commands,
-    std::size_t& uploads
+    std::size_t& uploads,
+    std::size_t& upload_bytes
 ) noexcept;
 
 void evict_mask_entry(ContextState& state, PipelineState& pipeline, MaskCacheEntry& entry) noexcept;
@@ -314,7 +315,7 @@ MaskResolveResult resolve_mask(
     PipelineState& pipeline,
     const SoftwareMask& mask,
     VkDescriptorSet& descriptor,
-    bool& uploaded
+    std::size_t& uploaded_bytes
 ) noexcept;
 
 ImageResolveResult resolve_image(
@@ -323,7 +324,7 @@ ImageResolveResult resolve_image(
     const SoftwareImage& image,
     SoftwareImageSampling sampling,
     VkDescriptorSet& descriptor,
-    bool& uploaded
+    std::size_t& uploaded_bytes
 ) noexcept;
 
 VkDescriptorSet lookup_image(

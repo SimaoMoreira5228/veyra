@@ -2,12 +2,14 @@
 #include "veyra/behaviors/editable_text.hpp"
 #include "veyra/behaviors/menu.hpp"
 #include "veyra/behaviors/pressable.hpp"
+#include "veyra/behaviors/radiogroup.hpp"
 #include "veyra/behaviors/range.hpp"
 #include "veyra/behaviors/tabs.hpp"
 #include "veyra/behaviors/toggle.hpp"
 #include "veyra/render/software_renderer.hpp"
 #include "veyra/text/text_editor_buffer.hpp"
 #include "veyra/widgets/basic/button.hpp"
+#include "veyra/widgets/basic/radio.hpp"
 #include "veyra/widgets/basic/textfield.hpp"
 #include "veyra/widgets/basic/toggle.hpp"
 
@@ -34,7 +36,7 @@ constexpr double kMinScale = 1.0;
 constexpr double kMaxScale = 8.0;
 constexpr std::size_t kSceneWidth = 528;
 constexpr std::size_t kMinWidth = 560;
-constexpr std::size_t kMinHeight = 416;
+constexpr std::size_t kMinHeight = 450;
 constexpr float kButtonWidth = 96.0F;
 constexpr float kButtonHeight = 32.0F;
 constexpr float kButtonStride = 104.0F;
@@ -398,6 +400,66 @@ float emit_switches(
     return y + 20.0F;
 }
 
+void push_radio(
+    std::vector<veyra::DisplayCommand>& commands,
+    const veyra::Theme& theme,
+    float x,
+    float y,
+    veyra::RadioGroupState state,
+    bool selected
+) {
+    const veyra::RadioAppearance appearance = veyra::radio_appearance(theme, state, selected);
+    const float diameter = appearance.ring_diameter.value;
+    commands.push_back(
+        veyra::FillRoundedRect{
+            .bounds = {.x = x, .y = y, .width = diameter, .height = diameter},
+            .radius = diameter / 2.0F,
+            .color = appearance.ring,
+        }
+    );
+    if (selected) {
+        const float dot = appearance.dot_diameter.value;
+        const float inset = (diameter - dot) / 2.0F;
+        commands.push_back(
+            veyra::FillRoundedRect{
+                .bounds = {.x = x + inset, .y = y + inset, .width = dot, .height = dot},
+                .radius = dot / 2.0F,
+                .color = appearance.dot,
+            }
+        );
+    }
+}
+
+float emit_radios(
+    std::vector<veyra::DisplayCommand>& commands,
+    const veyra::Theme& theme,
+    float x,
+    float y
+) {
+    constexpr std::array<veyra::RadioOption, 4> options{{
+        {.id = 1},
+        {.id = 2},
+        {.id = 3, .disabled = true},
+        {.id = 4},
+    }};
+
+    auto group = veyra::RadioGroupController{};
+    group.configure({.options = options, .selected = 2});
+
+    for (std::size_t index = 0; index < options.size(); ++index) {
+        push_radio(
+            commands,
+            theme,
+            x + static_cast<float>(index) * 32.0F,
+            y + 2.0F,
+            group.state(),
+            group.selected() == options[index].id
+        );
+    }
+
+    return y + 20.0F;
+}
+
 float emit_textfields(
     std::vector<veyra::DisplayCommand>& commands,
     const veyra::Theme& theme,
@@ -701,6 +763,7 @@ void build_scene(
     y = emit_buttons(commands, theme, x, y);
     y = emit_checkboxes(commands, theme, x, y + kRowGap);
     y = emit_switches(commands, theme, x, y + kRowGap);
+    y = emit_radios(commands, theme, x, y + kRowGap);
     y = emit_textfields(commands, theme, x, y + kRowGap);
     y = emit_sliders(commands, theme, x, y + kRowGap);
     y = emit_range(commands, theme, x, y + kRowGap);

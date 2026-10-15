@@ -359,9 +359,9 @@ ImageResolveResult resolve_image(
     const SoftwareImage& image,
     SoftwareImageSampling sampling,
     VkDescriptorSet& descriptor,
-    bool& uploaded
+    std::size_t& uploaded_bytes
 ) noexcept {
-    uploaded = false;
+    uploaded_bytes = 0;
 
     for (auto& entry : pipeline.images) {
         if (!entry.occupied || entry.key != &image || entry.generation != image.generation ||
@@ -681,7 +681,7 @@ ImageResolveResult resolve_image(
     entry.occupied = true;
 
     descriptor = cached;
-    uploaded = true;
+    uploaded_bytes = upload_bytes;
 
     return ImageResolveResult::ready;
 }
@@ -690,8 +690,12 @@ VulkanRenderResult upload_textures(
     vulkan_detail::ContextState& state,
     vulkan_detail::PipelineState& stored,
     std::span<const DisplayCommand> commands,
-    std::size_t& uploads
+    std::size_t& uploads,
+    std::size_t& upload_bytes
 ) noexcept {
+    uploads = 0;
+    upload_bytes = 0;
+
     for (const auto& command : commands) {
         if (const auto* drawn = std::get_if<DrawImage>(&command)) {
             if (drawn->image == nullptr || !render_detail::valid_image(*drawn->image) ||
@@ -708,7 +712,7 @@ VulkanRenderResult upload_textures(
             }
 
             auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
-            auto uploaded = false;
+            auto bytes = std::size_t{};
 
             const auto resolved = vulkan_detail::resolve_image(
                 state,
@@ -716,7 +720,7 @@ VulkanRenderResult upload_textures(
                 *drawn->image,
                 drawn->sampling,
                 descriptor,
-                uploaded
+                bytes
             );
 
             if (resolved == vulkan_detail::ImageResolveResult::too_large) {
@@ -727,8 +731,9 @@ VulkanRenderResult upload_textures(
                 return VulkanRenderResult::device_error;
             }
 
-            if (uploaded) {
+            if (bytes > 0) {
                 ++uploads;
+                upload_bytes += bytes;
             }
 
             continue;
@@ -752,10 +757,10 @@ VulkanRenderResult upload_textures(
             }
 
             auto descriptor = VkDescriptorSet{VK_NULL_HANDLE};
-            auto uploaded = false;
+            auto bytes = std::size_t{};
 
             const auto resolved =
-                vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor, uploaded);
+                vulkan_detail::resolve_mask(state, stored, *masked->mask, descriptor, bytes);
 
             if (resolved == vulkan_detail::MaskResolveResult::too_large) {
                 return VulkanRenderResult::insufficient_capacity;
@@ -765,8 +770,9 @@ VulkanRenderResult upload_textures(
                 return VulkanRenderResult::device_error;
             }
 
-            if (uploaded) {
+            if (bytes > 0) {
                 ++uploads;
+                upload_bytes += bytes;
             }
 
             continue;
@@ -788,15 +794,10 @@ VulkanRenderResult upload_textures(
         }
 
         auto glyph_descriptor = VkDescriptorSet{VK_NULL_HANDLE};
-        auto glyph_uploaded = false;
+        auto glyph_bytes = std::size_t{};
 
-        const auto glyph_resolved = vulkan_detail::resolve_mask(
-            state,
-            stored,
-            atlas_view,
-            glyph_descriptor,
-            glyph_uploaded
-        );
+        const auto glyph_resolved =
+            vulkan_detail::resolve_mask(state, stored, atlas_view, glyph_descriptor, glyph_bytes);
 
         if (glyph_resolved == vulkan_detail::MaskResolveResult::too_large) {
             return VulkanRenderResult::insufficient_capacity;
@@ -806,8 +807,9 @@ VulkanRenderResult upload_textures(
             return VulkanRenderResult::device_error;
         }
 
-        if (glyph_uploaded) {
+        if (glyph_bytes > 0) {
             ++uploads;
+            upload_bytes += glyph_bytes;
         }
     }
 

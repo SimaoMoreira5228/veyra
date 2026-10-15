@@ -1,9 +1,11 @@
 #include "veyra/behaviors/pressable.hpp"
+#include "veyra/behaviors/radiogroup.hpp"
 #include "veyra/behaviors/range.hpp"
 #include "veyra/behaviors/toggle.hpp"
 #include "veyra/render/software_renderer.hpp"
 #include "veyra/text/text_editor_buffer.hpp"
 #include "veyra/widgets/basic/button.hpp"
+#include "veyra/widgets/basic/radio.hpp"
 #include "veyra/widgets/basic/textfield.hpp"
 #include "veyra/widgets/basic/toggle.hpp"
 
@@ -72,6 +74,30 @@ void check_toggle_recipes_track_state() {
         veyra::switch_appearance(theme, field_toggle.state()).track ==
             theme.color(veyra::tokens::color_surface),
         "an unchecked switch shows the surface color"
+    );
+}
+
+void check_radio_recipes_track_state() {
+    const veyra::Theme theme;
+    constexpr std::array<veyra::RadioOption, 2> options{{
+        {.id = 1},
+        {.id = 2, .disabled = true},
+    }};
+
+    auto group = veyra::RadioGroupController{};
+    group.configure({.options = options, .selected = 1});
+
+    const auto picked = veyra::radio_appearance(theme, group.state(), true);
+    require(
+        picked.ring == theme.color(veyra::tokens::color_toggle_checked) &&
+            picked.dot == theme.color(veyra::tokens::color_toggle_on_checked),
+        "a selected radio shows the checked ring and dot"
+    );
+
+    const auto skipped = veyra::radio_appearance(theme, group.state(), false);
+    require(
+        skipped.ring == theme.color(veyra::tokens::color_text_disabled),
+        "an unselected radio shows the muted ring"
     );
 }
 
@@ -344,6 +370,7 @@ int main() {
     try {
         check_button_recipes_track_state();
         check_toggle_recipes_track_state();
+        check_radio_recipes_track_state();
         check_textfield_invalid_border();
         check_range_fractions_drive_thumbs();
         check_gallery_snapshot();

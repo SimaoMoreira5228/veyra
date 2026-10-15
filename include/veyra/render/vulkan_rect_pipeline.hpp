@@ -34,6 +34,7 @@ struct VulkanRectStats {
     std::size_t rounded_stroke_draws{};
     std::size_t glyph_draws{};
     std::size_t uploads{};
+    std::size_t upload_bytes{};
     std::uint64_t gpu_ns{};
     bool gpu_timed{};
 };

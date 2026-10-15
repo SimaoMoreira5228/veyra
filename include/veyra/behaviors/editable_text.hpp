@@ -69,6 +69,7 @@ class EditableTextController {
     EditableTextResult set_focused(bool focused) noexcept;
 
     EditableTextEdit insert(std::string_view text) noexcept;
+    EditableTextEdit commit_text(std::string_view text) noexcept;
     EditableTextEdit paste(std::string_view text) noexcept;
     EditableTextEdit erase_backward() noexcept;
     EditableTextEdit erase_forward() noexcept;

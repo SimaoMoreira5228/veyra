@@ -140,6 +140,20 @@ EditableTextEdit EditableTextController::insert(std::string_view text) noexcept 
     return finish(before, buffer_->insert(text), true);
 }
 
+EditableTextEdit EditableTextController::commit_text(std::string_view text) noexcept {
+    if (disabled_ || readonly_ || !focused_) {
+        return {};
+    }
+
+    const auto before = snapshot();
+
+    if (buffer_->has_composition()) {
+        buffer_->cancel_composition();
+    }
+
+    return finish(before, buffer_->insert(text), true);
+}
+
 EditableTextEdit EditableTextController::paste(std::string_view text) noexcept {
     if (!mutable_state()) {
         return {};

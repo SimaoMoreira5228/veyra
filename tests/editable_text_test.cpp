@@ -382,6 +382,83 @@ void check_paste_and_erase_apply_edits() {
     );
 }
 
+void check_platform_commit_flow() {
+    auto fix = Fixture{"hi"};
+    require(
+        fix.field.set_focused(true) == veyra::EditableTextResult::handled,
+        "platform input needs focus"
+    );
+
+    require(
+        fix.field.commit_text("!").result == veyra::EditableTextResult::changed &&
+            fix.buffer.size() == 3,
+        "direct commits insert without a preedit"
+    );
+
+    const auto preview = fix.field.update_composition(fix.preedit, "x", 1, {});
+    require(
+        preview.result == veyra::EditableTextResult::handled &&
+            preview.edit == veyra::TextEditResult::complete,
+        "preedit previews without touching committed text"
+    );
+    require(fix.field.composing(), "preedit marks the field composing");
+
+    require(
+        fix.field.commit_text("x").result == veyra::EditableTextResult::changed &&
+            fix.buffer.size() == 4,
+        "platform confirmation replaces the preedit once"
+    );
+    require(!fix.field.composing(), "confirmed preedit clears");
+
+    fix.field.select_all();
+
+    std::array<char, 16> output{};
+    std::size_t length = 0;
+
+    require(
+        fix.field.copy_selection(output, length) == veyra::TextEditResult::complete,
+        "confirmed text copies out"
+    );
+    require(std::string_view(output.data(), length) == "hi!x", "preedit text lands exactly once");
+
+    require(fix.field.set_focused(false) == veyra::EditableTextResult::handled, "blur drops focus");
+    require(
+        fix.field.commit_text("?").result == veyra::EditableTextResult::ignored &&
+            fix.buffer.size() == 4,
+        "commits are ignored while blurred"
+    );
+
+    require(fix.field.set_disabled(true), "disabling reports a change");
+    require(
+        fix.field.commit_text("?").result == veyra::EditableTextResult::ignored &&
+            fix.buffer.size() == 4,
+        "commits are ignored while disabled"
+    );
+
+    auto locked = Fixture{"hi"};
+    require(
+        locked.field.set_focused(true) == veyra::EditableTextResult::handled,
+        "locked field focuses"
+    );
+    require(locked.field.set_readonly(true), "locked field turns readonly");
+    require(
+        locked.field.commit_text("?").result == veyra::EditableTextResult::ignored &&
+            locked.buffer.size() == 2,
+        "commits are ignored while readonly"
+    );
+
+    auto invalid = Fixture{};
+    require(
+        invalid.field.set_focused(true) == veyra::EditableTextResult::handled,
+        "fresh field focuses"
+    );
+    require(
+        invalid.field.commit_text("\xff").result == veyra::EditableTextResult::handled,
+        "malformed commits report landing without applying"
+    );
+    require(invalid.buffer.size() == 0, "malformed commits change nothing");
+}
+
 void check_cut_copies_then_deletes() {
     auto fix = Fixture{"hello"};
     fix.field.select_all();
@@ -431,6 +508,7 @@ int main() {
         check_commit_then_validate_ordering();
         check_empty_name_semantics_rejection();
         check_paste_and_erase_apply_edits();
+        check_platform_commit_flow();
         check_cut_copies_then_deletes();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
