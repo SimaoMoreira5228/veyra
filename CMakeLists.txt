@@ -57,6 +57,7 @@ add_library(veyra STATIC
  src/render/display_command_hash.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
+ src/text/syntax_spans.cpp
  src/text/text_edit_history.cpp
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
@@ -879,6 +880,10 @@ add_test(NAME printing_behavior COMMAND veyra_printing_test)
 add_executable(veyra_glyph_mask_cache_test tests/glyph_mask_cache_test.cpp)
 target_link_libraries(veyra_glyph_mask_cache_test PRIVATE veyra)
 add_test(NAME glyph_mask_cache_behavior COMMAND veyra_glyph_mask_cache_test)
+
+add_executable(veyra_syntax_spans_test tests/syntax_spans_test.cpp)
+target_link_libraries(veyra_syntax_spans_test PRIVATE veyra)
+add_test(NAME syntax_spans_behavior COMMAND veyra_syntax_spans_test)
 
 add_executable(veyra_glyph_atlas_test tests/glyph_atlas_test.cpp)
 target_link_libraries(veyra_glyph_atlas_test PRIVATE veyra)

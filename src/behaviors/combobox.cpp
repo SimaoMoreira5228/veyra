@@ -193,42 +193,61 @@ ComboResult ComboBoxController::move_active(ComboMove direction) noexcept {
         return ComboResult::ignored;
     }
 
-    if (match_count_ == 0) {
+    if (enabled_total() == 0) {
         return ComboResult::ignored;
     }
 
-    std::size_t current = kNotFound;
-
-    if (has_active_) {
-        current = find_match(active_);
-    }
-
-    std::uint64_t target;
-
     switch (direction) {
     case ComboMove::next:
-        target = current == kNotFound ? matches_[0] : matches_[(current + 1) % match_count_];
-        break;
     case ComboMove::prev:
-        target = current == kNotFound ? matches_[match_count_ - 1]
-                                      : matches_[(current + match_count_ - 1) % match_count_];
-        break;
     case ComboMove::first:
-        target = matches_[0];
-        break;
     case ComboMove::last:
-        target = matches_[match_count_ - 1];
         break;
     default:
         return ComboResult::ignored;
     }
 
-    if (has_active_ && target == active_) {
-        return ComboResult::handled;
+    const auto first_enabled = scan_enabled(match_count_ - 1, true);
+    const auto last_enabled = scan_enabled(0, false);
+
+    std::size_t target = kNotFound;
+
+    if (!has_active_) {
+        target = (direction == ComboMove::prev || direction == ComboMove::last) ? last_enabled
+                                                                                : first_enabled;
+    } else {
+        const auto current = find_match(active_);
+
+        if (current == kNotFound) {
+            return ComboResult::ignored;
+        }
+
+        switch (direction) {
+        case ComboMove::next:
+            target = scan_enabled(current, true);
+            break;
+        case ComboMove::prev:
+            target = scan_enabled(current, false);
+            break;
+        case ComboMove::first:
+            target = first_enabled;
+            break;
+        case ComboMove::last:
+            target = last_enabled;
+            break;
+        }
+
+        if (target == current) {
+            return ComboResult::handled;
+        }
+    }
+
+    if (target == kNotFound) {
+        return ComboResult::ignored;
     }
 
     has_active_ = true;
-    active_ = target;
+    active_ = matches_[target];
 
     return ComboResult::changed;
 }
@@ -265,6 +284,10 @@ ComboBoxController::commit_id(std::uint64_t id, std::span<const ComboOption> opt
 
     for (const ComboOption& option : options) {
         if (option.id == id) {
+            if (option.disabled) {
+                return {};
+            }
+
             return finish_commit(id, false);
         }
     }
@@ -384,6 +407,13 @@ bool ComboBoxController::write_item_semantics(
     if (disabled_) {
         states = states | SemanticState::disabled;
     }
+
+    const auto match = find_match(id);
+    const bool option_disabled = match != kNotFound && !match_enabled_[match];
+
+    if (option_disabled) {
+        states = states | SemanticState::disabled;
+    }
     if (has_value_ && value_ == id) {
         states = states | SemanticState::selected;
     }
@@ -395,7 +425,8 @@ bool ComboBoxController::write_item_semantics(
         .role = SemanticRole::option,
         .label = accessible_name,
         .states = states,
-        .actions = disabled_ ? std::uint16_t{} : action_flag(SemanticAction::select),
+        .actions =
+            (disabled_ || option_disabled) ? std::uint16_t{} : action_flag(SemanticAction::select),
     };
 
     return true;
@@ -434,6 +465,31 @@ std::size_t ComboBoxController::find_match(std::uint64_t id) const noexcept {
     return kNotFound;
 }
 
+std::size_t ComboBoxController::scan_enabled(std::size_t from, bool forward) const noexcept {
+    for (auto step = std::size_t{1}; step <= match_count_; ++step) {
+        const auto index =
+            forward ? (from + step) % match_count_ : (from + match_count_ - step) % match_count_;
+
+        if (match_enabled_[index]) {
+            return index;
+        }
+    }
+
+    return kNotFound;
+}
+
+std::size_t ComboBoxController::enabled_total() const noexcept {
+    auto total = std::size_t{};
+
+    for (auto index = std::size_t{}; index < match_count_; ++index) {
+        if (match_enabled_[index]) {
+            ++total;
+        }
+    }
+
+    return total;
+}
+
 bool ComboBoxController::same_matches(const std::uint64_t* ids, std::size_t size) const noexcept {
     if (match_count_ != size) {
         return false;
@@ -451,6 +507,7 @@ bool ComboBoxController::same_matches(const std::uint64_t* ids, std::size_t size
 ComboResult
 ComboBoxController::collect(std::string_view query, std::span<const ComboOption> options) noexcept {
     std::array<std::uint64_t, kCapacity + 1> found{};
+    std::array<bool, kCapacity + 1> found_enabled{};
     std::size_t found_size = 0;
 
     for (const ComboOption& option : options) {
@@ -467,6 +524,7 @@ ComboBoxController::collect(std::string_view query, std::span<const ComboOption>
         }
 
         found[found_size] = option.id;
+        found_enabled[found_size] = !option.disabled;
         ++found_size;
     }
 
@@ -475,23 +533,43 @@ ComboBoxController::collect(std::string_view query, std::span<const ComboOption>
     }
 
     const bool same_set = same_matches(found.data(), found_size);
+
+    bool same_enabled = match_count_ == found_size;
+
+    for (auto index = std::size_t{}; same_enabled && index < found_size; ++index) {
+        same_enabled = match_enabled_[index] == found_enabled[index];
+    }
+
+    std::uint64_t first_id = 0;
+    bool has_first = false;
+
+    for (auto index = std::size_t{}; index < found_size; ++index) {
+        if (found_enabled[index]) {
+            first_id = found[index];
+            has_first = true;
+
+            break;
+        }
+    }
+
     const bool same_active =
-        (found_size == 0 && !has_active_) || (found_size > 0 && has_active_ && active_ == found[0]);
+        (!has_first && !has_active_) || (has_first && has_active_ && active_ == first_id);
 
     for (std::size_t i = 0; i < found_size; ++i) {
         matches_[i] = found[i];
+        match_enabled_[i] = found_enabled[i];
     }
     match_count_ = found_size;
 
-    if (found_size == 0) {
+    if (!has_first) {
         has_active_ = false;
         active_ = 0;
     } else {
         has_active_ = true;
-        active_ = found[0];
+        active_ = first_id;
     }
 
-    if (same_set && same_active) {
+    if (same_set && same_enabled && same_active) {
         return ComboResult::handled;
     }
 

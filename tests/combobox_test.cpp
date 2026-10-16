@@ -491,6 +491,119 @@ void check_semantics_and_active_descendant() {
     );
 }
 
+void check_disabled_options_are_skipped() {
+    auto combo = veyra::ComboBoxController{};
+    const std::array<veyra::ComboOption, 4> options{{
+        {.id = 11, .label = "Apple"},
+        {.id = 12, .label = "Banana", .disabled = true},
+        {.id = 13, .label = "Pineapple"},
+        {.id = 14, .label = "Cherry", .disabled = true},
+    }};
+    combo.open(options);
+
+    require(
+        combo.active().has && combo.active().id == 11,
+        "opening parks active on the first enabled option"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::next) == veyra::ComboResult::changed &&
+            combo.active().id == 13,
+        "next skips the disabled middle option"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::next) == veyra::ComboResult::changed &&
+            combo.active().id == 11,
+        "next wraps past the disabled tail"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::prev) == veyra::ComboResult::changed &&
+            combo.active().id == 13,
+        "prev wraps past the disabled tail"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::first) == veyra::ComboResult::changed &&
+            combo.active().id == 11,
+        "first lands on the first enabled option"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::last) == veyra::ComboResult::changed &&
+            combo.active().id == 13,
+        "last lands on the last enabled option"
+    );
+
+    const auto commit = combo.commit_active();
+    require(
+        commit.result == veyra::ComboResult::commit && commit.id == 13,
+        "committing lands on an enabled option"
+    );
+
+    auto direct = veyra::ComboBoxController{};
+    direct.open(options);
+    require(
+        direct.commit_id(12, options).result == veyra::ComboResult::ignored,
+        "a disabled id cannot be committed by pointer"
+    );
+    require(
+        direct.commit_id(11, options).result == veyra::ComboResult::commit,
+        "an enabled id still commits by pointer"
+    );
+}
+
+void check_all_disabled_arms_nothing() {
+    auto combo = veyra::ComboBoxController{};
+    const std::array<veyra::ComboOption, 2> options{{
+        {.id = 11, .label = "Apple", .disabled = true},
+        {.id = 12, .label = "Banana", .disabled = true},
+    }};
+    combo.open(options);
+
+    require(
+        combo.match_count() == 2 && !combo.active().has,
+        "disabled matches are listed but nothing is armed"
+    );
+    require(
+        combo.move_active(veyra::ComboMove::next) == veyra::ComboResult::ignored,
+        "roving with no enabled match is ignored"
+    );
+    require(
+        combo.commit_active().result == veyra::ComboResult::ignored,
+        "committing with no enabled match is ignored"
+    );
+
+    const std::array<veyra::ComboOption, 2> reopened{{
+        {.id = 11, .label = "Apple"},
+        {.id = 12, .label = "Banana", .disabled = true},
+    }};
+    require(
+        combo.apply_filter({}, reopened) == veyra::ComboResult::changed && combo.active().has &&
+            combo.active().id == 11,
+        "re-enabling an option re-arms active on it"
+    );
+}
+
+void check_disabled_item_semantics() {
+    auto combo = veyra::ComboBoxController{};
+    const std::array<veyra::ComboOption, 2> options{{
+        {.id = 11, .label = "Apple"},
+        {.id = 12, .label = "Banana", .disabled = true},
+    }};
+    combo.open(options);
+
+    auto item = veyra::SemanticNodeData{};
+    require(combo.write_item_semantics(12, "Banana", item), "a disabled option writes semantics");
+    require(
+        veyra::has_state(item.states, veyra::SemanticState::disabled) &&
+            !veyra::has_action(item.actions, veyra::SemanticAction::select),
+        "a disabled option carries the disabled state and no select action"
+    );
+    require(
+        combo.write_item_semantics(11, "Apple", item) &&
+            !veyra::has_state(item.states, veyra::SemanticState::disabled) &&
+            veyra::has_action(item.actions, veyra::SemanticAction::select),
+        "an enabled option keeps the select action"
+    );
+}
+
 }
 
 int main() {
@@ -505,6 +618,9 @@ int main() {
         check_value_seeding_and_overflow();
         check_disabled_rejects_mutation();
         check_semantics_and_active_descendant();
+        check_disabled_options_are_skipped();
+        check_all_disabled_arms_nothing();
+        check_disabled_item_semantics();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

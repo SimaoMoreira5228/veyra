@@ -371,6 +371,17 @@ void push_switch(
             .color = appearance.thumb,
         }
     );
+    if (state.focused) {
+        commands.push_back(
+            veyra::StrokeRoundedRect{
+                .bounds =
+                    {.x = x - 2.0F, .y = y - 2.0F, .width = width + 4.0F, .height = height + 4.0F},
+                .radius = appearance.corner_radius.value + 2.0F,
+                .thickness = 2.0F,
+                .color = theme.color(veyra::tokens::color_action_primary),
+            }
+        );
+    }
 }
 
 float emit_switches(
@@ -379,16 +390,26 @@ float emit_switches(
     float x,
     float y
 ) {
-    for (std::size_t index = 0; index < 3; ++index) {
+    for (std::size_t index = 0; index < 6; ++index) {
         auto toggle = veyra::ToggleController{};
         toggle.configure({.kind = veyra::ToggleKind::toggle_switch});
-        if (index == 1) {
+        if (index == 1 || index == 3 || index == 4 || index == 5) {
             toggle.configure(
                 {.kind = veyra::ToggleKind::toggle_switch, .value = veyra::ToggleValue::checked}
             );
         }
+        if (index == 3) {
+            toggle.pointer_enter();
+        }
+        if (index == 4) {
+            toggle.pointer_enter();
+            toggle.pointer_down(1, true);
+        }
         if (index == 2) {
             toggle.set_disabled(true);
+        }
+        if (index == 5) {
+            toggle.set_focused(true);
         }
         push_switch(
             commands,

@@ -38,6 +38,7 @@ enum class ComboResult : std::uint8_t {
 struct ComboOption {
     std::uint64_t id{};
     std::string_view label{};
+    bool disabled{};
 };
 
 struct ComboCommit {
@@ -110,11 +111,14 @@ class ComboBoxController {
     static bool matches_query(std::string_view label, std::string_view query) noexcept;
 
     std::size_t find_match(std::uint64_t id) const noexcept;
+    std::size_t scan_enabled(std::size_t from, bool forward) const noexcept;
+    std::size_t enabled_total() const noexcept;
     bool same_matches(const std::uint64_t* ids, std::size_t size) const noexcept;
     ComboResult collect(std::string_view query, std::span<const ComboOption> options) noexcept;
     ComboCommit finish_commit(std::uint64_t id, bool free_text) noexcept;
 
     std::array<std::uint64_t, kCapacity> matches_{};
+    std::array<bool, kCapacity> match_enabled_{};
     std::size_t match_count_{};
     ComboMode mode_{ComboMode::strict};
     bool open_{};
