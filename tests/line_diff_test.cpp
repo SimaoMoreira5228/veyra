@@ -318,6 +318,52 @@ void check_word_level_diff() {
     require(new_cursor == new_count, "every new word is covered");
 }
 
+void check_display_rows_map_runs() {
+    const std::array<std::string_view, 4> old_lines{"a", "b", "c", "d"};
+    const std::array<std::string_view, 4> new_lines{"a", "B", "C", "d"};
+    const auto diffed = diff_all(old_lines, new_lines);
+
+    require(diffed.outcome.runs == 4, "a two-line swap merges into paired runs");
+
+    const auto first = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 0);
+    require(
+        first.kind == veyra::LineChangeKind::equal && first.old_line == 0 && first.new_line == 0,
+        "row zero maps to the shared first line"
+    );
+
+    const auto deleted = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 1);
+    require(
+        deleted.kind == veyra::LineChangeKind::deletion && deleted.old_line == 1 &&
+            deleted.new_line == veyra::kNoDiffLine,
+        "a deletion row names only its old line"
+    );
+
+    const auto inserted = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 3);
+    require(
+        inserted.kind == veyra::LineChangeKind::insertion &&
+            inserted.old_line == veyra::kNoDiffLine && inserted.new_line == 1,
+        "an insertion row names only its new line"
+    );
+
+    const auto second_insert = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 4);
+    require(
+        second_insert.kind == veyra::LineChangeKind::insertion && second_insert.new_line == 2,
+        "stacked insertions keep their own line numbers"
+    );
+
+    const auto last = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 5);
+    require(
+        last.kind == veyra::LineChangeKind::equal && last.old_line == 3 && last.new_line == 3,
+        "the tail row maps to the shared last line"
+    );
+
+    const auto past_end = veyra::diff_row_at({diffed.storage.data(), diffed.outcome.runs}, 6);
+    require(
+        past_end.old_line == veyra::kNoDiffLine && past_end.new_line == veyra::kNoDiffLine,
+        "rows past the end name no line on either side"
+    );
+}
+
 }
 
 int main() {
@@ -331,6 +377,7 @@ int main() {
         check_small_scratch_replaces();
         check_exact_scratch_boundary();
         check_word_level_diff();
+        check_display_rows_map_runs();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

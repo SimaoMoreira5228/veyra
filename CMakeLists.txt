@@ -72,7 +72,7 @@ target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -627,6 +627,10 @@ add_executable(veyra_combobox_test tests/combobox_test.cpp)
 target_link_libraries(veyra_combobox_test PRIVATE veyra_behaviors)
 add_test(NAME combobox_behavior COMMAND veyra_combobox_test)
 
+add_executable(veyra_keybinding_test tests/keybinding_test.cpp)
+target_link_libraries(veyra_keybinding_test PRIVATE veyra_behaviors)
+add_test(NAME keybinding_behavior COMMAND veyra_keybinding_test)
+
 add_executable(veyra_breadcrumb_test tests/breadcrumb_test.cpp)
 target_link_libraries(veyra_breadcrumb_test PRIVATE veyra_behaviors)
 add_test(NAME breadcrumb_behavior COMMAND veyra_breadcrumb_test)
@@ -634,6 +638,10 @@ add_test(NAME breadcrumb_behavior COMMAND veyra_breadcrumb_test)
 add_executable(veyra_tooltip_test tests/tooltip_test.cpp)
 target_link_libraries(veyra_tooltip_test PRIVATE veyra_behaviors)
 add_test(NAME tooltip_behavior COMMAND veyra_tooltip_test)
+
+add_executable(veyra_file_operation_queue_test tests/file_operation_queue_test.cpp)
+target_link_libraries(veyra_file_operation_queue_test PRIVATE veyra_behaviors)
+add_test(NAME file_operation_queue_behavior COMMAND veyra_file_operation_queue_test)
 
 add_executable(veyra_menu_placement_test tests/menu_placement_test.cpp)
 target_link_libraries(veyra_menu_placement_test PRIVATE veyra)
