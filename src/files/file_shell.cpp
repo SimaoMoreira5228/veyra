@@ -236,7 +236,10 @@ bool is_within_path(
 
 std::string percent_encode(std::string_view value) {
     constexpr auto hexadecimal = "0123456789ABCDEF";
+
     auto result = std::string{};
+    result.reserve(value.size() * 3);
+
     for (const auto character : value) {
         const auto byte = static_cast<unsigned char>(character);
         const auto unreserved = (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
@@ -362,13 +365,21 @@ std::error_code trash_linux(const std::filesystem::path& path) {
     }
     const auto process_id = std::to_string(::getpid());
 
+    auto stored_name = std::string{};
+    stored_name.reserve(candidate_base.size() + process_id.size() + 22);
+
+    auto info_name = std::string{};
+    info_name.reserve(stored_name.capacity() + 10);
+
     for (auto suffix = std::uint64_t{0};; ++suffix) {
-        auto stored_name = candidate_base;
+        stored_name = candidate_base;
         stored_name.push_back('.');
         stored_name.append(process_id);
         stored_name.push_back('.');
         stored_name.append(std::to_string(suffix));
-        auto info_name = stored_name + ".trashinfo";
+
+        info_name = stored_name;
+        info_name += ".trashinfo";
         const auto info_file = ::openat(
             info_descriptor.get(),
             info_name.c_str(),

@@ -6,6 +6,7 @@
 #include "veyra/behaviors/range.hpp"
 #include "veyra/behaviors/tabs.hpp"
 #include "veyra/behaviors/toggle.hpp"
+#include "veyra/behaviors/treegrid.hpp"
 #include "veyra/render/software_renderer.hpp"
 #include "veyra/text/text_editor_buffer.hpp"
 #include "veyra/widgets/basic/button.hpp"
@@ -36,7 +37,7 @@ constexpr double kMinScale = 1.0;
 constexpr double kMaxScale = 8.0;
 constexpr std::size_t kSceneWidth = 528;
 constexpr std::size_t kMinWidth = 560;
-constexpr std::size_t kMinHeight = 450;
+constexpr std::size_t kMinHeight = 512;
 constexpr float kButtonWidth = 96.0F;
 constexpr float kButtonHeight = 32.0F;
 constexpr float kButtonStride = 104.0F;
@@ -695,6 +696,58 @@ float emit_grid_header(
     return y + 28.0F;
 }
 
+float emit_treegrid_rows(
+    std::vector<veyra::DisplayCommand>& commands,
+    const veyra::Theme& theme,
+    float x,
+    float y
+) {
+    constexpr std::array<veyra::TreeCursorRow, 2> rows{{
+        {.id = 1, .depth = 0, .has_children = true, .expanded = true},
+        {.id = 2, .depth = 1, .has_children = false, .expanded = false},
+    }};
+
+    auto grid = veyra::DataGridController{};
+    const std::array<veyra::DataGridColumn, 1> spec{{
+        {.id = 7, .width = 220.0F, .min_width = 40.0F, .max_width = 400.0F},
+    }};
+    grid.set_columns(spec);
+    grid.set_cursor(2, 7, std::array<std::uint64_t, 2>{1, 2});
+
+    constexpr float row_height = 22.0F;
+    const auto cursor = grid.cursor();
+
+    for (const auto& row : rows) {
+        const float indent = static_cast<float>(row.depth) * 16.0F;
+
+        if (row.has_children) {
+            const float marker_top = y + row_height * 0.5F - 4.0F;
+
+            commands.push_back(
+                veyra::FillRect{
+                    .bounds =
+                        {.x = x + indent + 2.0F, .y = marker_top, .width = 8.0F, .height = 8.0F},
+                    .color = theme.color(veyra::tokens::color_text_primary),
+                }
+            );
+        }
+
+        if (cursor.has_cursor && cursor.row == row.id) {
+            commands.push_back(
+                veyra::StrokeRect{
+                    .bounds = {.x = x, .y = y, .width = 220.0F, .height = row_height},
+                    .thickness = 1.0F,
+                    .color = theme.color(veyra::tokens::color_action_primary),
+                }
+            );
+        }
+
+        y += row_height;
+    }
+
+    return y;
+}
+
 float emit_menu(
     std::vector<veyra::DisplayCommand>& commands,
     const veyra::Theme& theme,
@@ -769,6 +822,7 @@ void build_scene(
     y = emit_range(commands, theme, x, y + kRowGap);
     y = emit_tabs(commands, theme, x, y + kRowGap);
     y = emit_grid_header(commands, theme, x, y + kRowGap);
+    y = emit_treegrid_rows(commands, theme, x, y + kRowGap);
     y = emit_menu(commands, theme, x, y + kRowGap);
     if (y > static_cast<float>(height - kMargin)) {
         throw std::runtime_error("gallery scene overflows its canvas");

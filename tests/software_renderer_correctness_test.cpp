@@ -505,6 +505,8 @@ void check_image_alpha_clipping_and_stride() {
 int main() {
     try {
         check_fills_and_nested_clips();
+        check_damage_regions();
+        check_damage_replay_matches_full_render();
         check_fractional_bounds();
         check_alpha_compositing();
         check_mask_coverage_and_clipping();

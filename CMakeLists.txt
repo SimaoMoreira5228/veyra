@@ -648,6 +648,10 @@ add_executable(veyra_datagrid_test tests/datagrid_test.cpp)
 target_link_libraries(veyra_datagrid_test PRIVATE veyra_behaviors)
 add_test(NAME datagrid_behavior COMMAND veyra_datagrid_test)
 
+add_executable(veyra_treegrid_test tests/treegrid_test.cpp)
+target_link_libraries(veyra_treegrid_test PRIVATE veyra_behaviors)
+add_test(NAME treegrid_behavior COMMAND veyra_treegrid_test)
+
 add_executable(veyra_overlay_test tests/overlay_test.cpp)
 target_link_libraries(veyra_overlay_test PRIVATE veyra_behaviors)
 add_test(NAME overlay_behavior COMMAND veyra_overlay_test)

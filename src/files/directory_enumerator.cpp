@@ -262,6 +262,7 @@ void DirectoryEnumerator::enumerate(
 
         const auto end = std::filesystem::directory_iterator{};
         batch.entries.reserve(entries_per_batch);
+        batch.name_storage.reserve(entries_per_batch * 32);
         while (iterator != end) {
             if (stop_token.stop_requested() ||
                 generation_.load(std::memory_order_acquire) != request.generation) {
