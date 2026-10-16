@@ -53,11 +53,13 @@ add_library(veyra STATIC
  src/render/glyph_atlas.cpp
  src/render/software_rounded_rect.cpp
  src/render/software_image.cpp
+ src/render/shadow.cpp
  src/render/e3_scenes.cpp
  src/render/display_command_hash.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/syntax_spans.cpp
+ src/text/line_diff.cpp
  src/text/text_edit_history.cpp
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
@@ -837,6 +839,10 @@ add_test(
  COMMAND veyra_software_renderer_rounded_rect_test
 )
 
+add_executable(veyra_shadow_test tests/shadow_test.cpp)
+target_link_libraries(veyra_shadow_test PRIVATE veyra)
+add_test(NAME shadow_behavior COMMAND veyra_shadow_test)
+
 add_executable(veyra_software_renderer_snapshot_test tests/software_renderer_snapshot_test.cpp)
 target_link_libraries(veyra_software_renderer_snapshot_test PRIVATE veyra)
 add_test(NAME software_renderer_snapshot COMMAND veyra_software_renderer_snapshot_test)
@@ -900,6 +906,10 @@ add_test(NAME glyph_bounds_cache_behavior COMMAND veyra_glyph_bounds_cache_test)
 add_executable(veyra_glyph_image_cache_test tests/glyph_image_cache_test.cpp)
 target_link_libraries(veyra_glyph_image_cache_test PRIVATE veyra)
 add_test(NAME glyph_image_cache_behavior COMMAND veyra_glyph_image_cache_test)
+
+add_executable(veyra_line_diff_test tests/line_diff_test.cpp)
+target_link_libraries(veyra_line_diff_test PRIVATE veyra)
+add_test(NAME line_diff_behavior COMMAND veyra_line_diff_test)
 
 add_executable(veyra_stb_rect_pack_test tests/stb_rect_pack_test.cpp)
 target_include_directories(veyra_stb_rect_pack_test PRIVATE third_party/stb)
