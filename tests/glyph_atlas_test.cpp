@@ -1,3 +1,4 @@
+#include "allocation_counter.hpp"
 #include "veyra/render/glyph_atlas.hpp"
 #include "veyra/render/software_renderer.hpp"
 
@@ -13,50 +14,6 @@
 #include <string_view>
 
 namespace {
-
-std::atomic<std::size_t> g_allocation_count{0};
-std::atomic<bool> g_counting{false};
-
-void note_allocation() noexcept {
-    if (g_counting.load(std::memory_order_relaxed)) {
-        g_allocation_count.fetch_add(1, std::memory_order_relaxed);
-    }
-}
-
-void* allocate_unaligned(std::size_t size) {
-    note_allocation();
-    if (size == 0) {
-        size = 1;
-    }
-    void* result = std::malloc(size);
-    if (result == nullptr) {
-        throw std::bad_alloc{};
-    }
-    return result;
-}
-
-void release_unaligned(void* ptr) noexcept {
-    std::free(ptr);
-}
-
-class Measure {
-  public:
-    Measure() noexcept {
-        g_allocation_count.store(0, std::memory_order_relaxed);
-        g_counting.store(true, std::memory_order_relaxed);
-    }
-
-    ~Measure() noexcept {
-        g_counting.store(false, std::memory_order_relaxed);
-    }
-
-    Measure(const Measure&) = delete;
-    Measure& operator=(const Measure&) = delete;
-
-    std::size_t count() const noexcept {
-        return g_allocation_count.load(std::memory_order_relaxed);
-    }
-};
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -563,30 +520,6 @@ int run() {
     return 0;
 }
 
-}
-
-void* operator new(std::size_t size) {
-    return allocate_unaligned(size);
-}
-
-void* operator new[](std::size_t size) {
-    return allocate_unaligned(size);
-}
-
-void operator delete(void* ptr) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete[](void* ptr) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete(void* ptr, std::size_t) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete[](void* ptr, std::size_t) noexcept {
-    release_unaligned(ptr);
 }
 
 int main() {

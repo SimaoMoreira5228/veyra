@@ -1,3 +1,4 @@
+#include "allocation_counter.hpp"
 #include "veyra/render/software_renderer.hpp"
 #include "veyra/render/vulkan_context.hpp"
 #include "veyra/render/vulkan_rect_pipeline.hpp"
@@ -18,55 +19,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-
-namespace {
-
-std::atomic<std::size_t> g_allocation_count{0};
-std::atomic<bool> g_counting{false};
-
-void note_allocation() noexcept {
-    if (g_counting.load(std::memory_order_relaxed)) {
-        g_allocation_count.fetch_add(1, std::memory_order_relaxed);
-    }
-}
-
-}
-
-void* operator new(std::size_t size) {
-    note_allocation();
-
-    if (size == 0) {
-        size = 1;
-    }
-
-    void* result = std::malloc(size);
-
-    if (result == nullptr) {
-        throw std::bad_alloc{};
-    }
-
-    return result;
-}
-
-void operator delete(void* ptr) noexcept {
-    std::free(ptr);
-}
-
-void operator delete(void* ptr, std::size_t) noexcept {
-    std::free(ptr);
-}
-
-void* operator new[](std::size_t size) {
-    return operator new(size);
-}
-
-void operator delete[](void* ptr) noexcept {
-    operator delete(ptr);
-}
-
-void operator delete[](void* ptr, std::size_t size) noexcept {
-    operator delete(ptr, size);
-}
 
 namespace {
 

@@ -1,3 +1,4 @@
+#include "scroll_surface_helpers.hpp"
 #include "veyra/render/scroll_shift.hpp"
 
 #include "veyra/render/damage_tracker.hpp"
@@ -20,31 +21,9 @@ void require(bool condition, std::string_view message) {
     }
 }
 
-bool pixel_equal(const veyra::SoftwarePixel& left, const veyra::SoftwarePixel& right) {
-    return left.red == right.red && left.green == right.green && left.blue == right.blue &&
-        left.alpha == right.alpha;
-}
-
 bool inside_rect(const veyra::ScrollShiftRect& rect, std::size_t x, std::size_t y) {
     return x >= rect.left && x < rect.left + rect.width && y >= rect.top &&
         y < rect.top + rect.height;
-}
-
-bool buffers_equal(
-    std::span<const veyra::SoftwarePixel> left,
-    std::span<const veyra::SoftwarePixel> right
-) {
-    if (left.size() != right.size()) {
-        return false;
-    }
-
-    for (std::size_t index = 0; index < left.size(); ++index) {
-        if (!pixel_equal(left[index], right[index])) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 veyra::SoftwarePixel content_pixel(int content_x, int content_y) {

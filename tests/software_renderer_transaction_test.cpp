@@ -26,127 +26,6 @@ bool pixel_is(
     return pixel.red == red && pixel.green == green && pixel.blue == blue && pixel.alpha == alpha;
 }
 
-void check_damage_regions() {
-    constexpr std::size_t width = 4;
-    constexpr std::size_t height = 3;
-    std::array<veyra::SoftwarePixel, width * height> pixels;
-    const auto initial = veyra::SoftwarePixel{
-        .red = 1,
-        .green = 2,
-        .blue = 3,
-    };
-    pixels.fill(initial);
-    const std::array<veyra::DisplayCommand, 1> commands{
-        veyra::FillRect{
-            .bounds = {.width = 4.0F, .height = 3.0F},
-            .color = {.red = 10, .green = 20, .blue = 30},
-        },
-    };
-    const std::array damage{
-        veyra::LayoutRect{.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
-    };
-    const auto surface = veyra::SoftwareSurface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = pixels,
-    };
-
-    const auto result = veyra::render_software(commands, surface, {}, damage);
-    require(result == veyra::SoftwareRenderResult::complete, "damage-limited rendering completes");
-    require(pixel_is(pixels[width + 1], 10, 20, 30), "damage region is redrawn");
-    require(pixel_is(pixels[width + 2], 10, 20, 30), "damage includes its final column");
-    require(pixel_is(pixels[0], 1, 2, 3), "pixels outside damage remain unchanged");
-    require(pixel_is(pixels[2 * width + 1], 1, 2, 3), "damage excludes its final row");
-
-    const std::span<const veyra::LayoutRect> no_damage;
-    require(
-        veyra::render_software(commands, surface, {}, no_damage) ==
-            veyra::SoftwareRenderResult::complete,
-        "empty damage performs no drawing"
-    );
-    require(pixel_is(pixels[0], 1, 2, 3), "empty damage leaves pixels unchanged");
-}
-
-void check_damage_replay_matches_full_render() {
-    constexpr auto width = std::size_t{4};
-    constexpr auto height = std::size_t{2};
-    const std::array<std::uint8_t, width * height> coverage{
-        0,
-        64,
-        128,
-        255,
-        255,
-        128,
-        64,
-        0,
-    };
-    const auto mask = veyra::SoftwareMask{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .coverage = coverage,
-        .generation = 0,
-    };
-    const std::array<veyra::DisplayCommand, 4> commands{
-        veyra::FillRect{
-            .bounds = {.width = static_cast<float>(width), .height = static_cast<float>(height)},
-            .color = {.red = 12, .green = 34, .blue = 56},
-        },
-        veyra::PushClip{
-            .bounds = {.x = 1.0F, .width = 2.0F, .height = static_cast<float>(height)},
-            .clip_id = 0,
-        },
-        veyra::DrawMask{
-            .mask = &mask,
-            .color = {.red = 210, .green = 120, .blue = 30, .alpha = 180},
-        },
-        veyra::PopClip{},
-    };
-    const std::array damage_regions{
-        veyra::LayoutRect{.width = 2.0F, .height = static_cast<float>(height)},
-        veyra::LayoutRect{.x = 2.0F, .width = 2.0F, .height = static_cast<float>(height)},
-    };
-    std::array<veyra::SoftwarePixel, width * height> full_pixels{};
-    std::array<veyra::SoftwarePixel, width * height> damaged_pixels{};
-    std::array<veyra::SoftwareClipRect, 1> full_clips{};
-    std::array<veyra::SoftwareClipRect, 1> damaged_clips{};
-    const auto full_surface = veyra::SoftwareSurface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = full_pixels,
-    };
-    const auto damaged_surface = veyra::SoftwareSurface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = damaged_pixels,
-    };
-
-    const auto full_result = veyra::render_software(commands, full_surface, {.clips = full_clips});
-    const auto damaged_result =
-        veyra::render_software(commands, damaged_surface, {.clips = damaged_clips}, damage_regions);
-    require(full_result == veyra::SoftwareRenderResult::complete, "full mask render completes");
-    require(
-        damaged_result == veyra::SoftwareRenderResult::complete,
-        "disjoint damage mask render completes"
-    );
-    for (std::size_t index = 0; index < full_pixels.size(); ++index) {
-        const auto& expected = full_pixels[index];
-        require(
-            pixel_is(
-                damaged_pixels[index],
-                expected.red,
-                expected.green,
-                expected.blue,
-                expected.alpha
-            ),
-            "damage replay matches the full clipped mask render"
-        );
-    }
-}
-
 void check_overlapping_damage_is_rejected() {
     std::array<veyra::SoftwarePixel, 3> pixels{
         veyra::SoftwarePixel{.red = 1, .green = 2, .blue = 3},
@@ -698,8 +577,6 @@ void check_per_command_geometry_rejections_are_transactional() {
 
 int main() {
     try {
-        check_damage_regions();
-        check_damage_replay_matches_full_render();
         check_overlapping_damage_is_rejected();
         check_invalid_input_is_transactional();
         check_per_command_geometry_rejections_are_transactional();

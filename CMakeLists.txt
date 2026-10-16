@@ -398,6 +398,9 @@ if(VEYRA_WITH_VULKAN)
    src/render/vulkan_pipeline_assembly.cpp
    src/render/vulkan_rect_pipeline.cpp
     src/render/vulkan_frame_batch.cpp
+   src/render/vulkan_frame_emit.cpp
+   src/render/vulkan_frame_stroke.cpp
+   src/render/vulkan_frame_transfer.cpp
    src/render/vulkan_rect_frame.cpp
    ${veyra_vulkan_spv_headers}
   )

@@ -1,3 +1,4 @@
+#include "allocation_counter.hpp"
 #include "veyra/behaviors/editable_text.hpp"
 #include "veyra/engine.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
@@ -21,84 +22,6 @@
 #include <vector>
 
 namespace {
-
-std::atomic<std::size_t> g_allocation_count{0};
-std::atomic<bool> g_counting{false};
-
-// NOTE: every allocation form counts while armed; deletes never count.
-void note_allocation() noexcept {
-    if (g_counting.load(std::memory_order_relaxed)) {
-        g_allocation_count.fetch_add(1, std::memory_order_relaxed);
-    }
-}
-
-void* allocate_unaligned(std::size_t size) {
-    note_allocation();
-    if (size == 0) {
-        size = 1;
-    }
-    void* result = std::malloc(size);
-    if (result == nullptr) {
-        throw std::bad_alloc{};
-    }
-    return result;
-}
-
-// NOTE: manual align-up stashes the raw pointer one word below the result.
-void* allocate_aligned(std::size_t size, std::size_t alignment) {
-    note_allocation();
-    if (alignment < alignof(void*)) {
-        alignment = alignof(void*);
-    }
-    if (size == 0) {
-        size = 1;
-    }
-    const auto header = sizeof(void*);
-    if (size > std::numeric_limits<std::size_t>::max() - alignment - header) {
-        throw std::bad_alloc{};
-    }
-    void* raw = std::malloc(size + alignment + header);
-    if (raw == nullptr) {
-        throw std::bad_alloc{};
-    }
-    const auto base = reinterpret_cast<std::uintptr_t>(raw) + header;
-    const auto aligned = (base + alignment - 1U) & ~(alignment - 1U);
-    auto* slot = reinterpret_cast<void**>(aligned - header);
-    *slot = raw;
-    return reinterpret_cast<void*>(aligned);
-}
-
-void release_unaligned(void* ptr) noexcept {
-    std::free(ptr);
-}
-
-void release_aligned(void* ptr) noexcept {
-    if (ptr == nullptr) {
-        return;
-    }
-    const auto slot = reinterpret_cast<void**>(static_cast<char*>(ptr) - sizeof(void*));
-    std::free(*slot);
-}
-
-// NOTE: arm around the steady repeat only; setup and teardown stay outside.
-class Measure {
-  public:
-    Measure() noexcept {
-        g_allocation_count.store(0, std::memory_order_relaxed);
-        g_counting.store(true, std::memory_order_relaxed);
-    }
-
-    ~Measure() noexcept {
-        g_counting.store(false, std::memory_order_relaxed);
-    }
-
-    Measure(const Measure&) = delete;
-    Measure& operator=(const Measure&) = delete;
-
-    std::size_t count() const noexcept {
-        return g_allocation_count.load(std::memory_order_relaxed);
-    }
-};
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -500,78 +423,6 @@ void check_harness_counts_every_form() {
     require(counted == 4, "every new form counts once while armed");
 }
 
-}
-
-void* operator new(std::size_t size) {
-    return allocate_unaligned(size);
-}
-
-void* operator new[](std::size_t size) {
-    return allocate_unaligned(size);
-}
-
-void operator delete(void* ptr) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete[](void* ptr) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete(void* ptr, std::size_t) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete[](void* ptr, std::size_t) noexcept {
-    release_unaligned(ptr);
-}
-
-void* operator new(std::size_t size, std::align_val_t alignment) {
-    return allocate_aligned(size, static_cast<std::size_t>(alignment));
-}
-
-void* operator new[](std::size_t size, std::align_val_t alignment) {
-    return allocate_aligned(size, static_cast<std::size_t>(alignment));
-}
-
-void operator delete(void* ptr, std::align_val_t) noexcept {
-    release_aligned(ptr);
-}
-
-void operator delete[](void* ptr, std::align_val_t) noexcept {
-    release_aligned(ptr);
-}
-
-void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept {
-    release_aligned(ptr);
-}
-
-void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
-    release_aligned(ptr);
-}
-
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-    note_allocation();
-    if (size == 0) {
-        size = 1;
-    }
-    return std::malloc(size);
-}
-
-void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-    note_allocation();
-    if (size == 0) {
-        size = 1;
-    }
-    return std::malloc(size);
-}
-
-void operator delete(void* ptr, const std::nothrow_t&) noexcept {
-    release_unaligned(ptr);
-}
-
-void operator delete[](void* ptr, const std::nothrow_t&) noexcept {
-    release_unaligned(ptr);
 }
 
 int main() {
