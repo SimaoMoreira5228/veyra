@@ -302,3 +302,52 @@ bool NullWindow::is_valid_script(const WindowEvent& event) noexcept {
 }
 
 }
+
+namespace veyra {
+
+NoticePermission NullNotices::notice_permission() const noexcept {
+    return NoticePermission::granted;
+}
+
+NoticeAsk NullNotices::notice_request_permission() noexcept {
+    return {.result = ServiceResult::ok, .permission = NoticePermission::granted};
+}
+
+ServiceResult
+NullNotices::notice_show(std::uint64_t id, const char* title, const char* body) noexcept {
+    if (id == 0 || title == nullptr || body == nullptr) {
+        return ServiceResult::invalid_input;
+    }
+
+    return ServiceResult::ok;
+}
+
+NoticeRead NullNotices::notice_read(std::uint64_t id) const noexcept {
+    static_cast<void>(id);
+
+    return {.result = ServiceResult::not_found, .announcement = {}};
+}
+
+ServiceResult NullNotices::notice_dismiss(std::uint64_t id) noexcept {
+    static_cast<void>(id);
+
+    return ServiceResult::not_found;
+}
+
+bool NullNotices::notice_visible(std::uint64_t id) const noexcept {
+    static_cast<void>(id);
+
+    return false;
+}
+
+std::size_t NullNotices::notice_count() const noexcept {
+    return 0;
+}
+
+bool NullNotices::notice_poll_click(std::uint64_t& id) noexcept {
+    static_cast<void>(id);
+
+    return false;
+}
+
+}

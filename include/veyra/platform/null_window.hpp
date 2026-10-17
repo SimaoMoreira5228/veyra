@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_NULL_WINDOW_HPP
 #define VEYRA_PLATFORM_NULL_WINDOW_HPP
 
+#include "veyra/platform/fake_services.hpp"
 #include "veyra/platform/window.hpp"
 
 #include <array>
@@ -76,6 +77,27 @@ class NullWindow {
 
 static_assert(WindowBackend<NullWindow>);
 static_assert(SoftwareSurfacePresenter<NullWindow>);
+
+class NullNotices {
+  public:
+    NullNotices() noexcept = default;
+
+    NullNotices(const NullNotices&) = delete;
+    NullNotices& operator=(const NullNotices&) = delete;
+    NullNotices(NullNotices&&) = delete;
+    NullNotices& operator=(NullNotices&&) = delete;
+
+    NoticePermission notice_permission() const noexcept;
+    NoticeAsk notice_request_permission() noexcept;
+    ServiceResult notice_show(std::uint64_t id, const char* title, const char* body) noexcept;
+    NoticeRead notice_read(std::uint64_t id) const noexcept;
+    ServiceResult notice_dismiss(std::uint64_t id) noexcept;
+    bool notice_visible(std::uint64_t id) const noexcept;
+    std::size_t notice_count() const noexcept;
+    bool notice_poll_click(std::uint64_t& id) noexcept;
+};
+
+static_assert(NoticeBackend<NullNotices>);
 
 }
 

@@ -1,4 +1,5 @@
 #include "veyra/render/software_renderer.hpp"
+#include "veyra/render/retained_scroll.hpp"
 
 #include <algorithm>
 #include <array>
@@ -23,6 +24,8 @@ struct Options {
     std::size_t commands{64};
     std::size_t frames{5'000};
     std::size_t warmup{500};
+    std::size_t scroll_delta{};
+    bool scroll_full{};
     bool damage{};
     bool translucent{};
     bool mask{};
@@ -119,6 +122,10 @@ Options parse_options(int argc, char** argv) {
             options.translated = true;
             continue;
         }
+        if (argument == "--scroll-full") {
+            options.scroll_full = true;
+            continue;
+        }
         if (index + 1 >= argc) {
             throw std::invalid_argument("missing value for " + std::string(argument));
         }
@@ -134,6 +141,8 @@ Options parse_options(int argc, char** argv) {
             options.frames = value;
         } else if (argument == "--warmup") {
             options.warmup = value;
+        } else if (argument == "--scroll-delta") {
+            options.scroll_delta = value;
         } else {
             throw std::invalid_argument("unknown option: " + std::string(argument));
         }
@@ -148,6 +157,9 @@ Options parse_options(int argc, char** argv) {
         static_cast<unsigned int>(options.rounded) +
         static_cast<unsigned int>(options.rounded_border) +
         static_cast<unsigned int>(options.line) + static_cast<unsigned int>(options.polyline);
+    if (options.scroll_full && options.scroll_delta == 0) {
+        throw std::invalid_argument("--scroll-full needs --scroll-delta");
+    }
     if (special_modes > 1) {
         throw std::invalid_argument(
             "choose one of --mask, --path, --curve, --winding, --image, --scaled-image, "
@@ -257,7 +269,115 @@ std::string_view scenario_name(const Options& options) noexcept {
     return options.damage ? "software_rect_damage" : "software_rect_full";
 }
 
+int run_scroll(const Options& options) {
+    constexpr auto band_height = std::size_t{8};
+
+    if (options.height % band_height != 0) {
+        throw std::invalid_argument("scroll mode needs a height divisible by 8");
+    }
+    if (options.scroll_delta % band_height != 0) {
+        throw std::invalid_argument("scroll mode needs a delta divisible by 8");
+    }
+
+    const auto bands = options.height / band_height;
+    const auto shift = options.scroll_delta / band_height;
+    std::vector<veyra::DisplayCommand> commands(bands);
+    std::vector<veyra::SoftwarePixel> pixels(options.width * options.height);
+    const auto surface = veyra::SoftwareSurface{
+        .width = options.width,
+        .height = options.height,
+        .stride = options.width,
+        .pixels = pixels,
+    };
+    std::array<veyra::SoftwareClipRect, 1> clips{};
+    const auto workspace = veyra::SoftwareRenderWorkspace{.clips = clips};
+    auto retained = veyra::RetainedScrollSurface{};
+    auto stats = veyra::RetainedScrollStats{};
+
+    const auto paint = [&](std::size_t frame) {
+        for (auto band = std::size_t{}; band < bands; ++band) {
+            const auto source = (band + bands - (frame * shift) % bands) % bands;
+            commands[band] = veyra::FillRect{
+                .bounds =
+                    {
+                        .y = static_cast<float>(band * band_height),
+                        .width = static_cast<float>(options.width),
+                        .height = static_cast<float>(band_height),
+                    },
+                .color = {
+                    .red = static_cast<std::uint8_t>((source * 31) % 256),
+                    .green = static_cast<std::uint8_t>((source * 67) % 256),
+                    .blue = static_cast<std::uint8_t>((source * 97) % 256),
+                    .alpha = 255,
+                },
+            };
+        }
+
+        if (options.scroll_full) {
+            return veyra::render_software(commands, surface, workspace) ==
+                veyra::SoftwareRenderResult::complete;
+        }
+
+        return veyra::render_retained_scrolled(
+                   commands,
+                   surface,
+                   workspace,
+                   {
+                       .delta_y = static_cast<int>(options.scroll_delta),
+                       .content_generation = 1,
+                   },
+                   retained,
+                   stats
+               ) == veyra::RetainedScrollResult::complete;
+    };
+
+    for (auto frame = std::size_t{}; frame < options.warmup; ++frame) {
+        if (options.scroll_full) {
+            std::fill(pixels.begin(), pixels.end(), veyra::SoftwarePixel{});
+        }
+        if (!paint(frame)) {
+            throw std::runtime_error("scroll rendering failed during warmup");
+        }
+    }
+
+    std::vector<double> timings;
+    timings.reserve(options.frames);
+
+    for (auto frame = std::size_t{}; frame < options.frames; ++frame) {
+        if (options.scroll_full) {
+            std::fill(pixels.begin(), pixels.end(), veyra::SoftwarePixel{});
+        }
+        const auto begin = Clock::now();
+        const auto painted = paint(options.warmup + frame);
+        const auto end = Clock::now();
+        if (!painted) {
+            throw std::runtime_error("scroll rendering failed during measurement");
+        }
+        timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
+    }
+
+    std::sort(timings.begin(), timings.end());
+    std::uint64_t checksum = 0;
+    for (const auto& pixel : pixels) {
+        checksum += pixel.red + pixel.green + pixel.blue + pixel.alpha;
+    }
+
+    std::cout << "scenario,platform,compiler,build_config,width,height,commands,warmup_frames,"
+                 "measured_frames,p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
+              << (options.scroll_full ? "software_scroll_full" : "software_scroll_retained") << ','
+              << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG
+              << ',' << options.width << ',' << options.height << ',' << bands << ','
+              << options.warmup << ',' << options.frames << ',' << percentile(timings, 50) << ','
+              << percentile(timings, 95) << ',' << percentile(timings, 99) << ',' << timings.back()
+              << ',' << checksum << '\n';
+    return 0;
+}
+
 int run(const Options& options) {
+    if (options.scroll_delta > 0) {
+        return run_scroll(options);
+    }
+
     std::vector<veyra::DisplayCommand> commands(options.commands + (options.translated ? 2 : 0));
     std::vector<veyra::LayoutPoint> polyline_points(options.polyline ? options.commands * 4 : 0);
     const auto path_mode = options.path || options.curve || options.winding;

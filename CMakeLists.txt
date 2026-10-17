@@ -58,6 +58,7 @@ add_library(veyra STATIC
  src/render/damage_tracker.cpp
  src/render/display_batches.cpp
  src/render/scroll_shift.cpp
+ src/render/retained_scroll.cpp
  src/render/software_command_validation.cpp
  src/render/software_path.cpp
  src/render/glyph_atlas.cpp
@@ -549,6 +550,7 @@ if(VEYRA_WITH_VULKAN)
    src/render/vulkan_context.cpp
    src/render/vulkan_internal.cpp
    src/render/vulkan_texture_cache.cpp
+   src/render/vulkan_texture_upload.cpp
    src/render/vulkan_mask_cache.cpp
    src/render/vulkan_pipeline_assembly.cpp
    src/render/vulkan_rect_pipeline.cpp
@@ -923,6 +925,10 @@ add_executable(veyra_fake_notice_test tests/fake_notice_test.cpp)
 target_link_libraries(veyra_fake_notice_test PRIVATE veyra)
 add_test(NAME fake_notice_behavior COMMAND veyra_fake_notice_test)
 
+add_executable(veyra_null_notice_test tests/null_notice_test.cpp)
+target_link_libraries(veyra_null_notice_test PRIVATE veyra)
+add_test(NAME null_notice_behavior COMMAND veyra_null_notice_test)
+
 add_executable(veyra_flex_layout_test tests/flex_layout_test.cpp)
 target_link_libraries(veyra_flex_layout_test PRIVATE veyra)
 add_test(NAME flex_layout_behavior COMMAND veyra_flex_layout_test)
@@ -1034,6 +1040,10 @@ add_test(NAME scroll_shift_behavior COMMAND veyra_scroll_shift_test)
 add_executable(veyra_scroll_shift_verify_test tests/scroll_shift_verify_test.cpp)
 target_link_libraries(veyra_scroll_shift_verify_test PRIVATE veyra)
 add_test(NAME scroll_shift_verify_behavior COMMAND veyra_scroll_shift_verify_test)
+
+add_executable(veyra_retained_scroll_test tests/retained_scroll_test.cpp)
+target_link_libraries(veyra_retained_scroll_test PRIVATE veyra)
+add_test(NAME retained_scroll_behavior COMMAND veyra_retained_scroll_test)
 
 add_executable(veyra_inspector_trace_test tests/inspector_trace_test.cpp)
 target_link_libraries(veyra_inspector_trace_test PRIVATE veyra)
@@ -1350,6 +1360,17 @@ if(VEYRA_BUILD_BENCH)
  add_test(
   NAME software_renderer_winding_benchmark_smoke
   COMMAND veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --winding
+ )
+ add_test(
+  NAME software_renderer_scroll_benchmark_smoke
+  COMMAND
+   veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scroll-delta 8
+ )
+ add_test(
+  NAME software_renderer_scroll_full_benchmark_smoke
+  COMMAND
+   veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scroll-delta 8
+   --scroll-full
  )
  add_test(NAME damage_tracker_benchmark_smoke COMMAND veyra_damage_tracker_bench)
  add_test(

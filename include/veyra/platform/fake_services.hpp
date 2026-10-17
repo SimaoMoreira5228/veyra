@@ -4,6 +4,7 @@
 #include "veyra/platform/notice.hpp"
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -51,6 +52,24 @@ struct NoticeAsk {
 struct NoticeRead {
     ServiceResult result{ServiceResult::not_found};
     NoticeAnnouncement announcement{};
+};
+
+template <typename Backend>
+concept NoticeBackend = requires(
+    Backend& backend,
+    const Backend& observer,
+    std::uint64_t id,
+    const char* text,
+    std::uint64_t& clicked
+) {
+    { observer.notice_permission() } noexcept -> std::same_as<NoticePermission>;
+    { backend.notice_request_permission() } noexcept -> std::same_as<NoticeAsk>;
+    { backend.notice_show(id, text, text) } noexcept -> std::same_as<ServiceResult>;
+    { observer.notice_read(id) } noexcept -> std::same_as<NoticeRead>;
+    { backend.notice_dismiss(id) } noexcept -> std::same_as<ServiceResult>;
+    { observer.notice_visible(id) } noexcept -> std::same_as<bool>;
+    { observer.notice_count() } noexcept -> std::same_as<std::size_t>;
+    { backend.notice_poll_click(clicked) } noexcept -> std::same_as<bool>;
 };
 
 // NOTE: scripted stand-in for OS services the fake never touches. Clipboard,
@@ -161,6 +180,8 @@ class FakeServices {
     bool on_battery_{};
     std::uint64_t power_generation_{};
 };
+
+static_assert(NoticeBackend<FakeServices>);
 
 }
 
