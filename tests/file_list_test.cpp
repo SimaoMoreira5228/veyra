@@ -269,6 +269,40 @@ void check_row_id_reconciliation_failures_preserve_output() {
     );
 }
 
+void check_invalid_sort_is_rejected() {
+    const std::array entries{
+        veyra::FileListEntry{.id = 1, .name = u8"one"},
+        veyra::FileListEntry{.id = 2, .name = u8"two"},
+    };
+    std::array<std::size_t, 2> order{91, 92};
+    auto count = std::size_t{99};
+
+    require(
+        veyra::build_file_list_order(
+            entries,
+            {},
+            {.key = static_cast<veyra::FileListSortKey>(99)},
+            order,
+            count
+        ) == veyra::FileListResult::invalid_sort,
+        "an unknown sort key is rejected"
+    );
+    require(count == 0, "a rejected sort reports no indices");
+    require(order == std::array<std::size_t, 2>{91, 92}, "a rejected sort leaves output alone");
+
+    require(
+        veyra::build_file_list_order(
+            entries,
+            {},
+            {.direction = static_cast<veyra::FileListSortDirection>(77)},
+            order,
+            count
+        ) == veyra::FileListResult::invalid_sort,
+        "an unknown sort direction is rejected"
+    );
+    require(count == 0, "a rejected direction reports no indices");
+}
+
 void check_capacity_failure_preserves_output() {
     const std::array entries{
         veyra::FileListEntry{.id = 1, .name = u8"one"},
@@ -622,6 +656,7 @@ int main() {
         check_utf8_name_filter();
         check_row_ids_survive_refreshes();
         check_row_id_reconciliation_failures_preserve_output();
+        check_invalid_sort_is_rejected();
         check_capacity_failure_preserves_output();
         check_selection_follows_ids_across_views();
         check_selection_failures_preserve_state();

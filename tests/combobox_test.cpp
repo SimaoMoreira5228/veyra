@@ -549,6 +549,30 @@ void check_disabled_options_are_skipped() {
     );
 }
 
+void check_enabled_query_distinguishes_listed_but_disabled() {
+    auto combo = veyra::ComboBoxController{};
+    const std::array<veyra::ComboOption, 3> options{{
+        {.id = 11, .label = "Apple"},
+        {.id = 12, .label = "Banana", .disabled = true},
+        {.id = 13, .label = "Cherry"},
+    }};
+    combo.open(options);
+
+    require(combo.contains(11), "an enabled match is reported");
+    require(combo.is_option_enabled(11), "an enabled match reports enabled");
+    require(combo.contains(12), "a disabled option is still listed");
+    require(!combo.is_option_enabled(12), "a disabled option reports disabled");
+    require(!combo.contains(99), "an unknown id is not listed");
+    require(!combo.is_option_enabled(99), "an unknown id reports disabled");
+
+    require(
+        combo.apply_filter("zzz", options) == veyra::ComboResult::changed,
+        "filtering everything out reports a change"
+    );
+    require(!combo.contains(11), "a filtered-out match is no longer listed");
+    require(!combo.is_option_enabled(11), "a filtered-out match reports disabled");
+}
+
 void check_all_disabled_arms_nothing() {
     auto combo = veyra::ComboBoxController{};
     const std::array<veyra::ComboOption, 2> options{{
@@ -619,6 +643,7 @@ int main() {
         check_disabled_rejects_mutation();
         check_semantics_and_active_descendant();
         check_disabled_options_are_skipped();
+        check_enabled_query_distinguishes_listed_but_disabled();
         check_all_disabled_arms_nothing();
         check_disabled_item_semantics();
     } catch (const std::exception& error) {

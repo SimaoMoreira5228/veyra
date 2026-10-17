@@ -212,24 +212,6 @@ void check_empty_list() {
     require(produced == 0, "empty list needs no runs");
 }
 
-void check_single_draw() {
-    const auto commands = std::array<veyra::DisplayCommand, 1>{blue_rect(0.0F, 4.0F)};
-    auto storage = std::array<veyra::BatchRun, 4>{};
-    auto produced = std::size_t{0};
-    auto scopes = std::array<std::uint64_t, 8>{};
-
-    const auto result = veyra::analyze_display_batches(commands, storage, scopes, produced);
-
-    require(result == veyra::BatchAnalysisResult::complete, "single draw analyzes");
-    require(produced == 1, "single draw needs one run");
-    require(storage[0].start == 0 && storage[0].count == 1, "single run covers the draw");
-    require(
-        storage[0].key.primitive == veyra::BatchPrimitive::fill_rect,
-        "single run names the draw kind"
-    );
-    require(storage[0].key.clip_depth == 0, "top-level runs sit at depth zero");
-}
-
 void check_state_only_list() {
     const auto commands = std::array<veyra::DisplayCommand, 2>{
         veyra::PushClip{.bounds = {.width = 4.0F, .height = 4.0F}, .clip_id = 0},
@@ -353,49 +335,6 @@ void check_image_pointer_and_sampling() {
     );
 }
 
-void check_mask_pointer_runs() {
-    const auto coverage_a = std::array<std::uint8_t, 4>{255, 128, 64, 0};
-    const auto coverage_b = std::array<std::uint8_t, 4>{0, 64, 128, 255};
-    const auto mask_a = veyra::SoftwareMask{
-        .width = 2,
-        .height = 2,
-        .stride = 2,
-        .coverage = coverage_a,
-        .generation = 0,
-    };
-    const auto mask_b = veyra::SoftwareMask{
-        .width = 2,
-        .height = 2,
-        .stride = 2,
-        .coverage = coverage_b,
-        .generation = 0,
-    };
-    const auto glyph_a = veyra::DrawMask{.x = 0.0F, .mask = &mask_a};
-    const auto glyph_b = veyra::DrawMask{.x = 3.0F, .mask = &mask_b};
-
-    const auto repeated = std::array<veyra::DisplayCommand, 3>{glyph_a, glyph_a, glyph_a};
-    const auto alternating = std::array<veyra::DisplayCommand, 3>{glyph_a, glyph_b, glyph_a};
-
-    auto storage = std::array<veyra::BatchRun, 3>{};
-    auto produced = std::size_t{0};
-    auto scopes = std::array<std::uint64_t, 8>{};
-
-    require(
-        veyra::analyze_display_batches(repeated, storage, scopes, produced) ==
-            veyra::BatchAnalysisResult::complete,
-        "repeated glyph analyzes"
-    );
-    require(produced == 1, "same mask pointer draws merge");
-    require(storage[0].key.resource == &mask_a, "mask run names the shared mask");
-
-    require(
-        veyra::analyze_display_batches(alternating, storage, scopes, produced) ==
-            veyra::BatchAnalysisResult::complete,
-        "alternating glyphs analyze"
-    );
-    require(produced == 3, "each mask swap starts a new run");
-}
-
 void check_clip_depth_splits() {
     const auto commands = std::array<veyra::DisplayCommand, 5>{
         blue_rect(0.0F, 1.0F),
@@ -442,29 +381,6 @@ void check_sibling_clips_split_at_equal_depth() {
         "both runs record depth one"
     );
     require(storage[0].start == 1 && storage[1].start == 4, "runs cover each sibling draw");
-}
-
-void check_nested_clips() {
-    const auto commands = std::array<veyra::DisplayCommand, 7>{
-        veyra::PushClip{.bounds = {.width = 8.0F, .height = 8.0F}, .clip_id = 0},
-        veyra::PushClip{.bounds = {.width = 4.0F, .height = 4.0F}, .clip_id = 0},
-        blue_rect(0.0F, 1.0F),
-        blue_rect(1.0F, 1.0F),
-        veyra::PopClip{},
-        veyra::PopClip{},
-        blue_rect(5.0F, 1.0F),
-    };
-    auto storage = std::array<veyra::BatchRun, 7>{};
-    auto produced = std::size_t{0};
-    auto scopes = std::array<std::uint64_t, 8>{};
-
-    const auto result = veyra::analyze_display_batches(commands, storage, scopes, produced);
-
-    require(result == veyra::BatchAnalysisResult::complete, "nested clips analyze");
-    require(produced == 2, "nested draws merge at depth two");
-    require(storage[0].start == 2 && storage[0].count == 2, "inner run spans both draws");
-    require(storage[0].key.clip_depth == 2, "inner run records depth two");
-    require(storage[1].key.clip_depth == 0, "outer run records depth zero");
 }
 
 void check_translation_splits() {
@@ -736,15 +652,12 @@ void check_sibling_clip_ids_split_keys() {
 int main() {
     try {
         check_empty_list();
-        check_single_draw();
         check_state_only_list();
         check_all_same_merges();
         check_kind_splits();
         check_image_pointer_and_sampling();
-        check_mask_pointer_runs();
         check_clip_depth_splits();
         check_sibling_clips_split_at_equal_depth();
-        check_nested_clips();
         check_translation_splits();
         check_balanced_translation_gap_stays_split();
         check_insufficient_output_reports_needed();

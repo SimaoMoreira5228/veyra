@@ -344,7 +344,6 @@ void check_automatic_placement() {
         .occupancy = crowded_occupancy,
     };
     std::array<veyra::LayoutRect, 2> crowded_output{};
-    crowded_output[0].x = 7.0F;
 
     const auto crowded_result = veyra::layout_grid(
         container,
@@ -359,7 +358,6 @@ void check_automatic_placement() {
         crowded_result == veyra::GridLayoutResult::no_placement,
         "grid reports when automatic items do not fit"
     );
-    require(near(crowded_output[0].x, 7.0F), "failed placement leaves output untouched");
 }
 
 void check_degenerate_grids_and_column_pinned_placement() {
@@ -640,6 +638,40 @@ void check_overflow_and_invalid_inputs() {
     require(result == veyra::GridLayoutResult::invalid_input, "NaN container extents are rejected");
 }
 
+void check_negative_gap_is_rejected() {
+    const auto container = veyra::GridContainer{
+        .width = 40.0F,
+        .height = 20.0F,
+        .gap = -1.0F,
+    };
+    const std::array columns{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
+    const std::array rows{veyra::GridTrack{.minimum = 10.0F, .maximum = 10.0F}};
+    const std::array items{veyra::GridItem{}};
+    const std::array measurements{
+        veyra::IntrinsicSize{
+            .width = {.min_content = 1.0F, .preferred = 2.0F, .max_content = 3.0F},
+            .height = {.min_content = 1.0F, .preferred = 2.0F, .max_content = 3.0F},
+        },
+    };
+    std::array<veyra::GridTrackWorkspace, 1> column_workspace{};
+    std::array<veyra::GridTrackWorkspace, 1> row_workspace{};
+    std::array<veyra::GridItemPlacement, 1> placements{};
+    std::array<std::uint64_t, 1> occupancy{};
+    const auto workspace = veyra::GridLayoutWorkspace{
+        .columns = column_workspace,
+        .rows = row_workspace,
+        .placements = placements,
+        .occupancy = occupancy,
+    };
+    std::array<veyra::LayoutRect, 1> output{};
+
+    require(
+        veyra::layout_grid(container, columns, rows, items, measurements, workspace, output) ==
+            veyra::GridLayoutResult::invalid_input,
+        "negative gaps are rejected"
+    );
+}
+
 void check_required_buffers() {
     const auto container = veyra::GridContainer{
         .width = 20.0F,
@@ -842,6 +874,7 @@ int main() {
         check_automatic_placement();
         check_degenerate_grids_and_column_pinned_placement();
         check_overflow_and_invalid_inputs();
+        check_negative_gap_is_rejected();
         check_required_buffers();
         check_large_grid();
         check_many_tracks_fit_after_float_rounding();

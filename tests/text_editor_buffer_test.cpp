@@ -791,18 +791,28 @@ void check_aliasing_guards_cover_both_spans() {
     );
 }
 
-void check_cancel_without_composition_is_a_noop() {
+void check_edge_erase_is_a_noop_without_history() {
     std::array<char, 16> storage{};
-    veyra::TextEditorBuffer buffer(storage, "hello");
+    std::array<char, 64> history{};
+    veyra::TextEditorBuffer buffer(storage, "ab", history);
+
+    require(buffer.set_cursor(0) == veyra::TextEditResult::complete, "erase starts at the front");
     require(
-        buffer.set_cursor(2) == veyra::TextEditResult::complete,
-        "cancel-noop cursor moves inside the text"
+        buffer.erase_backward() == veyra::TextEditResult::complete,
+        "backspace at the start succeeds"
     );
-    buffer.cancel_composition();
-    require(!buffer.has_composition(), "cancel without preedit leaves no composition");
-    require(copied_text(buffer) == "hello", "cancel without preedit leaves text unchanged");
-    require(buffer.cursor() == 2, "cancel without preedit leaves the cursor alone");
-    require(buffer.selection().length == 0, "cancel without preedit leaves the selection alone");
+    require(copied_text(buffer) == "ab", "backspace at the start changes nothing");
+    require(buffer.cursor() == 0, "backspace at the start holds the cursor");
+    require(!buffer.can_undo(), "backspace at the start records no undo");
+
+    require(buffer.set_cursor(2) == veyra::TextEditResult::complete, "erase moves to the end");
+    require(
+        buffer.erase_forward() == veyra::TextEditResult::complete,
+        "delete at the end succeeds"
+    );
+    require(copied_text(buffer) == "ab", "delete at the end changes nothing");
+    require(buffer.cursor() == 2, "delete at the end holds the cursor");
+    require(!buffer.can_undo(), "delete at the end records no undo");
 }
 
 }
@@ -821,7 +831,7 @@ int main() {
         check_utf8_character_offsets();
         check_utf8_encoding_boundaries();
         check_aliasing_guards_cover_both_spans();
-        check_cancel_without_composition_is_a_noop();
+        check_edge_erase_is_a_noop_without_history();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

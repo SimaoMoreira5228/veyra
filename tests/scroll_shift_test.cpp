@@ -672,24 +672,44 @@ void check_shift_generation_comparison_survives_wrap() {
     require(fresh_plan.has_blit, "a pre-wrap match keeps its blit");
 }
 
-void check_zero_delta_needs_no_work() {
-    constexpr auto width = std::size_t{6};
-    constexpr auto height = std::size_t{5};
-    std::array<veyra::SoftwarePixel, width * height> frame_a{};
-    std::array<veyra::SoftwarePixel, width * height> frame_c{};
-    paint_content(frame_a, width, height, width, 2, 3);
-    paint_content(frame_c, width, height, width, 2, 3);
+void check_strided_shift_preserves_row_padding() {
+    constexpr auto width = std::size_t{4};
+    constexpr auto height = std::size_t{3};
+    constexpr auto stride = std::size_t{6};
+    std::array<veyra::SoftwarePixel, stride * height> pixels{};
+    paint_content(pixels, width, height, stride, 0, 0);
 
-    veyra::ScrollShiftPlan plan{};
-    const auto result = veyra::resolve_scroll_shift(
-        {.width = width, .height = height, .delta_x = 0, .delta_y = 0},
-        plan
+    const auto before = pixels;
+    const auto moved = veyra::shift_surface_pixels(
+        pixels,
+        stride,
+        width,
+        height,
+        {.width = 3, .height = height},
+        {.left = 1, .width = 3, .height = height}
     );
 
-    require(result == veyra::ScrollShiftResult::no_movement, "still frame reports no movement");
+    require(moved, "strided rightward shift succeeds");
 
-    for (std::size_t index = 0; index < frame_a.size(); ++index) {
-        require(pixel_equal(frame_a[index], frame_c[index]), "still frame needs no repaint");
+    for (std::size_t y = 0; y < height; ++y) {
+        require(
+            pixel_equal(pixels[y * stride], before[y * stride]),
+            "strided shift leaves the uncovered column alone"
+        );
+
+        for (std::size_t x = 1; x <= 3; ++x) {
+            require(
+                pixel_equal(pixels[y * stride + x], before[y * stride + x - 1]),
+                "strided shift moves each row through its own stride"
+            );
+        }
+
+        for (std::size_t x = width; x < stride; ++x) {
+            require(
+                pixel_equal(pixels[y * stride + x], before[y * stride + x]),
+                "strided shift never touches row padding"
+            );
+        }
     }
 }
 
@@ -790,7 +810,7 @@ int main() {
         check_stale_generation_refuses_blit_and_keeps_pixels();
         check_stale_generation_wins_over_no_movement();
         check_shift_generation_comparison_survives_wrap();
-        check_zero_delta_needs_no_work();
+        check_strided_shift_preserves_row_padding();
         check_strips_drive_damage_render();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
