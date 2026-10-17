@@ -11,6 +11,8 @@ lands.
 |---|---|---|
 | `stb_rect_pack.h` | v1.01 (`STB_RECT_PACK_VERSION` 1) | `6388366a30de57c1b4c29b6eed4ed1c7d758fc1443d2dd95cfce943370bb3aa1` |
 | `stb_sprintf.h` | v1.10 (banner only, no version macro) | `e0b8c56e1084602290b9a17ef59f429b5293deb8cb9d8b0f20a14abc39b56520` |
+| `stb_image.h` | v2.30 (banner only, no version macro) | `594c2fe35d49488bda98c7b96f83a297e75d4643ce5fc4d59e2f21046226` |
+| `stb_image_write.h` | v1.16 (banner only, no version macro) | `cbd5f0ad7a9cf7b899b9186da3adc2b3e62cd4f49d236b465040734e5c` |
 
 Copies come from `local/clones/stb`, never from the network. That clone is
 read-only research input: do not edit it, do not reference it from code or
@@ -27,7 +29,7 @@ matching text sits in the upstream `LICENSE` file: pick either side.
   so leave them alone.
 - Unlicense (public domain): no conditions, where it applies.
 
-No new dependency beyond these two files. No patent grant beyond plain MIT.
+No new dependency beyond these four files. No patent grant beyond plain MIT.
 
 ## What is vendored, and what stays out
 
@@ -35,9 +37,9 @@ No new dependency beyond these two files. No patent grant beyond plain MIT.
 |---|---|---|
 | `stb_rect_pack.h` | Vendored, validated only | Skyline packer for a future glyph atlas. Zero allocations, caller-owned nodes. |
 | `stb_sprintf.h` | Vendored, validated only | Locale-independent formatting for logs and diagnostics. Same 64-bit format strings on MSVC and GCC. |
-| `stb_image.h` | Out | Decode of untrusted bytes needs pre-flight caps and a fuzzed pin first. |
+| `stb_image.h` | Vendored, behind budget checks | JPEG, PNG, GIF (animated), BMP, TGA, PSD, HDR, PNM decode. Preflight caps dimensions and frame counts before any pixel allocation. |
 | `stb_image_resize2.h` | Out | Thumbnail work needs caller-owned buffers and explicit SIMD flags first. |
-| `stb_image_write.h` | Out | Debug-dump tooling only, and its flip and compression flags are process-global. |
+| `stb_image_write.h` | Vendored, tests only | Encodes PNG/JPEG fixtures for round-trip tests. Never linked into a library target. |
 | `stb_textedit.h` | Out | Edit-state machine with fixed undo budgets, needs binding to the editor buffer first. |
 | `stb_truetype.h` | Out | Upstream disclaims hostile input. FreeType stays for user fonts. |
 
@@ -55,10 +57,14 @@ startup.
 
 ## Integration status
 
-Both headers: validated only. No library target links them, no library
-source includes them, and `third_party/stb` is on the include path of the two
-validation tests alone. Wiring the packer into the glyph path or the
-formatter into logging is later work with its own tests.
+Both validation headers stay validated-only: no library target links them,
+no library source includes them, and `third_party/stb` is on the include
+path of the two validation tests alone. Wiring the packer into the glyph
+path or the formatter into logging is later work with its own tests.
+
+`stb_image.h` is different: `veyra_codecs` compiles it with `STBI_NO_STDIO`
+and a no-op assert handler, behind the preflight budget checks documented in
+the image codecs guide. `stb_image_write.h` stays in tests only.
 
 ## Update procedure
 
