@@ -244,17 +244,17 @@ void check_small_scratch_replaces() {
     require(outcome.change_runs == 2, "the replacement names one delete and one insert");
 }
 
-void check_exact_scratch_boundary() {
+void check_exact_fit_takes_the_exact_path() {
     const std::array<std::string_view, 3> old_lines{"a", "b", "c"};
     const std::array<std::string_view, 3> new_lines{"a", "B", "c"};
 
-    auto scratch = std::vector<std::ptrdiff_t>(veyra::line_diff_scratch_runs(4), 0);
+    auto scratch = std::vector<std::ptrdiff_t>(veyra::line_diff_scratch_runs(2), 0);
     auto output = std::array<veyra::LineChange, 8>{};
     const auto outcome = veyra::diff_lines(old_lines, new_lines, scratch, output);
 
     require(
         outcome.result == veyra::LineDiffResult::complete,
-        "scratch sized for the whole file takes the exact path"
+        "scratch sized for the trimmed middle takes the exact path"
     );
 }
 
@@ -364,6 +364,14 @@ void check_display_rows_map_runs() {
     );
 }
 
+void check_diff_row_at_empty_runs() {
+    const auto row = veyra::diff_row_at({}, 0);
+    require(
+        row.old_line == veyra::kNoDiffLine && row.new_line == veyra::kNoDiffLine,
+        "empty runs name no line on either side"
+    );
+}
+
 }
 
 int main() {
@@ -375,9 +383,10 @@ int main() {
         check_reordered_block_collapses();
         check_output_too_small();
         check_small_scratch_replaces();
-        check_exact_scratch_boundary();
+        check_exact_fit_takes_the_exact_path();
         check_word_level_diff();
         check_display_rows_map_runs();
+        check_diff_row_at_empty_runs();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

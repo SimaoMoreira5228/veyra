@@ -273,6 +273,29 @@ void check_insufficient_buffer_retries() {
     const auto full_outcome = veyra::lex_c_line(line, {}, roomy);
     require(full_outcome.result == veyra::SyntaxResult::complete, "the retry with room succeeds");
     require_tiled(line, Lexed{.storage = roomy, .outcome = full_outcome});
+
+    auto none = std::array<veyra::SyntaxSpan, 0>{};
+    const auto empty_outcome = veyra::lex_c_line(line, {}, none);
+    require(
+        empty_outcome.result == veyra::SyntaxResult::insufficient_spans,
+        "a zero-slot buffer cannot hold even one span"
+    );
+}
+
+void check_directive_inside_carried_comment() {
+    constexpr std::string_view line = "  #include <vec>";
+    auto storage = std::array<veyra::SyntaxSpan, 32>{};
+    const auto outcome = veyra::lex_c_line(line, {.in_block_comment = true}, storage);
+
+    require(
+        outcome.result == veyra::SyntaxResult::complete && outcome.end.in_block_comment,
+        "a carried comment with no terminator stays carried"
+    );
+    require(
+        outcome.spans == 1 && storage[0].kind == veyra::SyntaxKind::comment,
+        "a hash inside a carried comment is not a directive"
+    );
+    require_tiled(line, Lexed{.storage = storage, .outcome = outcome});
 }
 
 void check_utf8_stays_plain() {
@@ -312,6 +335,7 @@ int main() {
         check_inline_block_comment();
         check_directives();
         check_insufficient_buffer_retries();
+        check_directive_inside_carried_comment();
         check_utf8_stays_plain();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

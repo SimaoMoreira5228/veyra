@@ -62,6 +62,16 @@ void check_healthy_context_reports_not_lost() {
     require(!veyra::vulkan_context_device_lost(context), "healthy render leaves device healthy");
     require(stats.gpu_timed, "healthy render reports timing");
 
+    auto caps = veyra::VulkanCapabilities{};
+    require(
+        veyra::query_vulkan_capabilities(context, caps) == veyra::VulkanContextResult::ready,
+        "a rendering context reports capabilities"
+    );
+    require(
+        caps.timestamp_valid == stats.gpu_timed,
+        "the timing capability matches the observed frame timing"
+    );
+
     const std::array<veyra::DisplayCommand, 1> broken{
         veyra::FillRect{
             .bounds = {.width = -1.0F, .height = 1.0F},
@@ -90,6 +100,25 @@ void check_healthy_context_reports_not_lost() {
         "resize succeeds"
     );
     require(!veyra::vulkan_context_device_lost(context), "resize is not device loss");
+    require(
+        veyra::resize_vulkan_target(context, 0, kHeight / 2) ==
+            veyra::VulkanContextResult::invalid_input,
+        "a zero-width resize is rejected"
+    );
+    require(
+        veyra::resize_vulkan_target(context, kWidth / 2, 0) ==
+            veyra::VulkanContextResult::invalid_input,
+        "a zero-height resize is rejected"
+    );
+
+    auto missing = veyra::VulkanContext{};
+    require(
+        veyra::resize_vulkan_target(missing, kWidth, kHeight) ==
+            veyra::VulkanContextResult::invalid_input,
+        "resizing a missing context is rejected"
+    );
+    require(!veyra::vulkan_context_ready(missing), "a missing context never reads ready");
+    require(veyra::vulkan_context_ready(context), "a live context reads ready");
 
     veyra::destroy_vulkan_rect_pipeline(context, pipeline);
     veyra::destroy_vulkan_context(context);
@@ -97,8 +126,47 @@ void check_healthy_context_reports_not_lost() {
     require(!veyra::vulkan_context_device_lost(context), "torn-down context reads as not lost");
 }
 
+void check_capabilities_describe_the_backend() {
+    auto context = veyra::VulkanContext{};
+    auto caps = veyra::VulkanCapabilities{};
+
+    require(
+        veyra::query_vulkan_capabilities(context, caps) ==
+            veyra::VulkanContextResult::invalid_input,
+        "a missing context has no capabilities"
+    );
+
+    require(
+        veyra::create_vulkan_context(context, kWidth, kHeight) == veyra::VulkanContextResult::ready,
+        "vulkan context comes up"
+    );
+
+    require(
+        veyra::query_vulkan_capabilities(context, caps) == veyra::VulkanContextResult::ready,
+        "a live context reports capabilities"
+    );
+    require(caps.max_image_dimension > 0, "the device accepts nonzero images");
+    require(
+        caps.staging_bytes > 0 && caps.max_frame_images > 0 && caps.max_rects_per_draw > 0,
+        "the backend profile budgets are nonzero"
+    );
+    require(
+        caps.timestamp_valid && !caps.device_lost,
+        "a healthy device times frames and is not lost"
+    );
+
+    veyra::destroy_vulkan_context(context);
+
+    require(
+        veyra::query_vulkan_capabilities(context, caps) ==
+            veyra::VulkanContextResult::invalid_input,
+        "a torn-down context has no capabilities"
+    );
+}
+
 int run() {
     check_healthy_context_reports_not_lost();
+    check_capabilities_describe_the_backend();
 
     return 0;
 }

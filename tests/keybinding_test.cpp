@@ -304,10 +304,16 @@ void check_capturing_blocks_moves() {
         "filtering still narrows while capturing and keeps the arm"
     );
     require(
-        editor.commit_active().result == veyra::ComboResult::ignored &&
-            editor.commit_id(11, actions).result == veyra::ComboResult::ignored &&
-            editor.commit_text("Copy").result == veyra::ComboResult::ignored,
-        "commits while capturing are ignored through the editor"
+        editor.commit_active().result == veyra::ComboResult::ignored,
+        "commit_active while capturing is ignored through the editor"
+    );
+    require(
+        editor.commit_id(11, actions).result == veyra::ComboResult::ignored,
+        "commit_id while capturing is ignored through the editor"
+    );
+    require(
+        editor.commit_text("Copy").result == veyra::ComboResult::ignored,
+        "commit_text while capturing is ignored through the editor"
     );
 
     const veyra::KeybindingFeed fed = editor.feed_chord({7, kCtrl}, map);
@@ -318,6 +324,105 @@ void check_capturing_blocks_moves() {
     require(
         editor.move_active(veyra::ComboMove::next) == veyra::KeybindingResult::changed,
         "roving works again once capture resolves"
+    );
+}
+
+void check_commit_paths_reach_commit() {
+    auto editor = veyra::KeybindingEditor{};
+    auto map = veyra::ShortcutMap{};
+    auto actions = action_options();
+
+    require(
+        editor.open(actions) == veyra::KeybindingResult::opened,
+        "the commit fixture opens over every action"
+    );
+    require(
+        editor.move_active(veyra::ComboMove::next) == veyra::KeybindingResult::changed,
+        "roving steps off the parked first row"
+    );
+
+    const veyra::ComboCommit committed = editor.commit_active();
+    require(
+        committed.result == veyra::ComboResult::commit && committed.id == 12,
+        "commit_active reaches commit naming the roved-to action"
+    );
+    require(
+        editor.list().has_value() && editor.list().value() == 12,
+        "the committed action is recorded as the editor value"
+    );
+
+    auto bound = veyra::KeybindingEditor{};
+    bound.open(actions);
+
+    require(
+        bound.start_capture(committed.id) == veyra::KeybindingResult::changed,
+        "capture arms on the committed action"
+    );
+
+    const veyra::KeybindingFeed fed = bound.feed_chord({7, kCtrl}, map);
+    require(
+        fed.result == veyra::KeybindingFeedResult::bound &&
+            map.dispatch({7, kCtrl}).command == committed.id,
+        "dispatch fires the committed action after its chord binds"
+    );
+
+    auto by_id = veyra::KeybindingEditor{};
+    by_id.open(actions);
+
+    const veyra::ComboCommit named = by_id.commit_id(14, actions);
+    require(
+        named.result == veyra::ComboResult::commit && named.id == 14,
+        "commit_id through the editor reaches commit for a listed action"
+    );
+
+    auto text = veyra::KeybindingEditor{};
+    text.open(actions);
+    require(
+        text.commit_text("Copy").result == veyra::ComboResult::ignored,
+        "commit_text through the editor is ignored without a free-mode switch"
+    );
+
+    auto filtered = veyra::KeybindingEditor{};
+    require(
+        filtered.open(actions, "Copy") == veyra::KeybindingResult::opened,
+        "opening with an initial filter reports opened"
+    );
+    require(
+        filtered.list().match_count() == 2 && filtered.list().active().has &&
+            filtered.list().active().id == 11,
+        "an initial filter parks active on the first hit"
+    );
+}
+
+void check_disabled_options_are_skipped() {
+    auto actions = std::array<veyra::ComboOption, 4>{{
+        {.id = 11, .label = "Copy", .disabled = true},
+        {.id = 12, .label = "Cut"},
+        {.id = 13, .label = "Paste"},
+        {.id = 14, .label = "Copy Path"},
+    }};
+
+    auto editor = veyra::KeybindingEditor{};
+    editor.open(actions);
+    require(
+        editor.list().active().has && editor.list().active().id == 12,
+        "opening parks active on the first enabled action"
+    );
+    require(
+        editor.start_capture(11) == veyra::KeybindingResult::ignored && !editor.capturing(),
+        "capture refuses a disabled action id"
+    );
+
+    const veyra::ComboCommit named = editor.commit_id(11, actions);
+    require(
+        named.result == veyra::ComboResult::ignored,
+        "commit_id through the editor refuses a disabled action"
+    );
+
+    const veyra::ComboCommit parked = editor.commit_active();
+    require(
+        parked.result == veyra::ComboResult::commit && parked.id == 12,
+        "commit_active never parks on the disabled action"
     );
 }
 
@@ -350,32 +455,29 @@ void check_close_and_dismiss_disarm() {
     );
 }
 
-void check_combo_overflow_surfaced() {
-    std::array<std::uint64_t, veyra::ComboBoxController::kCapacity + 2> ids{};
-    for (std::size_t i = 0; i < ids.size(); ++i) {
-        ids[i] = static_cast<std::uint64_t>(i + 1);
-    }
+void check_map_full_reports_overflow() {
+    auto map = veyra::ShortcutMap{};
 
-    std::string labels{};
-    for (std::size_t i = 0; i < ids.size(); ++i) {
-        labels += "x";
-    }
+    for (auto chord = std::uint32_t{1}; chord <= veyra::ShortcutMap::kCapacity; ++chord) {
+        const auto bound =
+            map.bind({chord, veyra::modifier_flag(veyra::ShortcutModifier::ctrl)}, 1000 + chord);
 
-    std::array<veyra::ComboOption, veyra::ComboBoxController::kCapacity + 2> flood{};
-    for (std::size_t i = 0; i < flood.size(); ++i) {
-        flood[i].id = ids[i];
-        flood[i].label = std::string_view{labels.data() + i, 1};
+        require(bound.result == veyra::ShortcutResult::bound, "filling the map binds every chord");
     }
 
     auto editor = veyra::KeybindingEditor{};
+    auto actions = action_options();
+    editor.open(actions);
+    editor.start_capture(11);
+
+    const auto spill =
+        editor.feed_chord({9999, veyra::modifier_flag(veyra::ShortcutModifier::ctrl)}, map);
+
     require(
-        editor.open(flood) == veyra::KeybindingResult::overflow && !editor.is_open(),
-        "an over-capacity open overflows without opening"
+        spill.result == veyra::KeybindingFeedResult::overflow && spill.occupier == 0,
+        "one chord past map capacity overflows without naming an occupier"
     );
-    require(
-        editor.start_capture(1) == veyra::KeybindingResult::ignored,
-        "capture cannot arm when the open overflowed"
-    );
+    require(!editor.capturing(), "an overflowing feed disarms capture");
 }
 
 void check_disabled_blocks_all() {
@@ -459,8 +561,10 @@ int main() {
         check_cancel_disarms();
         check_clear_binding_removes();
         check_capturing_blocks_moves();
+        check_commit_paths_reach_commit();
+        check_disabled_options_are_skipped();
         check_close_and_dismiss_disarm();
-        check_combo_overflow_surfaced();
+        check_map_full_reports_overflow();
         check_disabled_blocks_all();
         check_semantics_through_list();
     } catch (const std::exception& error) {

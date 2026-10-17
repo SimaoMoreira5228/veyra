@@ -78,6 +78,7 @@ class ComboBoxController {
     ComboActive active() const noexcept;
     std::size_t match_count() const noexcept;
     bool contains(std::uint64_t id) const noexcept;
+    bool is_option_enabled(std::uint64_t id) const noexcept;
     std::size_t copy_matches(std::span<std::uint64_t> output) const noexcept;
 
     bool configure(ComboMode mode) noexcept;

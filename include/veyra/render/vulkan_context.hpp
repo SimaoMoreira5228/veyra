@@ -24,6 +24,15 @@ struct VulkanDeviceInfo {
     bool validation_layers{};
 };
 
+struct VulkanCapabilities {
+    std::uint32_t max_image_dimension{};
+    std::size_t staging_bytes{};
+    std::size_t max_frame_images{};
+    std::size_t max_rects_per_draw{};
+    bool timestamp_valid{};
+    bool device_lost{};
+};
+
 struct VulkanContext {
     void* instance_state{};
     std::size_t width{};
@@ -43,6 +52,9 @@ resize_vulkan_target(VulkanContext& context, std::size_t width, std::size_t heig
 bool vulkan_context_ready(const VulkanContext& context) noexcept;
 
 bool vulkan_context_device_lost(const VulkanContext& context) noexcept;
+
+VulkanContextResult
+query_vulkan_capabilities(const VulkanContext& context, VulkanCapabilities& capabilities) noexcept;
 
 }
 

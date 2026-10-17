@@ -119,6 +119,7 @@ bool pick_physical_device(vulkan_detail::ContextState& state) noexcept {
     state.info.vendor_id = properties.vendorID;
     state.info.device_id = properties.deviceID;
     state.info.discrete = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+    state.max_image_dimension = properties.limits.maxImageDimension2D;
 
     return true;
 }
@@ -503,6 +504,26 @@ bool vulkan_context_device_lost(const VulkanContext& context) noexcept {
     const auto* state = vulkan_detail::state_of(context);
 
     return state != nullptr && state->device_lost;
+}
+
+VulkanContextResult
+query_vulkan_capabilities(const VulkanContext& context, VulkanCapabilities& capabilities) noexcept {
+    const auto* state = vulkan_detail::state_of(context);
+
+    if (state == nullptr || !context.ready) {
+        return VulkanContextResult::invalid_input;
+    }
+
+    capabilities = VulkanCapabilities{
+        .max_image_dimension = state->max_image_dimension,
+        .staging_bytes = vulkan_detail::kVulkanImageStagingBytes,
+        .max_frame_images = kVulkanMaxFrameImages,
+        .max_rects_per_draw = kVulkanMaxRects,
+        .timestamp_valid = state->timestamp_pool != VK_NULL_HANDLE,
+        .device_lost = state->device_lost,
+    };
+
+    return VulkanContextResult::ready;
 }
 
 }

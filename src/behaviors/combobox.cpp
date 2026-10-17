@@ -54,6 +54,16 @@ bool ComboBoxController::contains(std::uint64_t id) const noexcept {
     return find_match(id) != kNotFound;
 }
 
+bool ComboBoxController::is_option_enabled(std::uint64_t id) const noexcept {
+    const auto match = find_match(id);
+
+    if (match == kNotFound) {
+        return false;
+    }
+
+    return match_enabled_[match];
+}
+
 std::size_t ComboBoxController::copy_matches(std::span<std::uint64_t> output) const noexcept {
     std::size_t copied = match_count_;
 

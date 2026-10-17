@@ -44,6 +44,7 @@ struct ContextState {
     VkFramebuffer framebuffer{VK_NULL_HANDLE};
     TargetResources target{};
     VulkanDeviceInfo info{};
+    std::uint32_t max_image_dimension{};
     std::size_t width{};
     std::size_t height{};
 };

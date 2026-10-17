@@ -272,6 +272,295 @@ void check_semantics_carry_status() {
     );
 }
 
+void check_terminal_transitions() {
+    auto queue = veyra::FileOperationQueue{};
+    queue.submit(veyra::FileOperationKind::copy, 1);
+    queue.submit(veyra::FileOperationKind::copy, 2);
+    queue.submit(veyra::FileOperationKind::copy, 3);
+    queue.submit(veyra::FileOperationKind::copy, 4);
+    queue.submit(veyra::FileOperationKind::copy, 5);
+    queue.submit(veyra::FileOperationKind::copy, 6);
+    queue.submit(veyra::FileOperationKind::copy, 7);
+    queue.submit(veyra::FileOperationKind::copy, 8);
+    queue.submit(veyra::FileOperationKind::copy, 9);
+    queue.submit(veyra::FileOperationKind::copy, 10);
+    queue.submit(veyra::FileOperationKind::copy, 11);
+    queue.submit(veyra::FileOperationKind::copy, 12);
+
+    require(
+        queue.fail(1, veyra::FileOperationFault::error) == veyra::FileOperationResult::ignored,
+        "failing a queued operation is ignored"
+    );
+
+    require(
+        queue.begin(2) == veyra::FileOperationResult::started,
+        "the pause-then-fail operation starts"
+    );
+    require(queue.pause(2) == veyra::FileOperationResult::changed, "the fail target pauses first");
+    require(
+        queue.fail(2, veyra::FileOperationFault::error) == veyra::FileOperationResult::changed,
+        "failing a paused operation fails it"
+    );
+
+    require(
+        queue.cancel(3) == veyra::FileOperationResult::changed,
+        "canceling a queued operation cancels it"
+    );
+
+    veyra::FileOperation tracked{};
+    require(
+        queue.retry(3) == veyra::FileOperationResult::changed && queue.operation(3, tracked) &&
+            tracked.attempts == 1 && tracked.state == veyra::FileOperationState::queued,
+        "retrying a canceled operation re-queues it and counts the attempt"
+    );
+
+    require(
+        queue.complete(4) == veyra::FileOperationResult::ignored,
+        "completing a queued operation is ignored"
+    );
+    require(
+        queue.begin(5) == veyra::FileOperationResult::started,
+        "the pause-then-complete operation starts"
+    );
+    require(
+        queue.pause(5) == veyra::FileOperationResult::changed,
+        "the complete target pauses first"
+    );
+    require(
+        queue.complete(5) == veyra::FileOperationResult::changed && queue.operation(5, tracked) &&
+            tracked.progress == 1.0F && tracked.state == veyra::FileOperationState::done,
+        "completing a paused operation finishes it at full progress"
+    );
+    require(
+        queue.complete(2) == veyra::FileOperationResult::ignored,
+        "completing a failed operation is ignored"
+    );
+
+    auto canceled = veyra::FileOperationQueue{};
+    canceled.submit(veyra::FileOperationKind::copy, 1);
+    canceled.begin(1);
+    canceled.cancel(1);
+    require(
+        canceled.complete(1) == veyra::FileOperationResult::ignored,
+        "completing a canceled operation is ignored"
+    );
+
+    require(
+        queue.begin(1) == veyra::FileOperationResult::started,
+        "a queued operation still starts"
+    );
+    require(queue.pause(1) == veyra::FileOperationResult::changed, "the begin-target pauses first");
+    require(
+        queue.begin(1) == veyra::FileOperationResult::ignored,
+        "beginning a paused operation is ignored"
+    );
+    require(
+        queue.begin(5) == veyra::FileOperationResult::ignored,
+        "beginning a done operation is ignored"
+    );
+    require(
+        queue.begin(2) == veyra::FileOperationResult::ignored,
+        "beginning a failed operation is ignored"
+    );
+    require(
+        queue.begin(3) == veyra::FileOperationResult::started,
+        "the canceled-then-retried operation restarts"
+    );
+    require(
+        queue.cancel(3) == veyra::FileOperationResult::changed,
+        "the restarted operation cancels again"
+    );
+    require(
+        queue.begin(3) == veyra::FileOperationResult::ignored,
+        "beginning a canceled operation is ignored"
+    );
+
+    require(
+        queue.begin(6) == veyra::FileOperationResult::started,
+        "the cancel-active target starts"
+    );
+    require(
+        queue.cancel(6) == veyra::FileOperationResult::changed && queue.operation(6, tracked) &&
+            tracked.state == veyra::FileOperationState::canceled,
+        "canceling an active operation cancels it"
+    );
+    require(
+        queue.begin(7) == veyra::FileOperationResult::started,
+        "the cancel-paused target starts"
+    );
+    require(
+        queue.pause(7) == veyra::FileOperationResult::changed,
+        "the cancel-paused target pauses first"
+    );
+    require(
+        queue.cancel(7) == veyra::FileOperationResult::changed && queue.operation(7, tracked) &&
+            tracked.state == veyra::FileOperationState::canceled,
+        "canceling a paused operation cancels it"
+    );
+    require(
+        queue.cancel(5) == veyra::FileOperationResult::handled,
+        "canceling a done operation stays put"
+    );
+    require(
+        queue.cancel(2) == veyra::FileOperationResult::handled,
+        "canceling a failed operation stays put"
+    );
+
+    require(
+        queue.advance(5, 0.5F) == veyra::FileOperationResult::ignored,
+        "advancing a done operation is ignored"
+    );
+    require(
+        queue.advance(2, 0.5F) == veyra::FileOperationResult::ignored,
+        "advancing a failed operation is ignored"
+    );
+    require(
+        queue.advance(6, 0.5F) == veyra::FileOperationResult::ignored,
+        "advancing a canceled operation is ignored"
+    );
+    require(
+        queue.pause(5) == veyra::FileOperationResult::ignored,
+        "pausing a done operation is ignored"
+    );
+    require(
+        queue.pause(2) == veyra::FileOperationResult::ignored,
+        "pausing a failed operation is ignored"
+    );
+    require(
+        queue.pause(6) == veyra::FileOperationResult::ignored,
+        "pausing a canceled operation is ignored"
+    );
+    require(
+        queue.resume(5) == veyra::FileOperationResult::ignored,
+        "resuming a done operation is ignored"
+    );
+    require(
+        queue.resume(2) == veyra::FileOperationResult::ignored,
+        "resuming a failed operation is ignored"
+    );
+    require(
+        queue.resume(6) == veyra::FileOperationResult::ignored,
+        "resuming a canceled operation is ignored"
+    );
+
+    require(
+        queue.begin(8) == veyra::FileOperationResult::started,
+        "the conflict-retry operation starts"
+    );
+    require(
+        queue.fail(8, veyra::FileOperationFault::conflict) == veyra::FileOperationResult::changed,
+        "the retry target fails with a conflict"
+    );
+    require(
+        queue.retry(8) == veyra::FileOperationResult::changed && queue.operation(8, tracked) &&
+            tracked.attempts == 1 && tracked.progress == 0.0F && !tracked.conflict &&
+            tracked.state == veyra::FileOperationState::queued,
+        "retrying clears conflict and progress while counting the attempt"
+    );
+
+    require(
+        queue.begin(9) == veyra::FileOperationResult::started,
+        "the fail-twice operation starts"
+    );
+    require(
+        queue.fail(9, veyra::FileOperationFault::error) == veyra::FileOperationResult::changed,
+        "the first fail lands"
+    );
+    require(
+        queue.fail(9, veyra::FileOperationFault::error) == veyra::FileOperationResult::handled,
+        "failing a failed operation stays put"
+    );
+    require(
+        queue.begin(10) == veyra::FileOperationResult::started,
+        "the complete-twice operation starts"
+    );
+    require(queue.complete(10) == veyra::FileOperationResult::changed, "the first complete lands");
+    require(
+        queue.complete(10) == veyra::FileOperationResult::handled,
+        "completing a done operation stays put"
+    );
+    require(
+        queue.retry(10) == veyra::FileOperationResult::handled,
+        "retrying a done operation stays put"
+    );
+    require(
+        queue.retry(11) == veyra::FileOperationResult::handled,
+        "retrying a queued operation stays put"
+    );
+    require(
+        queue.begin(12) == veyra::FileOperationResult::started,
+        "the retry-active target starts"
+    );
+    require(
+        queue.retry(12) == veyra::FileOperationResult::handled,
+        "retrying an active operation stays put"
+    );
+    require(
+        queue.fail(99, veyra::FileOperationFault::error) == veyra::FileOperationResult::ignored,
+        "failing an unknown id is ignored"
+    );
+    require(
+        queue.retry(99) == veyra::FileOperationResult::ignored,
+        "retrying an unknown id is ignored"
+    );
+    require(
+        queue.complete(99) == veyra::FileOperationResult::ignored,
+        "completing an unknown id is ignored"
+    );
+    require(
+        queue.cancel(99) == veyra::FileOperationResult::ignored,
+        "canceling an unknown id is ignored"
+    );
+}
+
+void check_item_status_strings() {
+    auto queue = veyra::FileOperationQueue{};
+    queue.submit(veyra::FileOperationKind::copy, 1);
+    queue.submit(veyra::FileOperationKind::move, 2);
+    queue.submit(veyra::FileOperationKind::remove, 3);
+    queue.submit(veyra::FileOperationKind::copy, 4);
+    queue.submit(veyra::FileOperationKind::copy, 5);
+    queue.begin(2);
+    queue.pause(2);
+    queue.begin(3);
+    queue.complete(3);
+    queue.begin(4);
+    queue.fail(4, veyra::FileOperationFault::error);
+    queue.cancel(5);
+
+    auto item = veyra::SemanticNodeData{};
+    require(queue.write_item_semantics(1, "Copy", item), "a queued item writes semantics");
+    require(
+        item.value == std::string_view{"queued"} &&
+            !veyra::has_action(item.actions, veyra::SemanticAction::dismiss),
+        "a queued item reports queued and offers no dismiss"
+    );
+    require(queue.write_item_semantics(2, "Move", item), "a paused item writes semantics");
+    require(
+        item.value == std::string_view{"paused"} &&
+            !veyra::has_action(item.actions, veyra::SemanticAction::dismiss),
+        "a paused item reports paused and offers no dismiss"
+    );
+    require(queue.write_item_semantics(3, "Remove", item), "a done item writes semantics");
+    require(
+        item.value == std::string_view{"done"} &&
+            veyra::has_action(item.actions, veyra::SemanticAction::dismiss),
+        "a done item reports done and offers dismiss"
+    );
+    require(queue.write_item_semantics(4, "Copy", item), "a failed item writes semantics");
+    require(
+        item.value == std::string_view{"failed"} &&
+            veyra::has_action(item.actions, veyra::SemanticAction::dismiss),
+        "a plain failure reports failed and offers dismiss"
+    );
+    require(queue.write_item_semantics(5, "Copy", item), "a canceled item writes semantics");
+    require(
+        item.value == std::string_view{"canceled"} &&
+            veyra::has_action(item.actions, veyra::SemanticAction::dismiss),
+        "a canceled item reports canceled and offers dismiss"
+    );
+}
+
 }
 
 int main() {
@@ -281,6 +570,8 @@ int main() {
         check_pause_and_resume();
         check_fail_retry_and_conflict();
         check_cancel_complete_and_dismiss();
+        check_terminal_transitions();
+        check_item_status_strings();
         check_copy_truncates();
         check_semantics_carry_status();
     } catch (const std::exception& error) {

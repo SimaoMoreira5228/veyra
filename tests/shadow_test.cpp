@@ -137,6 +137,55 @@ void check_rejects_bad_geometry() {
         "negative blur is rejected"
     );
 
+    const veyra::BoxShadow negative_height{
+        .bounds = {.width = 38.0F, .height = -1.0F},
+        .color = {.alpha = 255},
+    };
+    require(
+        veyra::lower_box_shadow(negative_height, output).result ==
+            veyra::ShadowResult::invalid_input,
+        "negative height is rejected"
+    );
+
+    const veyra::BoxShadow nan_x{
+        .bounds = {.x = std::numeric_limits<float>::quiet_NaN(), .width = 38.0F, .height = 30.0F},
+        .color = {.alpha = 255},
+    };
+    require(
+        veyra::lower_box_shadow(nan_x, output).result == veyra::ShadowResult::invalid_input,
+        "a NaN bounds x is rejected"
+    );
+
+    const veyra::BoxShadow nan_radius{
+        .bounds = {.width = 38.0F, .height = 30.0F},
+        .radius = std::numeric_limits<float>::quiet_NaN(),
+        .color = {.alpha = 255},
+    };
+    require(
+        veyra::lower_box_shadow(nan_radius, output).result == veyra::ShadowResult::invalid_input,
+        "a NaN radius is rejected"
+    );
+
+    const veyra::BoxShadow nan_blur{
+        .bounds = {.width = 38.0F, .height = 30.0F},
+        .blur = std::numeric_limits<float>::quiet_NaN(),
+        .color = {.alpha = 255},
+    };
+    require(
+        veyra::lower_box_shadow(nan_blur, output).result == veyra::ShadowResult::invalid_input,
+        "a NaN blur is rejected"
+    );
+
+    const veyra::BoxShadow inf_blur{
+        .bounds = {.width = 38.0F, .height = 30.0F},
+        .blur = std::numeric_limits<float>::infinity(),
+        .color = {.alpha = 255},
+    };
+    require(
+        veyra::lower_box_shadow(inf_blur, output).result == veyra::ShadowResult::invalid_input,
+        "an infinite blur is rejected"
+    );
+
     const veyra::BoxShadow bad_offset{
         .bounds = {.width = 38.0F, .height = 30.0F},
         .offset_x = std::numeric_limits<float>::quiet_NaN(),
@@ -161,6 +210,14 @@ void check_short_buffer_writes_nothing() {
     require(
         lowered.result == veyra::ShadowResult::insufficient_output && lowered.commands == 0,
         "a short buffer fails without partial layers"
+    );
+
+    auto none = std::array<veyra::DisplayCommand, 0>{};
+    const auto empty_outcome = veyra::lower_box_shadow(shadow, none);
+    require(
+        empty_outcome.result == veyra::ShadowResult::insufficient_output &&
+            empty_outcome.commands == 0,
+        "a zero-slot buffer fails without partial layers"
     );
 }
 

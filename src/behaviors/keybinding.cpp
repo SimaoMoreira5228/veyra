@@ -120,6 +120,10 @@ KeybindingResult KeybindingEditor::start_capture(std::uint64_t action_id) noexce
         return KeybindingResult::ignored;
     }
 
+    if (!box_.is_option_enabled(action_id)) {
+        return KeybindingResult::ignored;
+    }
+
     capturing_ = true;
     capture_ = action_id;
 

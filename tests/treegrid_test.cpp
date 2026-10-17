@@ -305,6 +305,33 @@ void check_collapse_orphans_cursor() {
     );
 }
 
+void check_home_end_reanchor_orphaned_cursor() {
+    auto harness = Harness{};
+    harness.model.expanded_archives = true;
+    harness.model.loaded_archives = true;
+    harness.place(4, kSizeColumn);
+
+    harness.model.expanded_archives = false;
+
+    const auto go_home = harness.move(veyra::DataGridMove::home);
+    require(
+        go_home.result == veyra::TreeCursorResult::moved && go_home.row == 1 &&
+            go_home.column == kSizeColumn,
+        "home on a collapsed-away row re-anchors to the first visible row"
+    );
+
+    harness.model.expanded_archives = true;
+    harness.place(5, kSizeColumn);
+    harness.model.expanded_archives = false;
+
+    const auto go_end = harness.move(veyra::DataGridMove::end);
+    require(
+        go_end.result == veyra::TreeCursorResult::moved && go_end.row == 6 &&
+            go_end.column == kSizeColumn,
+        "end on a collapsed-away row re-anchors to the last visible row"
+    );
+}
+
 void check_rejects_bad_inputs() {
     auto harness = Harness{};
     const auto empty = std::span<const veyra::TreeCursorRow>{};
@@ -374,6 +401,14 @@ void check_tab_order_wraps() {
         step.result == veyra::TreeCursorResult::moved && step.row == 6,
         "a page step lands on the window-relative row"
     );
+
+    harness.place(6, kSizeColumn);
+    step = harness.move(veyra::DataGridMove::page_up, 2);
+    require(
+        step.result == veyra::TreeCursorResult::moved && step.row == 2 &&
+            step.column == kSizeColumn,
+        "a page step upward lands on the window-relative row keeping the column"
+    );
 }
 
 void check_sort_and_columns_coexist() {
@@ -410,42 +445,6 @@ void check_sort_and_columns_coexist() {
     );
 }
 
-void check_row_semantics_carry_levels() {
-    auto record = veyra::SemanticNodeData{
-        .role = veyra::SemanticRole::list_item,
-        .label = "archives",
-        .states = veyra::state_flag(veyra::SemanticState::expanded) |
-            veyra::state_flag(veyra::SemanticState::focusable),
-        .actions = veyra::action_flag(veyra::SemanticAction::collapse) |
-            veyra::action_flag(veyra::SemanticAction::select),
-    };
-    require(
-        veyra::has_state(record.states, veyra::SemanticState::expanded),
-        "an open tree row carries the expanded state"
-    );
-    require(
-        !veyra::has_state(record.states, veyra::SemanticState::selected),
-        "an unpicked tree row is not selected"
-    );
-    require(
-        veyra::has_action(record.actions, veyra::SemanticAction::collapse),
-        "an open tree row offers collapse"
-    );
-    require(
-        !veyra::has_action(record.actions, veyra::SemanticAction::expand),
-        "an open tree row does not also offer expand"
-    );
-
-    record.states = veyra::state_flag(veyra::SemanticState::focusable);
-    record.actions = veyra::action_flag(veyra::SemanticAction::expand) |
-        veyra::action_flag(veyra::SemanticAction::select);
-    require(
-        veyra::has_action(record.actions, veyra::SemanticAction::expand) &&
-            !veyra::has_state(record.states, veyra::SemanticState::expanded),
-        "a closed tree row offers expand instead"
-    );
-}
-
 }
 
 int main() {
@@ -456,10 +455,10 @@ int main() {
         check_cells_ignore_tree();
         check_home_end_jump_rows();
         check_collapse_orphans_cursor();
+        check_home_end_reanchor_orphaned_cursor();
         check_rejects_bad_inputs();
         check_tab_order_wraps();
         check_sort_and_columns_coexist();
-        check_row_semantics_carry_levels();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
 

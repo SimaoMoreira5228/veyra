@@ -209,7 +209,7 @@ veyra::TraceDamagePayload damage_of(const veyra::TraceRecorder& recorder) {
     return {};
 }
 
-void check_identical_lists_match() {
+void check_equivalent_lists_match() {
     const auto full = build_rows(0);
     const auto copy = full;
 
@@ -221,9 +221,65 @@ void check_identical_lists_match() {
     const auto empty = std::array<veyra::DisplayCommand, 0>{};
 
     require(veyra::equivalent_display_lists(empty, empty), "empty lists match");
+
+    const auto coverage = std::array<std::uint8_t, 2>{128, 255};
+    const auto mask = veyra::SoftwareMask{
+        .width = 2,
+        .height = 1,
+        .stride = 2,
+        .coverage = coverage,
+        .generation = 0,
+    };
+    const auto left_resource = std::array<veyra::DisplayCommand, 1>{
+        veyra::DrawMask{.x = 1, .y = 1, .mask = &mask},
+    };
+    const auto right_resource = std::array<veyra::DisplayCommand, 1>{
+        veyra::DrawMask{.x = 1, .y = 1, .mask = &mask},
+    };
+
+    require(
+        veyra::equivalent_display_lists(left_resource, right_resource),
+        "same resource pointer matches"
+    );
+
+    const auto clips = std::array<veyra::DisplayCommand, 3>{
+        veyra::PushClip{
+            .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
+            .clip_id = 0
+        },
+        veyra::FillRect{.bounds = {.width = 4.0F, .height = 3.0F}},
+        veyra::PopClip{},
+    };
+    const auto same_clips = clips;
+
+    require(veyra::equivalent_display_lists(clips, same_clips), "matching clip pairs match");
+
+    const auto scoped = std::array<veyra::DisplayCommand, 3>{
+        veyra::PushClip{
+            .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
+            .clip_id = 3
+        },
+        veyra::FillRect{.bounds = {.width = 4.0F, .height = 3.0F}},
+        veyra::PopClip{},
+    };
+
+    require(veyra::equivalent_display_lists(scoped, scoped), "matching clip ids match");
+
+    const auto straight = std::array<veyra::SoftwarePathSegment, 1>{
+        veyra::SoftwareLineTo{.end = {.x = 1.0F, .y = 1.0F}},
+    };
+    const auto contour = std::array<veyra::SoftwarePathContour, 1>{
+        veyra::SoftwarePathContour{.segments = straight},
+    };
+    const auto plain = std::array<veyra::DisplayCommand, 1>{
+        veyra::FillPath{.contours = contour},
+    };
+    const auto plain_copy = plain;
+
+    require(veyra::equivalent_display_lists(plain, plain_copy), "identical paths match");
 }
 
-void check_prefix_reports_length() {
+void check_first_difference_reports_index() {
     const auto full = build_rows(0);
     const auto prefix = std::span<const veyra::DisplayCommand>(full.data(), 2);
     const auto empty = std::array<veyra::DisplayCommand, 0>{};
@@ -234,50 +290,23 @@ void check_prefix_reports_length() {
     require(first == prefix.size(), "prefix difference reports the shorter length");
     require(!veyra::equivalent_display_lists(empty, full, first), "empty prefix differs");
     require(first == 0, "empty prefix reports index zero");
-}
 
-void check_mutation_reports_index() {
-    const auto left = build_rows(0);
+    const auto rows = build_rows(0);
 
-    auto right = left;
-    std::get<veyra::FillRect>(right[5]).color = veyra::Srgba8{.red = 1, .green = 2, .blue = 3};
+    auto color_swapped = rows;
+    std::get<veyra::FillRect>(color_swapped[5]).color =
+        veyra::Srgba8{.red = 1, .green = 2, .blue = 3};
 
-    auto first = std::size_t{0};
-
-    require(!veyra::equivalent_display_lists(left, right, first), "color mutation differs");
+    require(!veyra::equivalent_display_lists(rows, color_swapped, first), "color mutation differs");
     require(first == 5, "color mutation reports its index");
-}
 
-void check_variant_swap_reports_index() {
-    const auto left = build_rows(0);
+    auto variant_swapped = rows;
+    variant_swapped[3] =
+        veyra::PushClip{.bounds = {.x = 1.0F, .width = 1.0F, .height = 1.0F}, .clip_id = 0};
 
-    auto right = left;
-    right[3] = veyra::PushClip{.bounds = {.x = 1.0F, .width = 1.0F, .height = 1.0F}, .clip_id = 0};
-
-    auto first = std::size_t{0};
-
-    require(!veyra::equivalent_display_lists(left, right, first), "variant swap differs");
+    require(!veyra::equivalent_display_lists(rows, variant_swapped, first), "variant swap differs");
     require(first == 3, "variant swap reports its index");
-}
 
-void check_floats_compare_bitwise() {
-    const auto positive = std::array<veyra::DisplayCommand, 1>{
-        veyra::FillRect{.bounds = {.width = 2.0F, .height = 1.0F}},
-    };
-    const auto negative = std::array<veyra::DisplayCommand, 1>{
-        veyra::FillRect{.bounds = {.x = -0.0F, .width = 2.0F, .height = 1.0F}},
-    };
-
-    auto first = std::size_t{0};
-
-    require(
-        !veyra::equivalent_display_lists(positive, negative, first),
-        "negative zero differs from zero"
-    );
-    require(first == 0, "sign difference reports index zero");
-}
-
-void check_resources_compare_by_identity() {
     const auto coverage = std::array<std::uint8_t, 2>{128, 255};
     const auto first_mask = veyra::SoftwareMask{
         .width = 2,
@@ -293,25 +322,20 @@ void check_resources_compare_by_identity() {
         .coverage = coverage,
         .generation = 0,
     };
-    const auto left = std::array<veyra::DisplayCommand, 1>{
+    const auto left_resource = std::array<veyra::DisplayCommand, 1>{
         veyra::DrawMask{.x = 1, .y = 1, .mask = &first_mask},
     };
-    const auto middle = std::array<veyra::DisplayCommand, 1>{
-        veyra::DrawMask{.x = 1, .y = 1, .mask = &first_mask},
-    };
-    const auto right = std::array<veyra::DisplayCommand, 1>{
+    const auto right_resource = std::array<veyra::DisplayCommand, 1>{
         veyra::DrawMask{.x = 1, .y = 1, .mask = &second_mask},
     };
 
-    auto first = std::size_t{0};
-
-    require(veyra::equivalent_display_lists(left, middle), "same resource pointer matches");
-    require(!veyra::equivalent_display_lists(left, right, first), "distinct resources differ");
+    require(
+        !veyra::equivalent_display_lists(left_resource, right_resource, first),
+        "distinct resources differ"
+    );
     require(first == 0, "resource difference reports index zero");
-}
 
-void check_clip_pairs_compare_structurally() {
-    const auto left = std::array<veyra::DisplayCommand, 3>{
+    const auto clips = std::array<veyra::DisplayCommand, 3>{
         veyra::PushClip{
             .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
             .clip_id = 0
@@ -320,20 +344,13 @@ void check_clip_pairs_compare_structurally() {
         veyra::PopClip{},
     };
 
-    auto same = left;
-
-    auto popped = left;
+    auto popped = clips;
     popped[2] = veyra::PopTranslation{};
 
-    auto first = std::size_t{0};
-
-    require(veyra::equivalent_display_lists(left, same), "matching clip pairs match");
-    require(!veyra::equivalent_display_lists(left, popped, first), "pop kind differs");
+    require(!veyra::equivalent_display_lists(clips, popped, first), "pop kind differs");
     require(first == 2, "pop difference reports index two");
-}
 
-void check_clip_id_distinguishes_scopes() {
-    const auto left = std::array<veyra::DisplayCommand, 3>{
+    const auto scoped = std::array<veyra::DisplayCommand, 3>{
         veyra::PushClip{
             .bounds = {.x = 1.0F, .y = 1.0F, .width = 2.0F, .height = 1.0F},
             .clip_id = 3
@@ -342,17 +359,12 @@ void check_clip_id_distinguishes_scopes() {
         veyra::PopClip{},
     };
 
-    auto renamed = left;
+    auto renamed = scoped;
     std::get<veyra::PushClip>(renamed[0]).clip_id = 4;
 
-    auto first = std::size_t{0};
-
-    require(veyra::equivalent_display_lists(left, left), "matching clip ids match");
-    require(!veyra::equivalent_display_lists(left, renamed, first), "clip id differs");
+    require(!veyra::equivalent_display_lists(scoped, renamed, first), "clip id differs");
     require(first == 0, "clip id difference reports index zero");
-}
 
-void check_spans_compare_elementwise() {
     const auto points = std::array<veyra::LayoutPoint, 2>{
         veyra::LayoutPoint{.x = 0.0F, .y = 0.0F},
         veyra::LayoutPoint{.x = 2.0F, .y = 1.0F},
@@ -364,21 +376,19 @@ void check_spans_compare_elementwise() {
     const auto short_points = std::array<veyra::LayoutPoint, 1>{
         veyra::LayoutPoint{.x = 0.0F, .y = 0.0F},
     };
-    const auto left = std::array<veyra::DisplayCommand, 1>{
+    const auto polyline = std::array<veyra::DisplayCommand, 1>{
         veyra::StrokePolyline{.points = points, .thickness = 1.0F},
     };
-    const auto right = std::array<veyra::DisplayCommand, 1>{
+    const auto drifted = std::array<veyra::DisplayCommand, 1>{
         veyra::StrokePolyline{.points = moved, .thickness = 1.0F},
     };
     const auto narrow = std::array<veyra::DisplayCommand, 1>{
         veyra::StrokePolyline{.points = short_points, .thickness = 1.0F},
     };
 
-    auto first = std::size_t{0};
-
-    require(!veyra::equivalent_display_lists(left, right, first), "moved point differs");
+    require(!veyra::equivalent_display_lists(polyline, drifted, first), "moved point differs");
     require(first == 0, "point difference reports index zero");
-    require(!veyra::equivalent_display_lists(left, narrow), "point count differs");
+    require(!veyra::equivalent_display_lists(polyline, narrow), "point count differs");
 
     const auto straight = std::array<veyra::SoftwarePathSegment, 1>{
         veyra::SoftwareLineTo{.end = {.x = 1.0F, .y = 1.0F}},
@@ -395,16 +405,32 @@ void check_spans_compare_elementwise() {
     const auto curved_contour = std::array<veyra::SoftwarePathContour, 1>{
         veyra::SoftwarePathContour{.segments = curved},
     };
-    const auto plain = std::array<veyra::DisplayCommand, 1>{
+    const auto plain_path = std::array<veyra::DisplayCommand, 1>{
         veyra::FillPath{.contours = plain_contour},
     };
-    const auto bent = std::array<veyra::DisplayCommand, 1>{
+    const auto bent_path = std::array<veyra::DisplayCommand, 1>{
         veyra::FillPath{.contours = curved_contour},
     };
 
-    require(!veyra::equivalent_display_lists(plain, bent, first), "segment kind differs");
+    require(!veyra::equivalent_display_lists(plain_path, bent_path, first), "segment kind differs");
     require(first == 0, "segment difference reports index zero");
-    require(veyra::equivalent_display_lists(plain, plain), "identical paths match");
+}
+
+void check_bitwise_float_strictness() {
+    const auto positive = std::array<veyra::DisplayCommand, 1>{
+        veyra::FillRect{.bounds = {.width = 2.0F, .height = 1.0F}},
+    };
+    const auto negative = std::array<veyra::DisplayCommand, 1>{
+        veyra::FillRect{.bounds = {.x = -0.0F, .width = 2.0F, .height = 1.0F}},
+    };
+
+    auto first = std::size_t{0};
+
+    require(
+        !veyra::equivalent_display_lists(positive, negative, first),
+        "negative zero differs from zero"
+    );
+    require(first == 0, "sign difference reports index zero");
 }
 
 void check_partial_scroll_uses_pixels_not_commands() {
@@ -564,15 +590,9 @@ void check_full_damage_restores_command_equality() {
 
 int main() {
     try {
-        check_identical_lists_match();
-        check_prefix_reports_length();
-        check_mutation_reports_index();
-        check_variant_swap_reports_index();
-        check_floats_compare_bitwise();
-        check_resources_compare_by_identity();
-        check_clip_pairs_compare_structurally();
-        check_clip_id_distinguishes_scopes();
-        check_spans_compare_elementwise();
+        check_equivalent_lists_match();
+        check_first_difference_reports_index();
+        check_bitwise_float_strictness();
         check_partial_scroll_uses_pixels_not_commands();
         check_full_damage_restores_command_equality();
     } catch (const std::exception& error) {
