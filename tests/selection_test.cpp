@@ -10,6 +10,11 @@
 
 namespace {
 
+static_assert(
+    veyra::selection_tri_state(1, 3) == veyra::SelectionTriState::partial,
+    "tri-state is a compile-time pure function"
+);
+
 void require(bool condition, std::string_view message) {
     if (!condition) {
         throw std::runtime_error(std::string(message));
@@ -91,9 +96,8 @@ void check_multi_select_and_toggle() {
         "reselecting a held id suppresses the duplicate"
     );
     require(
-        control.has_anchor() && control.anchor() == 1 && control.has_active() &&
-            control.active() == 1,
-        "a plain select moves the anchor and active cursor to the id"
+        control.has_anchor() && control.anchor() == 1 && !control.has_current(),
+        "a plain select plants the range anchor and leaves the keyboard cursor alone"
     );
 
     require(
@@ -143,8 +147,8 @@ void check_range_extension() {
         "extending forward replaces the set with the anchor-to-target slice"
     );
     require(
-        control.active() == 50 && control.anchor() == 30,
-        "range extension moves active and keeps the anchor"
+        control.current() == 50 && control.anchor() == 30,
+        "range extension moves current and keeps the anchor"
     );
 
     require(
@@ -261,11 +265,13 @@ void check_disabled_rejects_mutation() {
     control.select(1);
 
     std::array<std::uint64_t, 2> order{1, 2};
+    control.set_current(2);
     require(control.set_disabled(true), "disabling reports a state change");
     require(
         control.select(2) == veyra::SelectionResult::ignored &&
             control.deselect(1) == veyra::SelectionResult::ignored &&
             control.toggle_item(2) == veyra::SelectionResult::ignored &&
+            control.select_current() == veyra::SelectionResult::ignored &&
             control.clear() == veyra::SelectionResult::ignored &&
             control.extend_range(order, 2) == veyra::SelectionResult::ignored &&
             control.select_all(order) == veyra::SelectionResult::ignored,
@@ -327,6 +333,177 @@ void check_queries_and_item_semantics() {
         control.write_item_semantics(99, "Other", node) &&
             !veyra::has_state(node.states, veyra::SemanticState::selected),
         "an unselected id writes no selected state"
+    );
+}
+
+void check_current_cursor_independence() {
+    auto control = veyra::SelectionController{};
+    control.configure({.mode = veyra::SelectionMode::multiple});
+    require(!control.has_current(), "a new controller parks the cursor nowhere");
+    require(
+        control.select_current() == veyra::SelectionResult::ignored,
+        "select-current with no cursor is ignored"
+    );
+
+    require(control.set_current(11), "parking the cursor reports a move");
+    require(
+        control.has_current() && control.current() == 11 && control.empty(),
+        "parking the cursor selects nothing"
+    );
+    require(!control.set_current(11), "repeating the cursor reports no move");
+
+    require(
+        control.select(12) == veyra::SelectionResult::changed && control.current() == 11,
+        "a plain select leaves the keyboard cursor where it was"
+    );
+    require(control.anchor() == 12, "the select still plants the range anchor");
+
+    require(
+        control.select_current() == veyra::SelectionResult::changed && control.contains(11),
+        "select-current toggles the cursor id on in multi-select"
+    );
+    require(
+        control.select_current() == veyra::SelectionResult::changed && !control.contains(11),
+        "select-current toggles the cursor id back off"
+    );
+
+    control.select(30);
+    control.deselect(12);
+    require(
+        control.has_current() && control.current() == 11,
+        "deselect keeps the cursor off the set"
+    );
+    control.clear();
+    require(
+        control.has_current() && control.current() == 11 && control.empty(),
+        "clear drops the set and keeps the cursor"
+    );
+
+    auto single = veyra::SelectionController{};
+    single.set_current(21);
+    single.set_current(22);
+    require(
+        single.select_current() == veyra::SelectionResult::changed && single.contains(22) &&
+            !single.contains(21),
+        "select-current replaces the set in single-select"
+    );
+
+    require(control.clear_current(), "clearing the cursor reports a move");
+    require(!control.has_current(), "the cursor is gone after a clear");
+    require(
+        control.select_current() == veyra::SelectionResult::ignored,
+        "select-current with a cleared cursor is ignored"
+    );
+    require(!control.clear_current(), "repeating the clear reports no move");
+}
+
+void check_exclude_all_mode() {
+    auto control = veyra::SelectionController{};
+    control.configure({.mode = veyra::SelectionMode::multiple});
+    control.select(1);
+    control.select(2);
+
+    require(control.set_exclude_all(true), "entering exclude-all reports a change");
+    require(!control.set_exclude_all(true), "repeating exclude-all reports no change");
+    require(control.exclude_all(), "exclude-all mode is observable");
+
+    require(!control.empty(), "exclude-all is never an empty selection");
+    require(control.contains(999), "an unlisted id reads selected under exclude-all");
+
+    require(
+        control.deselect(999) == veyra::SelectionResult::changed && !control.contains(999),
+        "deselecting under exclude-all files an exception"
+    );
+    require(
+        control.deselect(999) == veyra::SelectionResult::handled,
+        "repeating the exception reports no change"
+    );
+    require(
+        control.select(999) == veyra::SelectionResult::changed && control.contains(999),
+        "selecting under exclude-all drops the exception"
+    );
+    require(
+        control.select(1000) == veyra::SelectionResult::handled,
+        "selecting an unlisted id under exclude-all reports no change"
+    );
+    require(
+        control.toggle_item(1001) == veyra::SelectionResult::changed && !control.contains(1001),
+        "toggling under exclude-all files an exception"
+    );
+
+    std::array<std::uint64_t, 2> buffer{};
+    require(
+        control.copy_selected(buffer) == 0 && !control.empty(),
+        "exclude-all copy_selected refuses to materialize the virtual set"
+    );
+
+    std::array<std::uint64_t, 3> order{1, 2, 3};
+    require(
+        control.extend_range(order, 3) == veyra::SelectionResult::overflow,
+        "exclude-all range extension overflows instead of guessing the universe"
+    );
+
+    require(
+        control.clear() == veyra::SelectionResult::changed && control.exclude_all() &&
+            control.contains(7),
+        "clear under exclude-all drops the exceptions and keeps the mode"
+    );
+    require(
+        control.clear() == veyra::SelectionResult::handled,
+        "clearing an exception-free exclude-all reports no change"
+    );
+
+    std::array<std::uint64_t, 2> few{41, 42};
+    require(
+        control.select_all(few) == veyra::SelectionResult::changed && !control.exclude_all() &&
+            control.count() == 2 && control.contains(41),
+        "select-all materializes a bounded span and leaves exclude-all behind"
+    );
+
+    require(control.set_exclude_all(true), "exclude-all can be re-entered");
+    require(control.set_exclude_all(false), "leaving exclude-all reports a change");
+    require(
+        control.empty() && !control.contains(41),
+        "leaving exclude-all lands on an empty inclusive set"
+    );
+
+    auto full = veyra::SelectionController{};
+    full.configure({.mode = veyra::SelectionMode::multiple});
+    full.set_exclude_all(true);
+    for (std::uint64_t id = 1; id <= veyra::SelectionController::kCapacity; ++id) {
+        require(
+            full.deselect(id) == veyra::SelectionResult::changed,
+            "exceptions fill up to capacity"
+        );
+    }
+    require(
+        full.deselect(veyra::SelectionController::kCapacity + 1) ==
+                veyra::SelectionResult::overflow &&
+            full.contains(veyra::SelectionController::kCapacity + 1),
+        "one exception past capacity overflows and stays selected"
+    );
+}
+
+void check_selection_tri_state() {
+    require(
+        veyra::selection_tri_state(0, 0) == veyra::SelectionTriState::none,
+        "nothing of nothing is none"
+    );
+    require(
+        veyra::selection_tri_state(0, 9) == veyra::SelectionTriState::none,
+        "an empty count is none"
+    );
+    require(
+        veyra::selection_tri_state(4, 9) == veyra::SelectionTriState::partial,
+        "a strict subset is partial"
+    );
+    require(
+        veyra::selection_tri_state(9, 9) == veyra::SelectionTriState::all,
+        "a full count is all"
+    );
+    require(
+        veyra::selection_tri_state(1, 1) == veyra::SelectionTriState::all,
+        "a lone held item is all"
     );
 }
 
@@ -477,6 +654,9 @@ int main() {
         check_range_extension();
         check_select_all_and_overflow();
         check_disabled_rejects_mutation();
+        check_current_cursor_independence();
+        check_exclude_all_mode();
+        check_selection_tri_state();
         check_queries_and_item_semantics();
         check_radio_mutual_exclusion();
         check_radio_movement_and_semantics();

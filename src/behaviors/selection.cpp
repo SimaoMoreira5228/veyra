@@ -31,10 +31,11 @@ bool SelectionController::configure(const SelectionConfig& config) noexcept {
     mode_ = config.mode;
     allow_empty_ = config.allow_empty;
     count_ = 0;
+    exclude_ = false;
     has_anchor_ = false;
     anchor_ = 0;
-    has_active_ = false;
-    active_ = 0;
+    has_current_ = false;
+    current_ = 0;
 
     return true;
 }
@@ -54,11 +55,25 @@ std::size_t SelectionController::count() const noexcept {
 }
 
 bool SelectionController::empty() const noexcept {
+    if (exclude_) {
+        return false;
+    }
+
     return count_ == 0;
 }
 
 bool SelectionController::contains(std::uint64_t id) const noexcept {
-    return find(id) != kNotFound;
+    const bool held = find(id) != kNotFound;
+
+    if (exclude_) {
+        return !held;
+    }
+
+    return held;
+}
+
+bool SelectionController::exclude_all() const noexcept {
+    return exclude_;
 }
 
 bool SelectionController::has_anchor() const noexcept {
@@ -69,15 +84,19 @@ std::uint64_t SelectionController::anchor() const noexcept {
     return anchor_;
 }
 
-bool SelectionController::has_active() const noexcept {
-    return has_active_;
+bool SelectionController::has_current() const noexcept {
+    return has_current_;
 }
 
-std::uint64_t SelectionController::active() const noexcept {
-    return active_;
+std::uint64_t SelectionController::current() const noexcept {
+    return current_;
 }
 
 std::size_t SelectionController::copy_selected(std::span<std::uint64_t> output) const noexcept {
+    if (exclude_) {
+        return 0;
+    }
+
     std::size_t copied = count_;
 
     if (copied > output.size()) {
@@ -123,12 +142,24 @@ SelectionResult SelectionController::select(std::uint64_t id) noexcept {
         return SelectionResult::ignored;
     }
 
+    if (exclude_) {
+        const std::size_t index = find(id);
+
+        if (index == kNotFound) {
+            return SelectionResult::handled;
+        }
+
+        remove_at(index);
+        has_anchor_ = true;
+        anchor_ = id;
+
+        return SelectionResult::changed;
+    }
+
     if (mode_ == SelectionMode::single) {
         if (count_ == 1 && ids_[0] == id) {
             has_anchor_ = true;
             anchor_ = id;
-            has_active_ = true;
-            active_ = id;
 
             return SelectionResult::handled;
         }
@@ -137,8 +168,6 @@ SelectionResult SelectionController::select(std::uint64_t id) noexcept {
         count_ = 1;
         has_anchor_ = true;
         anchor_ = id;
-        has_active_ = true;
-        active_ = id;
 
         return SelectionResult::changed;
     }
@@ -146,8 +175,6 @@ SelectionResult SelectionController::select(std::uint64_t id) noexcept {
     if (contains(id)) {
         has_anchor_ = true;
         anchor_ = id;
-        has_active_ = true;
-        active_ = id;
 
         return SelectionResult::handled;
     }
@@ -160,8 +187,6 @@ SelectionResult SelectionController::select(std::uint64_t id) noexcept {
     ++count_;
     has_anchor_ = true;
     anchor_ = id;
-    has_active_ = true;
-    active_ = id;
 
     return SelectionResult::changed;
 }
@@ -169,6 +194,23 @@ SelectionResult SelectionController::select(std::uint64_t id) noexcept {
 SelectionResult SelectionController::deselect(std::uint64_t id) noexcept {
     if (disabled_) {
         return SelectionResult::ignored;
+    }
+
+    if (exclude_) {
+        if (find(id) != kNotFound) {
+            return SelectionResult::handled;
+        }
+
+        if (count_ == kCapacity) {
+            return SelectionResult::overflow;
+        }
+
+        ids_[count_] = id;
+        ++count_;
+        has_anchor_ = true;
+        anchor_ = id;
+
+        return SelectionResult::changed;
     }
 
     const std::size_t index = find(id);
@@ -186,8 +228,6 @@ SelectionResult SelectionController::deselect(std::uint64_t id) noexcept {
         has_anchor_ = false;
         anchor_ = 0;
     }
-    has_active_ = true;
-    active_ = id;
 
     return SelectionResult::changed;
 }
@@ -204,9 +244,37 @@ SelectionResult SelectionController::toggle_item(std::uint64_t id) noexcept {
     return select(id);
 }
 
+SelectionResult SelectionController::select_current() noexcept {
+    if (disabled_) {
+        return SelectionResult::ignored;
+    }
+
+    if (!has_current_) {
+        return SelectionResult::ignored;
+    }
+
+    if (mode_ == SelectionMode::single) {
+        return select(current_);
+    }
+
+    return toggle_item(current_);
+}
+
 SelectionResult SelectionController::clear() noexcept {
     if (disabled_) {
         return SelectionResult::ignored;
+    }
+
+    if (exclude_) {
+        if (count_ == 0) {
+            return SelectionResult::handled;
+        }
+
+        count_ = 0;
+        has_anchor_ = false;
+        anchor_ = 0;
+
+        return SelectionResult::changed;
     }
 
     if (count_ == 0) {
@@ -228,6 +296,10 @@ SelectionResult
 SelectionController::extend_range(std::span<const std::uint64_t> order, std::uint64_t to) noexcept {
     if (disabled_) {
         return SelectionResult::ignored;
+    }
+
+    if (exclude_) {
+        return SelectionResult::overflow;
     }
 
     std::size_t to_index = kNotFound;
@@ -255,10 +327,16 @@ SelectionController::extend_range(std::span<const std::uint64_t> order, std::uin
     }
 
     if (anchor_index == kNotFound) {
+        has_current_ = true;
+        current_ = to;
+
         return select(to);
     }
 
     if (mode_ == SelectionMode::single) {
+        has_current_ = true;
+        current_ = to;
+
         return select(to);
     }
 
@@ -303,8 +381,8 @@ SelectionController::extend_range(std::span<const std::uint64_t> order, std::uin
         return SelectionResult::overflow;
     }
 
-    has_active_ = true;
-    active_ = to;
+    has_current_ = true;
+    current_ = to;
 
     if (same_set(range.data(), range_size)) {
         return SelectionResult::handled;
@@ -360,14 +438,13 @@ SelectionResult SelectionController::select_all(std::span<const std::uint64_t> i
         return SelectionResult::handled;
     }
 
-    has_anchor_ = true;
-    anchor_ = unique[0];
-    has_active_ = true;
-    active_ = unique[unique_size - 1];
-
-    if (same_set(unique.data(), unique_size)) {
+    if (!exclude_ && same_set(unique.data(), unique_size)) {
         return SelectionResult::handled;
     }
+
+    exclude_ = false;
+    has_anchor_ = true;
+    anchor_ = unique[0];
 
     for (std::size_t i = 0; i < unique_size; ++i) {
         ids_[i] = unique[i];
@@ -375,6 +452,41 @@ SelectionResult SelectionController::select_all(std::span<const std::uint64_t> i
     count_ = unique_size;
 
     return SelectionResult::changed;
+}
+
+bool SelectionController::set_current(std::uint64_t id) noexcept {
+    if (has_current_ && current_ == id) {
+        return false;
+    }
+
+    has_current_ = true;
+    current_ = id;
+
+    return true;
+}
+
+bool SelectionController::clear_current() noexcept {
+    if (!has_current_) {
+        return false;
+    }
+
+    has_current_ = false;
+    current_ = 0;
+
+    return true;
+}
+
+bool SelectionController::set_exclude_all(bool exclude) noexcept {
+    if (exclude_ == exclude) {
+        return false;
+    }
+
+    exclude_ = exclude;
+    count_ = 0;
+    has_anchor_ = false;
+    anchor_ = 0;
+
+    return true;
 }
 
 std::size_t SelectionController::find(std::uint64_t id) const noexcept {

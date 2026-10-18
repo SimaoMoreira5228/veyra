@@ -23,6 +23,25 @@ enum class SelectionResult : std::uint8_t {
     overflow,
 };
 
+enum class SelectionTriState : std::uint8_t {
+    none,
+    partial,
+    all,
+};
+
+constexpr SelectionTriState
+selection_tri_state(std::size_t selected_count, std::size_t total_count) noexcept {
+    if (selected_count == 0) {
+        return SelectionTriState::none;
+    }
+
+    if (selected_count >= total_count) {
+        return SelectionTriState::all;
+    }
+
+    return SelectionTriState::partial;
+}
+
 struct SelectionConfig {
     SelectionMode mode{SelectionMode::single};
     bool allow_empty{true};
@@ -50,10 +69,11 @@ class SelectionController {
     std::size_t count() const noexcept;
     bool empty() const noexcept;
     bool contains(std::uint64_t id) const noexcept;
+    bool exclude_all() const noexcept;
     bool has_anchor() const noexcept;
     std::uint64_t anchor() const noexcept;
-    bool has_active() const noexcept;
-    std::uint64_t active() const noexcept;
+    bool has_current() const noexcept;
+    std::uint64_t current() const noexcept;
     std::size_t copy_selected(std::span<std::uint64_t> output) const noexcept;
 
     bool write_item_semantics(
@@ -65,7 +85,11 @@ class SelectionController {
     SelectionResult select(std::uint64_t id) noexcept;
     SelectionResult deselect(std::uint64_t id) noexcept;
     SelectionResult toggle_item(std::uint64_t id) noexcept;
+    SelectionResult select_current() noexcept;
     SelectionResult clear() noexcept;
+    bool set_current(std::uint64_t id) noexcept;
+    bool clear_current() noexcept;
+    bool set_exclude_all(bool exclude) noexcept;
     SelectionResult extend_range(std::span<const std::uint64_t> order, std::uint64_t to) noexcept;
     SelectionResult select_all(std::span<const std::uint64_t> ids) noexcept;
 
@@ -81,10 +105,11 @@ class SelectionController {
     SelectionMode mode_{SelectionMode::single};
     bool allow_empty_{true};
     bool disabled_{};
+    bool exclude_{};
     bool has_anchor_{};
     std::uint64_t anchor_{};
-    bool has_active_{};
-    std::uint64_t active_{};
+    bool has_current_{};
+    std::uint64_t current_{};
 };
 
 enum class RadioMove : std::uint8_t {

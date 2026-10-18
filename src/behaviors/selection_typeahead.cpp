@@ -102,6 +102,8 @@ SelectionResult SelectionTypeahead::advance(
         return SelectionResult::handled;
     }
 
+    selection.set_current(ids[match]);
+
     return selection.select(ids[match]);
 }
 
@@ -156,11 +158,11 @@ std::size_t SelectionTypeahead::cycle_match(
 ) const noexcept {
     std::size_t start = 0;
 
-    if (selection.has_active()) {
-        const std::uint64_t active = selection.active();
+    if (selection.has_current()) {
+        const std::uint64_t current = selection.current();
 
         for (std::size_t i = 0; i < ids.size(); ++i) {
-            if (ids[i] == active) {
+            if (ids[i] == current) {
                 start = i + 1;
                 break;
             }
