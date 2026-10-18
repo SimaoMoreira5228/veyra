@@ -179,6 +179,23 @@ bool VirtualListIndex::restore_anchor(
     return restore_anchor(resolved_anchor, viewport_extent, current_generation, scroll_offset);
 }
 
+bool VirtualListIndex::restore_pinned_end(
+    const VirtualListAnchor& anchor,
+    double viewport_extent,
+    double& scroll_offset
+) const noexcept {
+    if (!anchor.pinned_to_end) {
+        return false;
+    }
+
+    if (!std::isfinite(viewport_extent) || viewport_extent < 0.0) {
+        return false;
+    }
+
+    scroll_offset = std::max(0.0, total_extent_ - viewport_extent);
+    return true;
+}
+
 bool VirtualListIndex::scroll_item_into_view(
     std::size_t item_index,
     double viewport_extent,

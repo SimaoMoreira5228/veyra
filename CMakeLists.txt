@@ -83,7 +83,7 @@ target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/datagrid_cursor.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp src/behaviors/command_palette.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -789,6 +789,10 @@ add_executable(veyra_keybinding_test tests/keybinding_test.cpp)
 target_link_libraries(veyra_keybinding_test PRIVATE veyra_behaviors)
 add_test(NAME keybinding_behavior COMMAND veyra_keybinding_test)
 
+add_executable(veyra_command_palette_test tests/command_palette_test.cpp)
+target_link_libraries(veyra_command_palette_test PRIVATE veyra_behaviors)
+add_test(NAME command_palette_behavior COMMAND veyra_command_palette_test)
+
 add_executable(veyra_breadcrumb_test tests/breadcrumb_test.cpp)
 target_link_libraries(veyra_breadcrumb_test PRIVATE veyra_behaviors)
 add_test(NAME breadcrumb_behavior COMMAND veyra_breadcrumb_test)
@@ -804,6 +808,22 @@ add_test(NAME file_operation_queue_behavior COMMAND veyra_file_operation_queue_t
 add_executable(veyra_list_data_pipeline_test tests/list_data_pipeline_test.cpp)
 target_link_libraries(veyra_list_data_pipeline_test PRIVATE veyra_data)
 add_test(NAME list_data_pipeline_behavior COMMAND veyra_list_data_pipeline_test)
+
+add_executable(veyra_swipe_dismiss_test tests/swipe_dismiss_test.cpp)
+target_link_libraries(veyra_swipe_dismiss_test PRIVATE veyra_behaviors)
+add_test(NAME swipe_dismiss_behavior COMMAND veyra_swipe_dismiss_test)
+
+add_executable(veyra_list_reorder_test tests/list_reorder_test.cpp)
+target_link_libraries(veyra_list_reorder_test PRIVATE veyra_behaviors)
+add_test(NAME list_reorder_behavior COMMAND veyra_list_reorder_test)
+
+add_executable(veyra_pull_refresh_test tests/pull_refresh_test.cpp)
+target_link_libraries(veyra_pull_refresh_test PRIVATE veyra_behaviors veyra_data)
+add_test(NAME pull_refresh_behavior COMMAND veyra_pull_refresh_test)
+
+add_executable(veyra_chat_tail_follow_test tests/chat_tail_follow_test.cpp)
+target_link_libraries(veyra_chat_tail_follow_test PRIVATE veyra veyra_behaviors)
+add_test(NAME chat_tail_follow_behavior COMMAND veyra_chat_tail_follow_test)
 
 add_executable(veyra_menu_placement_test tests/menu_placement_test.cpp)
 target_link_libraries(veyra_menu_placement_test PRIVATE veyra)

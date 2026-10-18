@@ -66,6 +66,11 @@ class VirtualListIndex {
         void* context,
         double& scroll_offset
     ) const noexcept;
+    bool restore_pinned_end(
+        const VirtualListAnchor& anchor,
+        double viewport_extent,
+        double& scroll_offset
+    ) const noexcept;
     bool scroll_item_into_view(
         std::size_t item_index,
         double viewport_extent,

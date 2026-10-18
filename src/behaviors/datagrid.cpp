@@ -44,6 +44,16 @@ float DataGridController::column_width(std::uint64_t id) const noexcept {
     return columns_[index].width;
 }
 
+DataGridPin DataGridController::column_pin(std::uint64_t id) const noexcept {
+    const std::size_t index = find(id);
+
+    if (index == kNotFound) {
+        return DataGridPin::none;
+    }
+
+    return columns_[index].pinned;
+}
+
 std::size_t DataGridController::copy_columns(std::span<DataGridColumn> output) const noexcept {
     std::size_t copied = count_;
 
@@ -86,12 +96,7 @@ DataGridResult DataGridController::set_columns(std::span<const DataGridColumn> c
 
     if (identical) {
         for (std::size_t i = 0; i < count_; ++i) {
-            const DataGridColumn& before = columns_[i];
-            const DataGridColumn& after = columns[i];
-
-            if (before.id != after.id || before.width != after.width ||
-                before.min_width != after.min_width || before.max_width != after.max_width ||
-                before.sortable != after.sortable || before.hidden != after.hidden) {
+            if (!same_spec(columns_[i], columns[i])) {
                 identical = false;
                 break;
             }
@@ -121,14 +126,15 @@ DataGridResult DataGridController::set_columns(std::span<const DataGridColumn> c
         }
     }
 
-    if (has_sort_) {
-        const std::size_t sorted = find(sort_column_);
+    if (edit_pending_) {
+        const std::size_t edited = find(edit_column_);
 
-        if (sorted == kNotFound || !columns_[sorted].sortable) {
-            has_sort_ = false;
-            sort_column_ = 0;
+        if (edited == kNotFound || columns_[edited].hidden) {
+            cancel_pending();
         }
     }
+
+    prune_sorts();
 
     return DataGridResult::changed;
 }
@@ -166,6 +172,14 @@ DataGridController::move_column(std::uint64_t id, std::uint64_t target, ColumnEd
 
     if (from == onto) {
         return DataGridResult::handled;
+    }
+
+    if (columns_[from].locked_position || columns_[onto].locked_position) {
+        return DataGridResult::ignored;
+    }
+
+    if (columns_[from].pinned != columns_[onto].pinned) {
+        return DataGridResult::ignored;
     }
 
     std::array<DataGridColumn, kCapacity> order{};
@@ -232,48 +246,315 @@ DataGridResult DataGridController::set_hidden(std::uint64_t id, bool hidden) noe
         snap_cursor_to_visible();
     }
 
+    if (hidden) {
+        drop_edit_for_column(id);
+    }
+
     return DataGridResult::changed;
 }
 
-SortSpec DataGridController::sort_spec() const noexcept {
-    return {
-        .has_sort = has_sort_,
-        .column = has_sort_ ? sort_column_ : std::uint64_t{},
-        .direction = sort_direction_,
-    };
+DataGridResult DataGridController::set_pinned(std::uint64_t id, DataGridPin pin) noexcept {
+    const std::size_t index = find(id);
+
+    if (index == kNotFound) {
+        return DataGridResult::ignored;
+    }
+
+    if (columns_[index].pinned == pin) {
+        return DataGridResult::handled;
+    }
+
+    columns_[index].pinned = pin;
+
+    return DataGridResult::changed;
+}
+
+std::size_t
+DataGridController::copy_customization(std::span<ColumnCustomization> output) const noexcept {
+    std::size_t copied = count_;
+
+    if (copied > output.size()) {
+        copied = output.size();
+    }
+
+    for (std::size_t i = 0; i < copied; ++i) {
+        output[i] = ColumnCustomization{
+            .id = columns_[i].id,
+            .width = columns_[i].width,
+            .hidden = columns_[i].hidden,
+            .pinned = columns_[i].pinned,
+            .position = static_cast<std::uint32_t>(i),
+        };
+    }
+
+    return copied;
+}
+
+DataGridResult
+DataGridController::apply_customization(std::span<const ColumnCustomization> custom) noexcept {
+    bool known = false;
+
+    for (const ColumnCustomization& entry : custom) {
+        if (find(entry.id) != kNotFound) {
+            known = true;
+            break;
+        }
+    }
+
+    if (!known) {
+        return DataGridResult::ignored;
+    }
+
+    bool changed = false;
+
+    for (const ColumnCustomization& entry : custom) {
+        const std::size_t index = find(entry.id);
+
+        if (index == kNotFound) {
+            continue;
+        }
+
+        if (std::isfinite(entry.width)) {
+            const float clamped =
+                clamp_width(entry.width, columns_[index].min_width, columns_[index].max_width);
+
+            if (columns_[index].width != clamped) {
+                columns_[index].width = clamped;
+                changed = true;
+            }
+        }
+
+        if (columns_[index].hidden != entry.hidden) {
+            columns_[index].hidden = entry.hidden;
+            changed = true;
+        }
+
+        if (columns_[index].pinned != entry.pinned) {
+            columns_[index].pinned = entry.pinned;
+            changed = true;
+        }
+    }
+
+    std::array<std::uint64_t, kCapacity> ranked_ids{};
+    std::array<std::uint32_t, kCapacity> ranked_pos{};
+    std::size_t ranked_count = 0;
+
+    for (const ColumnCustomization& entry : custom) {
+        if (find(entry.id) == kNotFound) {
+            continue;
+        }
+
+        bool duplicate = false;
+
+        for (std::size_t i = 0; i < ranked_count; ++i) {
+            if (ranked_ids[i] == entry.id) {
+                duplicate = true;
+                break;
+            }
+        }
+
+        if (!duplicate) {
+            ranked_ids[ranked_count] = entry.id;
+            ranked_pos[ranked_count] = entry.position;
+            ++ranked_count;
+        }
+    }
+
+    for (std::size_t i = 1; i < ranked_count; ++i) {
+        const std::uint64_t key_id = ranked_ids[i];
+        const std::uint32_t key_pos = ranked_pos[i];
+        std::size_t j = i;
+
+        while (j > 0 && ranked_pos[j - 1] > key_pos) {
+            ranked_ids[j] = ranked_ids[j - 1];
+            ranked_pos[j] = ranked_pos[j - 1];
+            --j;
+        }
+
+        ranked_ids[j] = key_id;
+        ranked_pos[j] = key_pos;
+    }
+
+    std::array<DataGridColumn, kCapacity> next{};
+    std::size_t placed = 0;
+
+    for (std::size_t i = 0; i < ranked_count; ++i) {
+        next[placed] = columns_[find(ranked_ids[i])];
+        ++placed;
+    }
+
+    for (std::size_t i = 0; i < count_; ++i) {
+        bool mentioned = false;
+
+        for (std::size_t j = 0; j < ranked_count; ++j) {
+            if (ranked_ids[j] == columns_[i].id) {
+                mentioned = true;
+                break;
+            }
+        }
+
+        if (!mentioned) {
+            next[placed] = columns_[i];
+            ++placed;
+        }
+    }
+
+    for (std::size_t i = 0; i < count_; ++i) {
+        if (next[i].id != columns_[i].id) {
+            changed = true;
+            break;
+        }
+    }
+
+    if (changed) {
+        for (std::size_t i = 0; i < count_; ++i) {
+            columns_[i] = next[i];
+        }
+
+        if (has_cursor_) {
+            const std::size_t cursor = find(cursor_column_);
+
+            if (cursor == kNotFound || columns_[cursor].hidden) {
+                has_cursor_ = false;
+                cursor_row_ = 0;
+                cursor_column_ = 0;
+            }
+        }
+
+        if (edit_pending_) {
+            const std::size_t edited = find(edit_column_);
+
+            if (edited == kNotFound || columns_[edited].hidden) {
+                cancel_pending();
+            }
+        }
+    }
+
+    return changed ? DataGridResult::changed : DataGridResult::handled;
 }
 
 bool DataGridController::has_sort() const noexcept {
-    return has_sort_;
+    return sort_count_ > 0;
 }
 
-DataGridResult DataGridController::sort_by(std::uint64_t column, SortDirection direction) noexcept {
+std::size_t DataGridController::sort_count() const noexcept {
+    return sort_count_;
+}
+
+std::size_t DataGridController::sort_specs(std::span<SortSpec> output) const noexcept {
+    std::size_t copied = sort_count_;
+
+    if (copied > output.size()) {
+        copied = output.size();
+    }
+
+    for (std::size_t i = 0; i < copied; ++i) {
+        output[i] = sorts_[i];
+    }
+
+    return copied;
+}
+
+DataGridResult DataGridController::sort_by(
+    std::uint64_t column,
+    SortDirection direction,
+    bool accumulate
+) noexcept {
     const std::size_t index = find(column);
 
     if (index == kNotFound || !columns_[index].sortable) {
         return DataGridResult::ignored;
     }
 
-    if (has_sort_ && sort_column_ == column && sort_direction_ == direction) {
+    if (edit_pending_) {
+        cancel_pending();
         return DataGridResult::handled;
     }
 
-    has_sort_ = true;
-    sort_column_ = column;
-    sort_direction_ = direction;
+    if (!accumulate) {
+        if (sort_count_ == 1 && sorts_[0].column == column && sorts_[0].direction == direction) {
+            return DataGridResult::handled;
+        }
+
+        sorts_[0] = SortSpec{.column = column, .direction = direction};
+        sort_count_ = 1;
+
+        return DataGridResult::changed;
+    }
+
+    std::size_t at = kNotFound;
+
+    for (std::size_t i = 0; i < sort_count_; ++i) {
+        if (sorts_[i].column == column) {
+            at = i;
+            break;
+        }
+    }
+
+    if (at != kNotFound) {
+        const SortSpec promoted{.column = column, .direction = direction};
+
+        if (at == 0 && sorts_[0].direction == direction) {
+            return DataGridResult::handled;
+        }
+
+        for (std::size_t i = at; i > 0; --i) {
+            sorts_[i] = sorts_[i - 1];
+        }
+        sorts_[0] = promoted;
+
+        return DataGridResult::changed;
+    }
+
+    if (sort_count_ == kSortCapacity) {
+        return DataGridResult::overflow;
+    }
+
+    sorts_[sort_count_] = SortSpec{.column = column, .direction = direction};
+    ++sort_count_;
 
     return DataGridResult::changed;
 }
 
 DataGridResult DataGridController::clear_sort() noexcept {
-    if (!has_sort_) {
+    if (sort_count_ == 0) {
         return DataGridResult::handled;
     }
 
-    has_sort_ = false;
-    sort_column_ = 0;
+    if (edit_pending_) {
+        cancel_pending();
+        return DataGridResult::handled;
+    }
+
+    sort_count_ = 0;
+    sorts_[0] = SortSpec{};
 
     return DataGridResult::changed;
+}
+
+DataGridDensity DataGridController::density() const noexcept {
+    return density_;
+}
+
+DataGridResult DataGridController::set_density(DataGridDensity density) noexcept {
+    if (density_ == density) {
+        return DataGridResult::handled;
+    }
+
+    density_ = density;
+
+    return DataGridResult::changed;
+}
+
+float DataGridController::density_row_height() const noexcept {
+    switch (density_) {
+    case DataGridDensity::compact:
+        return 24.0F;
+    case DataGridDensity::comfortable:
+        return 40.0F;
+    default:
+        return 32.0F;
+    }
 }
 
 bool DataGridController::write_header_semantics(
@@ -291,12 +572,18 @@ bool DataGridController::write_header_semantics(
 
     std::uint16_t states{};
 
-    if (has_sort_ && sort_column_ == column) {
-        if (sort_direction_ == SortDirection::ascending) {
+    for (std::size_t i = 0; i < sort_count_; ++i) {
+        if (sorts_[i].column != column) {
+            continue;
+        }
+
+        if (sorts_[i].direction == SortDirection::ascending) {
             states = states | SemanticState::sorted_ascending;
         } else {
             states = states | SemanticState::sorted_descending;
         }
+
+        break;
     }
 
     output = {
@@ -307,256 +594,6 @@ bool DataGridController::write_header_semantics(
     };
 
     return true;
-}
-
-CellCursor DataGridController::cursor() const noexcept {
-    return {
-        .has_cursor = has_cursor_,
-        .row = has_cursor_ ? cursor_row_ : std::uint64_t{},
-        .column = has_cursor_ ? cursor_column_ : std::uint64_t{},
-    };
-}
-
-bool DataGridController::has_cursor() const noexcept {
-    return has_cursor_;
-}
-
-DataGridResult DataGridController::set_cursor(
-    std::uint64_t row,
-    std::uint64_t column,
-    std::span<const std::uint64_t> rows
-) noexcept {
-    const std::size_t index = find(column);
-
-    if (index == kNotFound || columns_[index].hidden) {
-        return DataGridResult::ignored;
-    }
-
-    bool known_row = false;
-
-    for (std::uint64_t id : rows) {
-        if (id == row) {
-            known_row = true;
-            break;
-        }
-    }
-
-    if (!known_row) {
-        return DataGridResult::ignored;
-    }
-
-    if (has_cursor_ && cursor_row_ == row && cursor_column_ == column) {
-        return DataGridResult::handled;
-    }
-
-    has_cursor_ = true;
-    cursor_row_ = row;
-    cursor_column_ = column;
-
-    return DataGridResult::changed;
-}
-
-DataGridResult DataGridController::clear_cursor() noexcept {
-    if (!has_cursor_) {
-        return DataGridResult::handled;
-    }
-
-    has_cursor_ = false;
-    cursor_row_ = 0;
-    cursor_column_ = 0;
-
-    return DataGridResult::changed;
-}
-
-CellMove DataGridController::move_cursor(
-    DataGridMove move,
-    std::span<const std::uint64_t> rows,
-    std::size_t page_step
-) noexcept {
-    if (!has_cursor_ || rows.empty()) {
-        return {};
-    }
-
-    constexpr std::size_t missing = static_cast<std::size_t>(-1);
-    std::size_t row_index = missing;
-
-    for (std::size_t i = 0; i < rows.size(); ++i) {
-        if (rows[i] == cursor_row_) {
-            row_index = i;
-            break;
-        }
-    }
-
-    if (row_index == missing) {
-        return {};
-    }
-
-    std::array<std::uint64_t, kCapacity> visible{};
-    const std::size_t visible_size = collect_visible(visible);
-
-    if (visible_size == 0) {
-        return {};
-    }
-
-    std::size_t column_index = missing;
-
-    for (std::size_t i = 0; i < visible_size; ++i) {
-        if (visible[i] == cursor_column_) {
-            column_index = i;
-            break;
-        }
-    }
-
-    if (column_index == missing) {
-        return {};
-    }
-
-    const auto settled = [this](DataGridResult result) {
-        return CellMove{
-            .result = result,
-            .row = cursor_row_,
-            .column = cursor_column_,
-        };
-    };
-
-    switch (move) {
-    case DataGridMove::up:
-        if (row_index == 0) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_row_ = rows[row_index - 1];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::down:
-        if (row_index + 1 == rows.size()) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_row_ = rows[row_index + 1];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::left:
-        if (column_index == 0) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_column_ = visible[column_index - 1];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::right:
-        if (column_index + 1 == visible_size) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_column_ = visible[column_index + 1];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::home:
-        if (column_index == 0) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_column_ = visible.front();
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::end:
-        if (column_index + 1 == visible_size) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_column_ = visible[visible_size - 1];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::page_up:
-        if (page_step == 0) {
-            return {};
-        }
-
-        if (row_index == 0) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_row_ = rows[row_index >= page_step ? row_index - page_step : 0];
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::page_down:
-        if (page_step == 0) {
-            return {};
-        }
-
-        if (row_index + 1 == rows.size()) {
-            return settled(DataGridResult::handled);
-        }
-
-        {
-            std::size_t landed = row_index + page_step;
-
-            if (landed >= rows.size()) {
-                landed = rows.size() - 1;
-            }
-
-            cursor_row_ = rows[landed];
-        }
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::next:
-        if (column_index + 1 < visible_size) {
-            cursor_column_ = visible[column_index + 1];
-
-            return settled(DataGridResult::moved);
-        }
-
-        if (row_index + 1 == rows.size()) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_row_ = rows[row_index + 1];
-        cursor_column_ = visible.front();
-
-        return settled(DataGridResult::moved);
-    case DataGridMove::prev:
-        if (column_index > 0) {
-            cursor_column_ = visible[column_index - 1];
-
-            return settled(DataGridResult::moved);
-        }
-
-        if (row_index == 0) {
-            return settled(DataGridResult::handled);
-        }
-
-        cursor_row_ = rows[row_index - 1];
-        cursor_column_ = visible[visible_size - 1];
-
-        return settled(DataGridResult::moved);
-    }
-
-    return {};
-}
-
-CellEdit DataGridController::begin_edit(std::span<const std::uint64_t> rows) noexcept {
-    if (!has_cursor_) {
-        return {};
-    }
-
-    const std::size_t index = find(cursor_column_);
-
-    if (index == kNotFound || columns_[index].hidden) {
-        return {};
-    }
-
-    for (std::uint64_t id : rows) {
-        if (id == cursor_row_) {
-            return CellEdit{
-                .result = DataGridResult::edit,
-                .row = cursor_row_,
-                .column = cursor_column_,
-            };
-        }
-    }
-
-    return {};
 }
 
 std::size_t DataGridController::find(std::uint64_t id) const noexcept {
@@ -570,12 +607,20 @@ std::size_t DataGridController::find(std::uint64_t id) const noexcept {
 }
 
 std::size_t DataGridController::collect_visible(std::span<std::uint64_t> output) const noexcept {
+    constexpr std::array<DataGridPin, 3> bands{
+        DataGridPin::left,
+        DataGridPin::none,
+        DataGridPin::right,
+    };
+
     std::size_t copied = 0;
 
-    for (std::size_t i = 0; i < count_ && copied < output.size(); ++i) {
-        if (!columns_[i].hidden) {
-            output[copied] = columns_[i].id;
-            ++copied;
+    for (DataGridPin band : bands) {
+        for (std::size_t i = 0; i < count_ && copied < output.size(); ++i) {
+            if (!columns_[i].hidden && columns_[i].pinned == band) {
+                output[copied] = columns_[i].id;
+                ++copied;
+            }
         }
     }
 
@@ -611,26 +656,38 @@ float DataGridController::clamp_width(float width, float low, float high) noexce
     return width;
 }
 
-void DataGridController::snap_cursor_to_visible() noexcept {
-    const std::size_t hidden = find(cursor_column_);
+bool DataGridController::same_spec(
+    const DataGridColumn& before,
+    const DataGridColumn& after
+) const noexcept {
+    return before.id == after.id && before.width == after.width &&
+        before.min_width == after.min_width && before.max_width == after.max_width &&
+        before.sortable == after.sortable && before.hidden == after.hidden &&
+        before.pinned == after.pinned && before.locked_position == after.locked_position &&
+        before.value_kind == after.value_kind;
+}
 
-    if (hidden == kNotFound) {
-        return;
-    }
+std::size_t DataGridController::prune_sorts() noexcept {
+    std::size_t kept = 0;
 
-    for (std::size_t i = hidden; i > 0; --i) {
-        if (!columns_[i - 1].hidden) {
-            cursor_column_ = columns_[i - 1].id;
-            return;
+    for (std::size_t i = 0; i < sort_count_; ++i) {
+        const std::size_t index = find(sorts_[i].column);
+
+        if (index == kNotFound || !columns_[index].sortable) {
+            continue;
         }
+
+        sorts_[kept] = sorts_[i];
+        ++kept;
     }
 
-    for (std::size_t i = hidden + 1; i < count_; ++i) {
-        if (!columns_[i].hidden) {
-            cursor_column_ = columns_[i].id;
-            return;
-        }
+    sort_count_ = kept;
+
+    if (kept < kSortCapacity) {
+        sorts_[kept] = SortSpec{};
     }
+
+    return kept;
 }
 
 }

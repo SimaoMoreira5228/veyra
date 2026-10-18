@@ -683,7 +683,8 @@ float emit_grid_header(
     auto grid = veyra::DataGridController{};
     grid.set_columns(spec);
     grid.sort_by(2, veyra::SortDirection::ascending);
-    const veyra::SortSpec sort = grid.sort_spec();
+    std::array<veyra::SortSpec, 1> sorts{};
+    const std::size_t sort_count = grid.sort_specs(sorts);
     float cursor = x;
     for (const auto& column : spec) {
         const float width = grid.column_width(column.id);
@@ -700,7 +701,7 @@ float emit_grid_header(
                 .color = theme.color(veyra::tokens::color_text_disabled),
             }
         );
-        if (sort.has_sort && sort.column == column.id) {
+        if (sort_count == 1 && sorts[0].column == column.id) {
             commands.push_back(
                 veyra::FillRect{
                     .bounds =
