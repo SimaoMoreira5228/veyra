@@ -88,6 +88,10 @@ target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
 
+add_library(veyra_data STATIC src/data/list_pipeline.cpp)
+target_include_directories(veyra_data PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(veyra_data PUBLIC cxx_std_23)
+
 add_library(veyra_style STATIC src/style/theme.cpp)
 target_include_directories(veyra_style PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -796,6 +800,10 @@ add_test(NAME tooltip_behavior COMMAND veyra_tooltip_test)
 add_executable(veyra_file_operation_queue_test tests/file_operation_queue_test.cpp)
 target_link_libraries(veyra_file_operation_queue_test PRIVATE veyra_behaviors)
 add_test(NAME file_operation_queue_behavior COMMAND veyra_file_operation_queue_test)
+
+add_executable(veyra_list_data_pipeline_test tests/list_data_pipeline_test.cpp)
+target_link_libraries(veyra_list_data_pipeline_test PRIVATE veyra_data)
+add_test(NAME list_data_pipeline_behavior COMMAND veyra_list_data_pipeline_test)
 
 add_executable(veyra_menu_placement_test tests/menu_placement_test.cpp)
 target_link_libraries(veyra_menu_placement_test PRIVATE veyra)
