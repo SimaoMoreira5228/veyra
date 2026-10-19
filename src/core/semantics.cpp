@@ -64,6 +64,10 @@ bool valid_role(SemanticRole role) noexcept {
     case SemanticRole::column_header:
     case SemanticRole::scrollbar:
     case SemanticRole::spinbutton:
+    case SemanticRole::grid:
+    case SemanticRole::row:
+    case SemanticRole::row_header:
+    case SemanticRole::grid_cell:
         return true;
     }
     return false;

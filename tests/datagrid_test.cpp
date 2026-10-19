@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 
@@ -27,6 +28,24 @@ static_assert(
 static_assert(noexcept(veyra::DataGridController{}
                            .move_cursor(DataGridMove::up, std::span<const std::uint64_t>{}, 0)));
 static_assert(noexcept(veyra::DataGridController{}.sort_specs(std::span<veyra::SortSpec>{})));
+static_assert(
+    noexcept(veyra::DataGridController{}
+                 .write_grid_semantics("Grid", true, std::declval<veyra::SemanticNodeData&>()))
+);
+static_assert(
+    noexcept(veyra::DataGridController{}
+                 .write_row_semantics(1, 0, false, std::declval<veyra::SemanticNodeData&>()))
+);
+static_assert(noexcept(veyra::DataGridController{}.write_cell_semantics(
+    1,
+    1,
+    0,
+    0,
+    "Cell",
+    false,
+    false,
+    std::declval<veyra::SemanticNodeData&>()
+)));
 static_assert(noexcept(veyra::DataGridController{}
                            .apply_customization(std::span<const veyra::ColumnCustomization>{})));
 
@@ -1073,6 +1092,155 @@ void check_header_semantics() {
     );
 }
 
+void check_grid_semantics() {
+    auto grid = make_grid();
+
+    auto node = veyra::SemanticNodeData{
+        .role = veyra::SemanticRole::text,
+        .label = "unchanged",
+    };
+    require(!grid.write_grid_semantics({}, true, node), "an empty grid name is rejected");
+    require(node.role == veyra::SemanticRole::text, "rejected grid output stays unchanged");
+
+    require(grid.write_grid_semantics("Tasks", true, node), "a named grid writes semantics");
+    require(
+        node.role == veyra::SemanticRole::grid && node.label == "Tasks" &&
+            veyra::has_state(node.states, veyra::SemanticState::focused) && node.row_index == 0 &&
+            node.column_index == 0,
+        "a focused grid exposes the grid role with the tab-stop state and no indices"
+    );
+
+    auto idle = veyra::SemanticNodeData{};
+    require(grid.write_grid_semantics("Tasks", false, idle), "an unfocused grid writes too");
+    require(
+        idle.role == veyra::SemanticRole::grid &&
+            !veyra::has_state(idle.states, veyra::SemanticState::focused),
+        "an unfocused grid drops the focused state"
+    );
+}
+
+void check_row_semantics() {
+    auto grid = make_grid();
+
+    auto node = veyra::SemanticNodeData{
+        .role = veyra::SemanticRole::text,
+        .label = "unchanged",
+    };
+    require(!grid.write_row_semantics(0, 50, false, node), "a zero row id is rejected");
+    require(node.role == veyra::SemanticRole::text, "rejected row output stays unchanged");
+
+    require(grid.write_row_semantics(70, 50, true, node), "a selected virtual row writes");
+    require(
+        node.role == veyra::SemanticRole::row &&
+            veyra::has_state(node.states, veyra::SemanticState::selected) && node.row_index == 51 &&
+            node.column_index == 0,
+        "a row carries selected with the global 1-based row position"
+    );
+
+    auto plain = veyra::SemanticNodeData{};
+    require(grid.write_row_semantics(70, 0, false, plain), "a first global row writes too");
+    require(
+        plain.role == veyra::SemanticRole::row && plain.row_index == 1 &&
+            !veyra::has_state(plain.states, veyra::SemanticState::selected),
+        "global row zero stores aria-rowindex one without selected"
+    );
+}
+
+void check_cell_semantics() {
+    auto grid = make_grid();
+
+    auto node = veyra::SemanticNodeData{
+        .role = veyra::SemanticRole::text,
+        .label = "unchanged",
+    };
+    require(
+        !grid.write_cell_semantics(10, 2, 0, 1, {}, false, false, node),
+        "an empty cell name is rejected"
+    );
+    require(node.role == veyra::SemanticRole::text, "rejected cell output stays unchanged");
+    require(
+        !grid.write_cell_semantics(10, 99, 0, 1, "Age", false, false, node),
+        "an unknown column is rejected"
+    );
+    require(
+        !grid.write_cell_semantics(0, 2, 0, 1, "Age", false, false, node),
+        "a zero row id is rejected"
+    );
+    require(node.role == veyra::SemanticRole::text, "rejected ids leave the output alone");
+
+    require(
+        grid.write_cell_semantics(30, 2, 50, 1, "Age", true, true, node),
+        "a focused virtual cell writes"
+    );
+    require(
+        node.role == veyra::SemanticRole::grid_cell && node.label == "Age" &&
+            veyra::has_state(node.states, veyra::SemanticState::selected) &&
+            veyra::has_state(node.states, veyra::SemanticState::focused) && node.row_index == 51 &&
+            node.column_index == 2,
+        "the cell pins global 1-based indices with selected and focused"
+    );
+
+    auto first = veyra::SemanticNodeData{};
+    require(
+        grid.write_cell_semantics(10, 1, 0, 0, "Name", false, false, first),
+        "the first visible column writes as the row header"
+    );
+    require(
+        first.role == veyra::SemanticRole::row_header && first.label == "Name" &&
+            first.row_index == 1 && first.column_index == 1 &&
+            !veyra::has_state(first.states, veyra::SemanticState::selected) &&
+            !veyra::has_state(first.states, veyra::SemanticState::focused),
+        "the row header pins position one-one with neither state"
+    );
+
+    grid.set_hidden(3, true);
+    require(
+        !grid.write_cell_semantics(10, 3, 0, 2, "Note", false, false, node),
+        "a hidden column refuses cell output"
+    );
+    require(node.role == veyra::SemanticRole::grid_cell, "the hidden reject leaves output alone");
+}
+
+void check_rowheader_in_virtual_window() {
+    auto grid = veyra::DataGridController{};
+    const std::array<veyra::DataGridColumn, 6> window{{
+        {.id = 5, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+        {.id = 6, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+        {.id = 7, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+        {.id = 8, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+        {.id = 9, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+        {.id = 1, .width = 50.0F, .min_width = 10.0F, .max_width = 100.0F},
+    }};
+    require(grid.set_columns(window) == DataGridResult::changed, "the mounted window is accepted");
+    require(
+        grid.set_pinned(1, DataGridPin::left) == DataGridResult::changed,
+        "the global first column pins left as the header"
+    );
+
+    auto header = veyra::SemanticNodeData{};
+    require(
+        grid.write_cell_semantics(70, 1, 50, 0, "Task", false, true, header),
+        "the pinned header cell writes from the scrolled window"
+    );
+    require(
+        header.role == veyra::SemanticRole::row_header && header.label == "Task" &&
+            header.row_index == 51 && header.column_index == 1 &&
+            veyra::has_state(header.states, veyra::SemanticState::focused),
+        "the pinned column stays the row header with global indices"
+    );
+
+    auto middle = veyra::SemanticNodeData{};
+    require(
+        grid.write_cell_semantics(72, 7, 52, 7, "Due", false, false, middle),
+        "a scrolled middle cell writes too"
+    );
+    require(
+        middle.role == veyra::SemanticRole::grid_cell && middle.row_index == 53 &&
+            middle.column_index == 8,
+        "middle cells report global positions, not window slots"
+    );
+}
+
 void check_overflow_past_capacity() {
     auto grid = veyra::DataGridController{};
 
@@ -1142,6 +1310,10 @@ int main() {
         check_sorting_cancels_pending_edit();
         check_hiding_edited_column_cancels_pending_edit();
         check_header_semantics();
+        check_grid_semantics();
+        check_row_semantics();
+        check_cell_semantics();
+        check_rowheader_in_virtual_window();
         check_overflow_past_capacity();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

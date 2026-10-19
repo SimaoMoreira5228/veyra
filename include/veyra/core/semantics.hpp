@@ -5,6 +5,7 @@
 #include "veyra/layout/geometry.hpp"
 #include "veyra/layout/virtual_list.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -40,6 +41,10 @@ enum class SemanticRole : std::uint8_t {
     column_header,
     scrollbar,
     spinbutton,
+    grid,
+    row,
+    row_header,
+    grid_cell,
 };
 
 enum class SemanticState : std::uint16_t {
@@ -110,6 +115,8 @@ struct SemanticNodeData {
     std::string_view value;
     std::uint16_t states{};
     std::uint16_t actions{};
+    std::size_t row_index{};
+    std::size_t column_index{};
 };
 
 struct SemanticNode {

@@ -596,6 +596,112 @@ bool DataGridController::write_header_semantics(
     return true;
 }
 
+bool DataGridController::write_grid_semantics(
+    std::string_view accessible_name,
+    bool focused,
+    SemanticNodeData& output
+) const noexcept {
+    if (accessible_name.empty()) {
+        return false;
+    }
+
+    std::uint16_t states{};
+
+    if (focused) {
+        states = states | SemanticState::focused;
+    }
+
+    output = {
+        .role = SemanticRole::grid,
+        .label = accessible_name,
+        .states = states,
+        .actions = std::uint16_t{},
+    };
+
+    return true;
+}
+
+bool DataGridController::write_row_semantics(
+    std::uint64_t row,
+    std::size_t row_index,
+    bool selected,
+    SemanticNodeData& output
+) const noexcept {
+    if (row == 0) {
+        return false;
+    }
+
+    std::uint16_t states{};
+
+    if (selected) {
+        states = states | SemanticState::selected;
+    }
+
+    output = {
+        .role = SemanticRole::row,
+        .states = states,
+        .actions = std::uint16_t{},
+        .row_index = row_index + 1,
+    };
+
+    return true;
+}
+
+bool DataGridController::write_cell_semantics(
+    std::uint64_t row,
+    std::uint64_t column,
+    std::size_t row_index,
+    std::size_t column_index,
+    std::string_view accessible_name,
+    bool selected,
+    bool focused,
+    SemanticNodeData& output
+) const noexcept {
+    if (accessible_name.empty()) {
+        return false;
+    }
+
+    if (row == 0) {
+        return false;
+    }
+
+    const std::size_t at = find(column);
+
+    if (at == kNotFound || columns_[at].hidden) {
+        return false;
+    }
+
+    std::array<std::uint64_t, kCapacity> visible{};
+    const std::size_t seen = collect_visible(visible);
+
+    SemanticRole role{SemanticRole::grid_cell};
+
+    if (seen > 0 && visible[0] == column) {
+        role = SemanticRole::row_header;
+    }
+
+    std::uint16_t states{};
+
+    if (selected) {
+        states = states | SemanticState::selected;
+    }
+
+    if (focused) {
+        states = states | SemanticState::focused;
+    }
+
+    output = {
+        .role = role,
+        .label = accessible_name,
+        .states = states,
+        .actions = std::uint16_t{},
+        .row_index = row_index + 1,
+        .column_index = column_index + 1,
+    };
+
+    return true;
+}
+
 std::size_t DataGridController::find(std::uint64_t id) const noexcept {
     for (std::size_t i = 0; i < count_; ++i) {
         if (columns_[i].id == id) {

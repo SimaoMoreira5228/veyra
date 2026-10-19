@@ -145,6 +145,30 @@ class DataGridController {
         SemanticNodeData& output
     ) const noexcept;
 
+    bool write_grid_semantics(
+        std::string_view accessible_name,
+        bool focused,
+        SemanticNodeData& output
+    ) const noexcept;
+
+    bool write_row_semantics(
+        std::uint64_t row,
+        std::size_t row_index,
+        bool selected,
+        SemanticNodeData& output
+    ) const noexcept;
+
+    bool write_cell_semantics(
+        std::uint64_t row,
+        std::uint64_t column,
+        std::size_t row_index,
+        std::size_t column_index,
+        std::string_view accessible_name,
+        bool selected,
+        bool focused,
+        SemanticNodeData& output
+    ) const noexcept;
+
     CellCursor cursor() const noexcept;
     bool has_cursor() const noexcept;
     DataGridResult set_cursor(
