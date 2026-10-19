@@ -1,6 +1,7 @@
 #include "veyra/style/theme.hpp"
 
 #include <cmath>
+#include <span>
 
 namespace veyra {
 
@@ -86,6 +87,21 @@ ThemeUpdateResult clear_override(
     return ThemeUpdateResult::changed;
 }
 
+struct ColorOverride {
+    ColorToken token;
+    Srgba8 value;
+};
+
+Theme with_preset(std::span<const ColorOverride> presets) noexcept {
+    auto theme = Theme{};
+
+    for (const auto& preset : presets) {
+        theme.set(preset.token, preset.value);
+    }
+
+    return theme;
+}
+
 template <typename Token, typename Value, std::size_t Size>
 Value resolve(
     Token token,
@@ -169,4 +185,87 @@ std::uint64_t Theme::version() const noexcept {
     return version_;
 }
 
+Theme Theme::light() noexcept {
+    return Theme{};
+}
+
+Theme Theme::dark() noexcept {
+    constexpr ColorOverride presets[] = {
+        {ColorToken::surface, {.red = 28, .green = 30, .blue = 38}},
+        {ColorToken::text_primary, {.red = 232, .green = 234, .blue = 240}},
+        {ColorToken::action_primary, {.red = 96, .green = 150, .blue = 228}},
+        {ColorToken::action_on_primary, {.red = 12, .green = 14, .blue = 18}},
+        {ColorToken::action_hovered, {.red = 120, .green = 168, .blue = 238}},
+        {ColorToken::action_pressed, {.red = 74, .green = 120, .blue = 196}},
+        {ColorToken::action_disabled, {.red = 70, .green = 74, .blue = 84}},
+        {ColorToken::text_disabled, {.red = 132, .green = 138, .blue = 150}},
+        {ColorToken::toggle_checked, {.red = 96, .green = 150, .blue = 228}},
+        {ColorToken::toggle_on_checked, {.red = 12, .green = 14, .blue = 18}},
+        {ColorToken::error, {.red = 255, .green = 110, .blue = 118}},
+    };
+
+    return with_preset(presets);
+}
+
+Theme Theme::high_contrast() noexcept {
+    constexpr ColorOverride presets[] = {
+        {ColorToken::surface, {.red = 0, .green = 0, .blue = 0}},
+        {ColorToken::text_primary, {.red = 255, .green = 255, .blue = 255}},
+        {ColorToken::action_primary, {.red = 255, .green = 205, .blue = 0}},
+        {ColorToken::action_on_primary, {.red = 0, .green = 0, .blue = 0}},
+        {ColorToken::action_hovered, {.red = 255, .green = 255, .blue = 255}},
+        {ColorToken::action_pressed, {.red = 180, .green = 140, .blue = 0}},
+        {ColorToken::action_disabled, {.red = 128, .green = 128, .blue = 128}},
+        {ColorToken::text_disabled, {.red = 170, .green = 170, .blue = 170}},
+        {ColorToken::toggle_checked, {.red = 0, .green = 180, .blue = 255}},
+        {ColorToken::toggle_on_checked, {.red = 0, .green = 0, .blue = 0}},
+        {ColorToken::error, {.red = 255, .green = 90, .blue = 90}},
+    };
+
+    return with_preset(presets);
+}
+
+ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
+    auto changed = false;
+
+    for (auto index = std::size_t{}; index < colors_.size(); ++index) {
+        if (overlay.colors_[index] && colors_[index] != overlay.colors_[index]) {
+            colors_[index] = overlay.colors_[index];
+            changed = true;
+        }
+    }
+
+    for (auto index = std::size_t{}; index < spaces_.size(); ++index) {
+        if (overlay.spaces_[index] && spaces_[index] != overlay.spaces_[index]) {
+            spaces_[index] = overlay.spaces_[index];
+            changed = true;
+        }
+    }
+
+    for (auto index = std::size_t{}; index < radii_.size(); ++index) {
+        if (overlay.radii_[index] && radii_[index] != overlay.radii_[index]) {
+            radii_[index] = overlay.radii_[index];
+            changed = true;
+        }
+    }
+
+    for (auto index = std::size_t{}; index < motions_.size(); ++index) {
+        if (overlay.motions_[index] && motions_[index] != overlay.motions_[index]) {
+            motions_[index] = overlay.motions_[index];
+            changed = true;
+        }
+    }
+
+    if (!changed) {
+        return ThemeUpdateResult::unchanged;
+    }
+
+    ++version_;
+
+    if (version_ == 0) {
+        version_ = 1;
+    }
+
+    return ThemeUpdateResult::changed;
+}
 }

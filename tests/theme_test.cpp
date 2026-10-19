@@ -515,6 +515,103 @@ void check_out_of_range_reads_fall_back_to_first_default() {
     );
 }
 
+void check_presets_resolve_their_palettes() {
+    const auto light = veyra::Theme::light();
+    const auto plain = veyra::Theme{};
+
+    require(
+        light.color(veyra::tokens::color_surface) == plain.color(veyra::tokens::color_surface) &&
+            light.color(veyra::tokens::color_text_primary) ==
+                plain.color(veyra::tokens::color_text_primary),
+        "the light preset matches the defaults"
+    );
+
+    const auto dark = veyra::Theme::dark();
+
+    require(
+        dark.color(veyra::tokens::color_surface) ==
+            veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
+        "the dark preset flips the surface"
+    );
+    require(
+        dark.color(veyra::tokens::color_text_primary) ==
+            veyra::Srgba8{.red = 232, .green = 234, .blue = 240},
+        "the dark preset flips the text"
+    );
+    require(
+        dark.space(veyra::tokens::space_medium) == plain.space(veyra::tokens::space_medium),
+        "the dark preset keeps the default spacing"
+    );
+
+    const auto contrast = veyra::Theme::high_contrast();
+
+    require(
+        contrast.color(veyra::tokens::color_surface) ==
+            veyra::Srgba8{.red = 0, .green = 0, .blue = 0},
+        "the contrast preset uses a black surface"
+    );
+    require(
+        contrast.color(veyra::tokens::color_text_primary) ==
+            veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
+        "the contrast preset uses white text"
+    );
+    require(
+        contrast.color(veyra::tokens::color_action_primary) ==
+            veyra::Srgba8{.red = 255, .green = 205, .blue = 0},
+        "the contrast preset marks actions in yellow"
+    );
+}
+
+void check_apply_overlays_set_tokens() {
+    auto base = veyra::Theme::light();
+    auto tweaks = veyra::Theme{};
+    const auto red = veyra::Srgba8{.red = 200, .green = 30, .blue = 30};
+
+    require(
+        tweaks.set(veyra::tokens::color_action_primary, red) == veyra::ThemeUpdateResult::changed,
+        "the tweak theme takes the override"
+    );
+
+    const auto before = base.version();
+
+    require(
+        base.apply(tweaks) == veyra::ThemeUpdateResult::changed,
+        "applying set tokens reports a change"
+    );
+    require(base.version() != before, "an overlay advances the version");
+    require(base.color(veyra::tokens::color_action_primary) == red, "applied tokens resolve");
+    require(
+        base.color(veyra::tokens::color_surface) ==
+            veyra::Theme{}.color(veyra::tokens::color_surface),
+        "unset tokens keep the base values"
+    );
+
+    const auto applied_version = base.version();
+
+    require(
+        base.apply(tweaks) == veyra::ThemeUpdateResult::unchanged,
+        "re-applying the same overlay is a no-op"
+    );
+    require(base.version() == applied_version, "a no-op overlay holds the version");
+
+    auto empty = veyra::Theme{};
+
+    require(
+        empty.apply(veyra::Theme{}) == veyra::ThemeUpdateResult::unchanged,
+        "an empty overlay changes nothing"
+    );
+
+    require(
+        base.clear(veyra::tokens::color_action_primary) == veyra::ThemeUpdateResult::changed,
+        "clearing drops the overlaid token"
+    );
+    require(
+        base.color(veyra::tokens::color_action_primary) ==
+            veyra::Theme{}.color(veyra::tokens::color_action_primary),
+        "clearing reveals the base value again"
+    );
+}
+
 }
 
 int main() {
@@ -529,6 +626,8 @@ int main() {
         check_full_default_tables_and_clear_restores();
         check_dimension_boundaries_keep_previous();
         check_out_of_range_reads_fall_back_to_first_default();
+        check_presets_resolve_their_palettes();
+        check_apply_overlays_set_tokens();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

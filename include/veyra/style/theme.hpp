@@ -105,6 +105,10 @@ enum class ThemeUpdateResult : std::uint8_t {
 
 class Theme {
   public:
+    static Theme light() noexcept;
+    static Theme dark() noexcept;
+    static Theme high_contrast() noexcept;
+
     Srgba8 color(ColorToken token) const noexcept;
     LogicalPx space(SpaceToken token) const noexcept;
     LogicalPx radius(RadiusToken token) const noexcept;
@@ -119,6 +123,7 @@ class Theme {
     ThemeUpdateResult clear(SpaceToken token) noexcept;
     ThemeUpdateResult clear(RadiusToken token) noexcept;
     ThemeUpdateResult clear(MotionToken token) noexcept;
+    ThemeUpdateResult apply(const Theme& overlay) noexcept;
 
     std::uint64_t version() const noexcept;
 

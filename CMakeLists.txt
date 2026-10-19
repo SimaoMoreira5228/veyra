@@ -98,7 +98,7 @@ target_include_directories(veyra_style PUBLIC
 )
 target_compile_features(veyra_style PUBLIC cxx_std_23)
 
-add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp src/widgets/basic/textfield.cpp src/widgets/basic/radio.cpp)
+add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp src/widgets/basic/textfield.cpp src/widgets/basic/radio.cpp src/widgets/data/data_grid.cpp)
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
@@ -748,6 +748,10 @@ add_test(NAME theme_tokens_behavior COMMAND veyra_theme_test)
 add_executable(veyra_button_appearance_test tests/button_appearance_test.cpp)
 target_link_libraries(veyra_button_appearance_test PRIVATE veyra_widgets_basic)
 add_test(NAME button_appearance_behavior COMMAND veyra_button_appearance_test)
+
+add_executable(veyra_data_grid_widget_test tests/data_grid_widget_test.cpp)
+target_link_libraries(veyra_data_grid_widget_test PRIVATE veyra_widgets_basic)
+add_test(NAME data_grid_widget_behavior COMMAND veyra_data_grid_widget_test)
 
 add_executable(veyra_toggle_test tests/toggle_test.cpp)
 target_link_libraries(veyra_toggle_test PRIVATE veyra_behaviors)

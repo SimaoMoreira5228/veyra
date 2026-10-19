@@ -13,6 +13,7 @@
 #include "veyra/widgets/basic/radio.hpp"
 #include "veyra/widgets/basic/textfield.hpp"
 #include "veyra/widgets/basic/toggle.hpp"
+#include "veyra/widgets/data/data_grid.hpp"
 
 #include <array>
 #include <charconv>
@@ -685,35 +686,19 @@ float emit_grid_header(
     grid.sort_by(2, veyra::SortDirection::ascending);
     std::array<veyra::SortSpec, 1> sorts{};
     const std::size_t sort_count = grid.sort_specs(sorts);
-    float cursor = x;
-    for (const auto& column : spec) {
-        const float width = grid.column_width(column.id);
-        commands.push_back(
-            veyra::FillRect{
-                .bounds = {.x = cursor, .y = y, .width = width, .height = 28.0F},
-                .color = theme.color(veyra::tokens::color_surface),
-            }
-        );
-        commands.push_back(
-            veyra::StrokeRect{
-                .bounds = {.x = cursor, .y = y, .width = width, .height = 28.0F},
-                .thickness = 1.0F,
-                .color = theme.color(veyra::tokens::color_text_disabled),
-            }
-        );
-        if (sort_count == 1 && sorts[0].column == column.id) {
-            commands.push_back(
-                veyra::FillRect{
-                    .bounds =
-                        {.x = cursor + width - 14.0F,
-                         .y = y + 10.0F,
-                         .width = 8.0F,
-                         .height = 8.0F},
-                    .color = theme.color(veyra::tokens::color_action_primary),
-                }
-            );
-        }
-        cursor += width;
+    std::array<veyra::DisplayCommand, veyra::data_grid_header_capacity(spec.size())> header{};
+    const veyra::DataGridEmit emitted = veyra::emit_data_grid_header(
+        theme,
+        spec,
+        std::span(sorts).first(sort_count),
+        {x, y, 28.0F},
+        header
+    );
+    if (emitted.overflow) {
+        throw std::runtime_error("grid header overflows its span");
+    }
+    for (std::size_t index = 0; index < emitted.count; ++index) {
+        commands.push_back(header[index]);
     }
     return y + 28.0F;
 }
