@@ -98,7 +98,17 @@ target_include_directories(veyra_style PUBLIC
 )
 target_compile_features(veyra_style PUBLIC cxx_std_23)
 
-add_library(veyra_widgets_basic STATIC src/widgets/basic/button.cpp src/widgets/basic/toggle.cpp src/widgets/basic/textfield.cpp src/widgets/basic/radio.cpp src/widgets/data/data_grid.cpp)
+add_library(
+    veyra_widgets_basic
+    STATIC
+    src/widgets/basic/button.cpp
+    src/widgets/basic/toggle.cpp
+    src/widgets/basic/textfield.cpp
+    src/widgets/basic/radio.cpp
+    src/widgets/data/virtual_list.cpp
+    src/widgets/data/data_grid.cpp
+    src/widgets/data/tree_view.cpp
+)
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
@@ -903,6 +913,28 @@ target_link_libraries(veyra_gallery PRIVATE veyra_widgets_basic veyra_behaviors 
 add_executable(veyra_gallery_test tests/gallery_test.cpp)
 target_link_libraries(veyra_gallery_test PRIVATE veyra_widgets_basic veyra_behaviors veyra)
 add_test(NAME gallery_behavior COMMAND veyra_gallery_test)
+
+add_executable(veyra_virtual_list_widget_test tests/virtual_list_widget_test.cpp)
+target_link_libraries(
+    veyra_virtual_list_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+    veyra_data
+    veyra
+)
+add_test(NAME virtual_list_widget_behavior COMMAND veyra_virtual_list_widget_test)
+
+add_executable(veyra_tree_view_widget_test tests/tree_view_widget_test.cpp)
+target_link_libraries(
+    veyra_tree_view_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+    veyra_data
+    veyra
+)
+add_test(NAME tree_view_widget_behavior COMMAND veyra_tree_view_widget_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
