@@ -1,5 +1,4 @@
-#ifndef VEYRA_TESTS_DISPLAY_LIST_EQUIVALENCE_HPP
-#define VEYRA_TESTS_DISPLAY_LIST_EQUIVALENCE_HPP
+#include "veyra/render/display_equivalence.hpp"
 
 #include "veyra/render/software_renderer.hpp"
 
@@ -11,21 +10,20 @@
 
 namespace veyra {
 
-inline bool same_float_bits(float left, float right) noexcept {
+bool same_float_bits(float left, float right) noexcept {
     return std::bit_cast<std::uint32_t>(left) == std::bit_cast<std::uint32_t>(right);
 }
 
-inline bool same_point(LayoutPoint left, LayoutPoint right) noexcept {
+bool same_point(LayoutPoint left, LayoutPoint right) noexcept {
     return same_float_bits(left.x, right.x) && same_float_bits(left.y, right.y);
 }
 
-inline bool same_rect(LayoutRect left, LayoutRect right) noexcept {
+bool same_rect(LayoutRect left, LayoutRect right) noexcept {
     return same_float_bits(left.x, right.x) && same_float_bits(left.y, right.y) &&
         same_float_bits(left.width, right.width) && same_float_bits(left.height, right.height);
 }
 
-inline bool
-same_points(std::span<const LayoutPoint> left, std::span<const LayoutPoint> right) noexcept {
+bool same_points(std::span<const LayoutPoint> left, std::span<const LayoutPoint> right) noexcept {
     if (left.size() != right.size()) {
         return false;
     }
@@ -39,8 +37,7 @@ same_points(std::span<const LayoutPoint> left, std::span<const LayoutPoint> righ
     return true;
 }
 
-inline bool
-same_segment(const SoftwarePathSegment& left, const SoftwarePathSegment& right) noexcept {
+bool same_segment(const SoftwarePathSegment& left, const SoftwarePathSegment& right) noexcept {
     if (left.index() != right.index()) {
         return false;
     }
@@ -65,7 +62,7 @@ same_segment(const SoftwarePathSegment& left, const SoftwarePathSegment& right) 
     return false;
 }
 
-inline bool same_segments(
+bool same_segments(
     std::span<const SoftwarePathSegment> left,
     std::span<const SoftwarePathSegment> right
 ) noexcept {
@@ -82,12 +79,11 @@ inline bool same_segments(
     return true;
 }
 
-inline bool
-same_contour(const SoftwarePathContour& left, const SoftwarePathContour& right) noexcept {
+bool same_contour(const SoftwarePathContour& left, const SoftwarePathContour& right) noexcept {
     return same_point(left.start, right.start) && same_segments(left.segments, right.segments);
 }
 
-inline bool same_contours(
+bool same_contours(
     std::span<const SoftwarePathContour> left,
     std::span<const SoftwarePathContour> right
 ) noexcept {
@@ -104,7 +100,7 @@ inline bool same_contours(
     return true;
 }
 
-inline bool same_command(const DisplayCommand& left, const DisplayCommand& right) noexcept {
+bool same_command(const DisplayCommand& left, const DisplayCommand& right) noexcept {
     if (left.index() != right.index()) {
         return false;
     }
@@ -200,7 +196,7 @@ inline bool same_command(const DisplayCommand& left, const DisplayCommand& right
     return std::get_if<PopClip>(&left) != nullptr;
 }
 
-inline bool equivalent_display_lists(
+bool equivalent_display_lists(
     std::span<const DisplayCommand> left,
     std::span<const DisplayCommand> right,
     std::size_t& first_different
@@ -226,7 +222,7 @@ inline bool equivalent_display_lists(
     return true;
 }
 
-inline bool equivalent_display_lists(
+bool equivalent_display_lists(
     std::span<const DisplayCommand> left,
     std::span<const DisplayCommand> right
 ) noexcept {
@@ -236,5 +232,3 @@ inline bool equivalent_display_lists(
 }
 
 }
-
-#endif

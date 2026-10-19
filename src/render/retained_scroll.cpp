@@ -61,6 +61,124 @@ RetainedScrollResult paint_full(
     return RetainedScrollResult::complete;
 }
 
+bool same_geometry(const SoftwareSurface& left, const SoftwareSurface& right) noexcept {
+    return left.width == right.width && left.height == right.height &&
+        left.stride == right.stride && left.pixels.size() == right.pixels.size();
+}
+
+bool same_pixel(const SoftwarePixel& left, const SoftwarePixel& right) noexcept {
+    return left.red == right.red && left.green == right.green && left.blue == right.blue &&
+        left.alpha == right.alpha;
+}
+
+std::size_t first_live_pixel_difference(
+    const SoftwareSurface& surface,
+    const SoftwareSurface& scratch
+) noexcept {
+    for (auto row = std::size_t{}; row < surface.height; ++row) {
+        const auto base = row * surface.stride;
+
+        for (auto column = std::size_t{}; column < surface.width; ++column) {
+            if (!same_pixel(surface.pixels[base + column], scratch.pixels[base + column])) {
+                return base + column;
+            }
+        }
+    }
+
+    return surface.pixels.size();
+}
+
+void copy_live_pixels(const SoftwareSurface& scratch, SoftwareSurface surface) noexcept {
+    for (auto row = std::size_t{}; row < surface.height; ++row) {
+        const auto base = row * surface.stride;
+
+        for (auto column = std::size_t{}; column < surface.width; ++column) {
+            surface.pixels[base + column] = scratch.pixels[base + column];
+        }
+    }
+}
+
+RetainedVerifyResult map_verify_retained_result(RetainedScrollResult result) noexcept {
+    switch (result) {
+    case RetainedScrollResult::complete:
+        return RetainedVerifyResult::complete;
+    case RetainedScrollResult::invalid_input:
+        return RetainedVerifyResult::invalid_input;
+    case RetainedScrollResult::invalid_surface:
+        return RetainedVerifyResult::invalid_surface;
+    case RetainedScrollResult::insufficient_workspace:
+        return RetainedVerifyResult::insufficient_workspace;
+    }
+
+    return RetainedVerifyResult::invalid_input;
+}
+
+RetainedVerifyResult map_verify_render_result(SoftwareRenderResult result) noexcept {
+    switch (result) {
+    case SoftwareRenderResult::complete:
+        return RetainedVerifyResult::complete;
+    case SoftwareRenderResult::invalid_input:
+        return RetainedVerifyResult::invalid_input;
+    case SoftwareRenderResult::invalid_surface:
+        return RetainedVerifyResult::invalid_surface;
+    case SoftwareRenderResult::insufficient_workspace:
+        return RetainedVerifyResult::insufficient_workspace;
+    }
+
+    return RetainedVerifyResult::invalid_input;
+}
+
+}
+
+RetainedVerifyResult render_retained_scrolled_verified(
+    std::span<const DisplayCommand> commands,
+    SoftwareSurface surface,
+    SoftwareRenderWorkspace workspace,
+    const RetainedScrollRequest& request,
+    RetainedScrollSurface& retained,
+    SoftwareSurface scratch,
+    RetainedScrollStats& stats,
+    RetainedScrollVerifyStats& verify_stats
+) noexcept {
+    stats = RetainedScrollStats{};
+    verify_stats = RetainedScrollVerifyStats{};
+
+    if (surface.width == 0 || surface.height == 0) {
+        return RetainedVerifyResult::invalid_surface;
+    }
+
+    if (!same_geometry(surface, scratch)) {
+        return RetainedVerifyResult::invalid_input;
+    }
+
+    const auto retained_result =
+        render_retained_scrolled(commands, surface, workspace, request, retained, stats);
+
+    if (retained_result != RetainedScrollResult::complete) {
+        return map_verify_retained_result(retained_result);
+    }
+
+    const auto oracle_result = render_software(commands, scratch, workspace);
+
+    if (oracle_result != SoftwareRenderResult::complete) {
+        stats = RetainedScrollStats{};
+        verify_stats = RetainedScrollVerifyStats{};
+
+        return map_verify_render_result(oracle_result);
+    }
+
+    const auto first_different = first_live_pixel_difference(surface, scratch);
+    verify_stats.verified = true;
+    verify_stats.first_different = first_different;
+
+    if (first_different == surface.pixels.size()) {
+        return RetainedVerifyResult::complete;
+    }
+
+    copy_live_pixels(scratch, surface);
+    retained.painted_generation = request.content_generation;
+
+    return RetainedVerifyResult::mismatch;
 }
 
 RetainedScrollResult render_retained_scrolled(

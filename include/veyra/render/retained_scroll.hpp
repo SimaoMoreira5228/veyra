@@ -35,6 +35,19 @@ enum class RetainedScrollResult : std::uint8_t {
     insufficient_workspace,
 };
 
+enum class RetainedVerifyResult : std::uint8_t {
+    complete,
+    mismatch,
+    invalid_input,
+    invalid_surface,
+    insufficient_workspace,
+};
+
+struct RetainedScrollVerifyStats {
+    bool verified{};
+    std::size_t first_different{};
+};
+
 RetainedScrollResult render_retained_scrolled(
     std::span<const DisplayCommand> commands,
     SoftwareSurface surface,
@@ -42,6 +55,17 @@ RetainedScrollResult render_retained_scrolled(
     const RetainedScrollRequest& request,
     RetainedScrollSurface& retained,
     RetainedScrollStats& stats
+) noexcept;
+
+RetainedVerifyResult render_retained_scrolled_verified(
+    std::span<const DisplayCommand> commands,
+    SoftwareSurface surface,
+    SoftwareRenderWorkspace workspace,
+    const RetainedScrollRequest& request,
+    RetainedScrollSurface& retained,
+    SoftwareSurface scratch,
+    RetainedScrollStats& stats,
+    RetainedScrollVerifyStats& verify_stats
 ) noexcept;
 
 }

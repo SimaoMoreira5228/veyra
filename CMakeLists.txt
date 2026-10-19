@@ -67,6 +67,7 @@ add_library(veyra STATIC
  src/render/shadow.cpp
  src/render/e3_scenes.cpp
  src/render/display_command_hash.cpp
+ src/render/display_equivalence.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/syntax_spans.cpp
@@ -1443,6 +1444,12 @@ if(VEYRA_BUILD_BENCH)
   COMMAND
    veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scroll-delta 8
    --scroll-full
+ )
+ add_test(
+  NAME software_renderer_scroll_verify_benchmark_smoke
+  COMMAND
+   veyra_software_renderer_bench --width 64 --height 48 --frames 20 --warmup 2 --scroll-delta 8
+   --scroll-verify
  )
  add_test(NAME damage_tracker_benchmark_smoke COMMAND veyra_damage_tracker_bench)
  add_test(

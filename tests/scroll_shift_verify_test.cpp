@@ -1,5 +1,5 @@
-#include "display_list_equivalence.hpp"
 #include "scroll_surface_helpers.hpp"
+#include "veyra/render/display_equivalence.hpp"
 
 #include "veyra/inspector/trace_recorder.hpp"
 #include "veyra/render/scroll_shift.hpp"

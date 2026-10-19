@@ -94,9 +94,11 @@ void require_same_pixels(
 
 struct Harness {
     std::array<veyra::SoftwarePixel, width * height> pixels{};
+    std::array<veyra::SoftwarePixel, width * height> mirror{};
     std::array<veyra::SoftwareClipRect, 4> clips{};
     veyra::RetainedScrollSurface retained{};
     veyra::RetainedScrollStats stats{};
+    veyra::RetainedScrollVerifyStats verify_stats{};
 
     veyra::SoftwareSurface surface() {
         return veyra::SoftwareSurface{
@@ -104,6 +106,15 @@ struct Harness {
             .height = height,
             .stride = width,
             .pixels = pixels,
+        };
+    }
+
+    veyra::SoftwareSurface scratch() {
+        return veyra::SoftwareSurface{
+            .width = width,
+            .height = height,
+            .stride = width,
+            .pixels = mirror,
         };
     }
 
@@ -120,6 +131,22 @@ struct Harness {
             request,
             retained,
             stats
+        );
+    }
+
+    veyra::RetainedVerifyResult present_verified(
+        std::span<const veyra::DisplayCommand> commands,
+        veyra::RetainedScrollRequest request
+    ) {
+        return veyra::render_retained_scrolled_verified(
+            commands,
+            surface(),
+            workspace(),
+            request,
+            retained,
+            scratch(),
+            stats,
+            verify_stats
         );
     }
 
@@ -462,6 +489,201 @@ void check_strided_surface_scrolls() {
     require_same_pixels(pixels, want, "a strided scroll matches a full repaint");
 }
 
+void check_verified_scroll_matches_oracle() {
+    auto harness = Harness{};
+    const auto first = scrolled_rows(0);
+    const auto second = scrolled_rows(3);
+
+    require(
+        harness.present_verified(first.draws, {.content_generation = 1}) ==
+            veyra::RetainedVerifyResult::complete,
+        "a verified first frame presents"
+    );
+    require(harness.verify_stats.verified, "a verified first frame runs the comparison");
+    require(
+        harness.verify_stats.first_different == width * height,
+        "a matching frame reports the full span"
+    );
+    harness.require_matches_oracle(first.draws);
+
+    require(
+        harness.present_verified(second.draws, {.delta_y = 3, .content_generation = 1}) ==
+            veyra::RetainedVerifyResult::complete,
+        "a verified scroll presents"
+    );
+    require(harness.stats.reused, "a verified scroll reuses the blit");
+    require(harness.stats.strip_count == 1, "a verified scroll repaints one strip");
+    require(harness.verify_stats.verified, "a verified scroll runs the comparison");
+    require(
+        harness.verify_stats.first_different == width * height,
+        "a matching scroll reports the full span"
+    );
+    harness.require_matches_oracle(second.draws);
+}
+
+void check_verified_heals_corrupted_retained() {
+    auto harness = Harness{};
+    const auto first = scrolled_rows(0);
+    const auto second = scrolled_rows(3);
+
+    require(
+        harness.present_verified(first.draws, {.content_generation = 1}) ==
+            veyra::RetainedVerifyResult::complete,
+        "the first frame presents"
+    );
+
+    constexpr auto corrupt = std::size_t{1 * width + 4};
+    harness.pixels[corrupt] = veyra::SoftwarePixel{.red = 1, .green = 2, .blue = 3, .alpha = 4};
+
+    require(
+        harness.present_verified(second.draws, {.delta_y = 3, .content_generation = 1}) ==
+            veyra::RetainedVerifyResult::mismatch,
+        "a corrupted blit reports a mismatch"
+    );
+    require(harness.verify_stats.verified, "a mismatch still ran the comparison");
+    require(
+        harness.verify_stats.first_different == corrupt + 3 * width,
+        "the mismatch points at the shifted scribble"
+    );
+    harness.require_matches_oracle(second.draws);
+
+    require(
+        harness.present_verified(second.draws, {.content_generation = 1}) ==
+            veyra::RetainedVerifyResult::complete,
+        "a healed layer verifies clean"
+    );
+    require(harness.verify_stats.verified, "the follow-up runs the comparison");
+    harness.require_matches_oracle(second.draws);
+}
+
+void check_verified_rejects_mismatched_scratch() {
+    auto harness = Harness{};
+    const auto frame = scrolled_rows(0);
+
+    require(
+        harness.present_verified(frame.draws, {.content_generation = 1}) ==
+            veyra::RetainedVerifyResult::complete,
+        "the first frame presents"
+    );
+    const auto painted = harness.pixels;
+
+    auto roomy = std::array<veyra::SoftwarePixel, (width + 1) * height>{};
+    const auto bad_scratch = veyra::SoftwareSurface{
+        .width = width,
+        .height = height,
+        .stride = width + 1,
+        .pixels = roomy,
+    };
+
+    require(
+        veyra::render_retained_scrolled_verified(
+            frame.draws,
+            harness.surface(),
+            harness.workspace(),
+            {.content_generation = 1},
+            harness.retained,
+            bad_scratch,
+            harness.stats,
+            harness.verify_stats
+        ) == veyra::RetainedVerifyResult::invalid_input,
+        "a mismatched scratch fails closed"
+    );
+    require(!harness.verify_stats.verified, "a rejected frame never compares");
+    require(
+        !harness.stats.reused && harness.stats.strip_count == 0,
+        "a rejected frame reports no work"
+    );
+    require_same_pixels(harness.pixels, painted, "a rejected frame leaves pixels alone");
+}
+
+void check_verified_ignores_stride_padding() {
+    constexpr auto stride = std::size_t{12};
+    auto pixels = std::array<veyra::SoftwarePixel, stride * height>{};
+    auto mirror = std::array<veyra::SoftwarePixel, stride * height>{};
+
+    for (auto& pixel : mirror) {
+        pixel = veyra::SoftwarePixel{.red = 9, .green = 9, .blue = 9, .alpha = 9};
+    }
+
+    std::array<veyra::SoftwareClipRect, 4> clips{};
+    auto retained = veyra::RetainedScrollSurface{};
+    auto stats = veyra::RetainedScrollStats{};
+    auto verify_stats = veyra::RetainedScrollVerifyStats{};
+    const auto frame = scrolled_rows(0);
+    const auto moved = scrolled_rows(2);
+    const auto surface = veyra::SoftwareSurface{
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .pixels = pixels,
+    };
+    const auto scratch = veyra::SoftwareSurface{
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .pixels = mirror,
+    };
+    const auto workspace = veyra::SoftwareRenderWorkspace{.clips = clips};
+
+    require(
+        veyra::render_retained_scrolled_verified(
+            frame.draws,
+            surface,
+            workspace,
+            {.content_generation = 1},
+            retained,
+            scratch,
+            stats,
+            verify_stats
+        ) == veyra::RetainedVerifyResult::complete,
+        "a strided first frame verifies"
+    );
+    require(
+        veyra::render_retained_scrolled_verified(
+            moved.draws,
+            surface,
+            workspace,
+            {.delta_y = 2, .content_generation = 1},
+            retained,
+            scratch,
+            stats,
+            verify_stats
+        ) == veyra::RetainedVerifyResult::complete,
+        "stride padding never trips the comparison"
+    );
+    require(verify_stats.verified, "a strided scroll runs the comparison");
+
+    auto want = std::array<veyra::SoftwarePixel, stride * height>{};
+    paint_oracle(moved.draws, want, stride, width, height);
+    require_same_pixels(pixels, want, "a strided scroll matches a full repaint");
+}
+
+void check_verified_invalid_surface_fails() {
+    auto harness = Harness{};
+    const auto frame = scrolled_rows(0);
+    const auto broken = veyra::SoftwareSurface{
+        .width = 0,
+        .height = height,
+        .stride = width,
+        .pixels = harness.pixels,
+    };
+
+    require(
+        veyra::render_retained_scrolled_verified(
+            frame.draws,
+            broken,
+            harness.workspace(),
+            {.content_generation = 1},
+            harness.retained,
+            harness.scratch(),
+            harness.stats,
+            harness.verify_stats
+        ) == veyra::RetainedVerifyResult::invalid_surface,
+        "an empty surface fails closed"
+    );
+    require(!harness.verify_stats.verified, "a failed surface never compares");
+}
+
 void check_invalid_surface_fails() {
     auto harness = Harness{};
     const auto frame = scrolled_rows(0);
@@ -502,6 +724,11 @@ int main() {
         check_clipped_scroll_updates_clip_only();
         check_strided_surface_scrolls();
         check_invalid_surface_fails();
+        check_verified_scroll_matches_oracle();
+        check_verified_heals_corrupted_retained();
+        check_verified_rejects_mismatched_scratch();
+        check_verified_ignores_stride_padding();
+        check_verified_invalid_surface_fails();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

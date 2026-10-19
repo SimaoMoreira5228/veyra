@@ -1,6 +1,6 @@
 #include "allocation_counter.hpp"
-#include "display_list_equivalence.hpp"
 #include "e0_fixed_scene.hpp"
+#include "veyra/render/display_equivalence.hpp"
 
 #include "veyra/inspector/trace_recorder.hpp"
 #include "veyra/render/scroll_shift.hpp"

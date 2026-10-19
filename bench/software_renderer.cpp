@@ -26,6 +26,7 @@ struct Options {
     std::size_t warmup{500};
     std::size_t scroll_delta{};
     bool scroll_full{};
+    bool scroll_verify{};
     bool damage{};
     bool translucent{};
     bool mask{};
@@ -126,6 +127,10 @@ Options parse_options(int argc, char** argv) {
             options.scroll_full = true;
             continue;
         }
+        if (argument == "--scroll-verify") {
+            options.scroll_verify = true;
+            continue;
+        }
         if (index + 1 >= argc) {
             throw std::invalid_argument("missing value for " + std::string(argument));
         }
@@ -160,6 +165,12 @@ Options parse_options(int argc, char** argv) {
     if (options.scroll_full && options.scroll_delta == 0) {
         throw std::invalid_argument("--scroll-full needs --scroll-delta");
     }
+    if (options.scroll_verify && options.scroll_delta == 0) {
+        throw std::invalid_argument("--scroll-verify needs --scroll-delta");
+    }
+    if (options.scroll_verify && options.scroll_full) {
+        throw std::invalid_argument("choose one of --scroll-verify or --scroll-full");
+    }
     if (special_modes > 1) {
         throw std::invalid_argument(
             "choose one of --mask, --path, --curve, --winding, --image, --scaled-image, "
@@ -182,6 +193,9 @@ double percentile(const std::vector<double>& sorted_times, std::size_t percent) 
 }
 
 std::string_view scenario_name(const Options& options) noexcept {
+    if (options.scroll_verify) {
+        return "software_scroll_verify";
+    }
     if (options.polyline && options.translated) {
         return options.damage ? "software_polyline_translated_damage"
                               : "software_polyline_translated_full";
@@ -283,16 +297,25 @@ int run_scroll(const Options& options) {
     const auto shift = options.scroll_delta / band_height;
     std::vector<veyra::DisplayCommand> commands(bands);
     std::vector<veyra::SoftwarePixel> pixels(options.width * options.height);
+    std::vector<veyra::SoftwarePixel> scratch_pixels(options.width * options.height);
     const auto surface = veyra::SoftwareSurface{
         .width = options.width,
         .height = options.height,
         .stride = options.width,
         .pixels = pixels,
     };
+    const auto scratch = veyra::SoftwareSurface{
+        .width = options.width,
+        .height = options.height,
+        .stride = options.width,
+        .pixels = scratch_pixels,
+    };
     std::array<veyra::SoftwareClipRect, 1> clips{};
     const auto workspace = veyra::SoftwareRenderWorkspace{.clips = clips};
     auto retained = veyra::RetainedScrollSurface{};
     auto stats = veyra::RetainedScrollStats{};
+    auto verify_stats = veyra::RetainedScrollVerifyStats{};
+    auto last_verify = veyra::RetainedVerifyResult::complete;
 
     const auto paint = [&](std::size_t frame) {
         for (auto band = std::size_t{}; band < bands; ++band) {
@@ -316,6 +339,25 @@ int run_scroll(const Options& options) {
         if (options.scroll_full) {
             return veyra::render_software(commands, surface, workspace) ==
                 veyra::SoftwareRenderResult::complete;
+        }
+
+        if (options.scroll_verify) {
+            last_verify = veyra::render_retained_scrolled_verified(
+                commands,
+                surface,
+                workspace,
+                {
+                    .delta_y = static_cast<int>(options.scroll_delta),
+                    .content_generation = 1,
+                },
+                retained,
+                scratch,
+                stats,
+                verify_stats
+            );
+
+            return last_verify == veyra::RetainedVerifyResult::complete ||
+                last_verify == veyra::RetainedVerifyResult::mismatch;
         }
 
         return veyra::render_retained_scrolled(
@@ -342,6 +384,7 @@ int run_scroll(const Options& options) {
 
     std::vector<double> timings;
     timings.reserve(options.frames);
+    auto mismatches = std::size_t{};
 
     for (auto frame = std::size_t{}; frame < options.frames; ++frame) {
         if (options.scroll_full) {
@@ -353,6 +396,9 @@ int run_scroll(const Options& options) {
         if (!painted) {
             throw std::runtime_error("scroll rendering failed during measurement");
         }
+        if (options.scroll_verify && last_verify == veyra::RetainedVerifyResult::mismatch) {
+            ++mismatches;
+        }
         timings.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
     }
 
@@ -362,19 +408,30 @@ int run_scroll(const Options& options) {
         checksum += pixel.red + pixel.green + pixel.blue + pixel.alpha;
     }
 
+    const auto scenario = options.scroll_verify ? "software_scroll_verify"
+        : options.scroll_full                   ? "software_scroll_full"
+                                                : "software_scroll_retained";
+
     std::cout << "scenario,platform,compiler,build_config,width,height,commands,warmup_frames,"
-                 "measured_frames,p50_ns,p95_ns,p99_ns,max_ns,checksum\n"
-              << (options.scroll_full ? "software_scroll_full" : "software_scroll_retained") << ','
-              << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ',' << VEYRA_BUILD_CONFIG
-              << ',' << options.width << ',' << options.height << ',' << bands << ','
-              << options.warmup << ',' << options.frames << ',' << percentile(timings, 50) << ','
-              << percentile(timings, 95) << ',' << percentile(timings, 99) << ',' << timings.back()
-              << ',' << checksum << '\n';
+                 "measured_frames,p50_ns,p95_ns,p99_ns,max_ns,checksum";
+    if (options.scroll_verify) {
+        std::cout << ",mismatches";
+    }
+    std::cout << '\n'
+              << scenario << ',' << VEYRA_BUILD_PLATFORM << ',' << VEYRA_BUILD_COMPILER << ','
+              << VEYRA_BUILD_CONFIG << ',' << options.width << ',' << options.height << ',' << bands
+              << ',' << options.warmup << ',' << options.frames << ',' << percentile(timings, 50)
+              << ',' << percentile(timings, 95) << ',' << percentile(timings, 99) << ','
+              << timings.back() << ',' << checksum;
+    if (options.scroll_verify) {
+        std::cout << ',' << mismatches;
+    }
+    std::cout << '\n';
     return 0;
 }
 
 int run(const Options& options) {
-    if (options.scroll_delta > 0) {
+    if (options.scroll_delta > 0 || options.scroll_verify) {
         return run_scroll(options);
     }
 
