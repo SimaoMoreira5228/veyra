@@ -84,7 +84,7 @@ target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/datagrid_cursor.cpp src/behaviors/cell_range.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp src/behaviors/command_palette.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/datagrid_cursor.cpp src/behaviors/cell_range.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp src/behaviors/command_palette.cpp src/behaviors/progress.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -109,7 +109,9 @@ add_library(
     src/widgets/data/virtual_list.cpp
     src/widgets/data/data_grid.cpp
     src/widgets/data/tree_view.cpp
+    src/widgets/data/progress_bar.cpp
     src/widgets/overlay/popover.cpp
+    src/widgets/overlay/tooltip_card.cpp
     src/widgets/data/menu_list.cpp
 )
 target_include_directories(veyra_widgets_basic PUBLIC
@@ -947,6 +949,15 @@ target_link_libraries(
     veyra_behaviors
 )
 add_test(NAME popover_widget_behavior COMMAND veyra_popover_widget_test)
+
+add_executable(veyra_tooltip_card_widget_test tests/tooltip_card_widget_test.cpp)
+target_link_libraries(
+    veyra_tooltip_card_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+)
+add_test(NAME tooltip_card_widget_behavior COMMAND veyra_tooltip_card_widget_test)
 add_executable(veyra_menu_list_widget_test tests/menu_list_widget_test.cpp)
 target_link_libraries(
     veyra_menu_list_widget_test
@@ -957,6 +968,19 @@ target_link_libraries(
     veyra
 )
 add_test(NAME menu_list_widget_behavior COMMAND veyra_menu_list_widget_test)
+
+add_executable(veyra_progress_test tests/progress_test.cpp)
+target_link_libraries(veyra_progress_test PRIVATE veyra_behaviors)
+add_test(NAME progress_behavior COMMAND veyra_progress_test)
+
+add_executable(veyra_progress_bar_widget_test tests/progress_bar_widget_test.cpp)
+target_link_libraries(
+    veyra_progress_bar_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+)
+add_test(NAME progress_bar_widget_behavior COMMAND veyra_progress_bar_widget_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
