@@ -111,6 +111,7 @@ add_library(
     src/widgets/data/tree_view.cpp
     src/widgets/data/progress_bar.cpp
     src/widgets/overlay/popover.cpp
+    src/widgets/overlay/toast_card.cpp
     src/widgets/overlay/tooltip_card.cpp
     src/widgets/data/menu_list.cpp
 )
@@ -981,6 +982,15 @@ target_link_libraries(
     veyra_behaviors
 )
 add_test(NAME progress_bar_widget_behavior COMMAND veyra_progress_bar_widget_test)
+
+add_executable(veyra_toast_card_widget_test tests/toast_card_widget_test.cpp)
+target_link_libraries(
+    veyra_toast_card_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+)
+add_test(NAME toast_card_widget_behavior COMMAND veyra_toast_card_widget_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)
