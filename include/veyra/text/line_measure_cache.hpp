@@ -213,6 +213,81 @@ class LineMeasureCache {
     }
 };
 
+struct LineMeasureFrame {
+    std::uint64_t text_generation{};
+    std::uint64_t constraint_generation{};
+    std::uint32_t line_count{};
+    float total_extent{};
+};
+
+class LineMeasureSession {
+  public:
+    bool begin_frame(std::uint64_t text_generation, std::uint64_t constraint_generation) noexcept {
+        if (!open_ && has_frame_ && committed_.text_generation == text_generation &&
+            committed_.constraint_generation == constraint_generation) {
+            ++adopted_frames_;
+
+            return true;
+        }
+
+        pending_text_generation_ = text_generation;
+        pending_constraint_generation_ = constraint_generation;
+        open_ = true;
+        ++remeasured_frames_;
+
+        return false;
+    }
+
+    void end_frame(std::uint32_t line_count, float total_extent) noexcept {
+        if (!open_) {
+            return;
+        }
+
+        committed_.text_generation = pending_text_generation_;
+        committed_.constraint_generation = pending_constraint_generation_;
+        committed_.line_count = line_count;
+        committed_.total_extent = total_extent;
+        has_frame_ = true;
+        open_ = false;
+    }
+
+    void invalidate() noexcept {
+        has_frame_ = false;
+        open_ = false;
+    }
+
+    bool has_frame() const noexcept {
+        return has_frame_;
+    }
+
+    std::uint64_t adopted_frames() const noexcept {
+        return adopted_frames_;
+    }
+
+    std::uint64_t remeasured_frames() const noexcept {
+        return remeasured_frames_;
+    }
+
+    bool last_frame(LineMeasureFrame& out) const noexcept {
+        if (!has_frame_) {
+            return false;
+        }
+
+        out = committed_;
+
+        return true;
+    }
+
+  private:
+    LineMeasureFrame committed_{};
+    std::uint64_t pending_text_generation_{};
+    std::uint64_t pending_constraint_generation_{};
+    std::uint64_t adopted_frames_{};
+    std::uint64_t remeasured_frames_{};
+    bool has_frame_{};
+    bool open_{};
+};
+
 }
 
 #endif

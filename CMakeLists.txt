@@ -109,6 +109,7 @@ add_library(
     src/widgets/data/virtual_list.cpp
     src/widgets/data/data_grid.cpp
     src/widgets/data/tree_view.cpp
+    src/widgets/overlay/popover.cpp
 )
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -936,6 +937,15 @@ target_link_libraries(
     veyra
 )
 add_test(NAME tree_view_widget_behavior COMMAND veyra_tree_view_widget_test)
+
+add_executable(veyra_popover_widget_test tests/popover_widget_test.cpp)
+target_link_libraries(
+    veyra_popover_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+)
+add_test(NAME popover_widget_behavior COMMAND veyra_popover_widget_test)
 
 find_package(Threads REQUIRED)
 add_executable(veyra_chat_message_change_queue_test tests/chat_message_change_queue_test.cpp)

@@ -430,6 +430,164 @@ void check_layout_measure_carry() {
     );
 }
 
+void check_session_adopts_when_neither_text_nor_constraints_changed() {
+    auto session = veyra::LineMeasureSession{};
+    auto frame = veyra::LineMeasureFrame{};
+
+    require(!session.has_frame(), "a fresh session holds no committed frame");
+    require(!session.last_frame(frame), "a fresh session replays nothing");
+    require(session.adopted_frames() == 0, "a fresh session adopted nothing");
+    require(session.remeasured_frames() == 0, "a fresh session remeasured nothing");
+
+    require(!session.begin_frame(3, 11), "the first frame has nothing to adopt");
+    require(session.remeasured_frames() == 1, "the first frame counts as remeasured");
+    require(!session.has_frame(), "an uncommitted frame stays unobservable");
+
+    session.end_frame(4, 64.0F);
+
+    require(session.has_frame(), "end_frame commits the measured frame");
+    require(session.last_frame(frame), "the committed frame replays its logged extents");
+    require(
+        frame.text_generation == 3 && frame.constraint_generation == 11 && frame.line_count == 4 &&
+            frame.total_extent == 64.0F,
+        "the committed frame logs both generations with its extents"
+    );
+
+    require(session.begin_frame(3, 11), "equal text and constraint generations adopt");
+    require(session.adopted_frames() == 1, "the adopted frame is counted");
+    require(session.remeasured_frames() == 1, "adopting skips the measure pass");
+    require(
+        session.last_frame(frame) && frame.line_count == 4 && frame.total_extent == 64.0F,
+        "adopt replays the logged extents instead of remeasuring"
+    );
+    require(session.begin_frame(3, 11), "an adopt needs no end_frame before the next adopt");
+    require(session.adopted_frames() == 2, "back-to-back adopts each count");
+}
+
+void check_session_any_text_change_bumps_text_generation_and_remeasures() {
+    auto session = veyra::LineMeasureSession{};
+
+    require(!session.begin_frame(1, 1), "a cold session remeasures");
+    session.end_frame(2, 32.0F);
+    require(session.begin_frame(1, 1), "unchanged generations adopt");
+
+    require(!session.begin_frame(2, 1), "any text change bumps text_generation and remeasures");
+    require(session.adopted_frames() == 1, "the text edit ends the adoption streak");
+    require(session.remeasured_frames() == 2, "the text edit counts as remeasured");
+
+    session.end_frame(3, 48.0F);
+
+    auto frame = veyra::LineMeasureFrame{};
+    require(
+        session.last_frame(frame) && frame.text_generation == 2 && frame.line_count == 3,
+        "end_frame overwrites the committed frame with the new generation"
+    );
+    require(session.begin_frame(2, 1), "the recommitted text generation adopts again");
+}
+
+void check_session_any_constraint_change_bumps_constraint_generation_and_remeasures() {
+    auto session = veyra::LineMeasureSession{};
+
+    require(!session.begin_frame(4, 7), "a cold session remeasures");
+    session.end_frame(2, 32.0F);
+    require(session.begin_frame(4, 7), "unchanged generations adopt");
+
+    require(
+        !session.begin_frame(4, 8),
+        "any font, style, wrap, or direction change bumps constraint_generation and remeasures"
+    );
+    require(session.remeasured_frames() == 2, "the constraint edit counts as remeasured");
+
+    session.end_frame(3, 48.0F);
+
+    auto frame = veyra::LineMeasureFrame{};
+    require(
+        session.last_frame(frame) && frame.constraint_generation == 8,
+        "end_frame logs the new constraint generation"
+    );
+    require(session.begin_frame(4, 8), "the recommitted constraint generation adopts again");
+}
+
+void check_session_aborted_frame_never_adopts() {
+    auto session = veyra::LineMeasureSession{};
+
+    require(!session.begin_frame(5, 9), "a cold session remeasures");
+    session.end_frame(2, 32.0F);
+    require(session.begin_frame(5, 9), "steady state adopts");
+
+    require(!session.begin_frame(6, 9), "a moved text generation opens a remeasure");
+    require(
+        !session.begin_frame(6, 9),
+        "an uncommitted frame never adopts even when its generations match"
+    );
+    require(session.adopted_frames() == 1, "the aborted frame is never counted as adopted");
+    require(session.remeasured_frames() == 3, "every uncommitted begin counts as remeasured");
+
+    session.end_frame(3, 48.0F);
+    require(session.begin_frame(6, 9), "committing the frame restores adoption");
+}
+
+void check_session_generations_compare_by_equality_across_u64_wraparound() {
+    auto session = veyra::LineMeasureSession{};
+    constexpr auto max = std::numeric_limits<std::uint64_t>::max();
+
+    require(!session.begin_frame(max, max), "the max generation remeasures cold");
+    session.end_frame(1, 16.0F);
+    require(session.begin_frame(max, max), "the max generation adopts by equality");
+
+    require(
+        !session.begin_frame(0, max),
+        "text_generation wrapping max to zero remeasures instead of adopting"
+    );
+    session.end_frame(1, 16.0F);
+    require(session.begin_frame(0, max), "the wrapped text_generation adopts once committed");
+
+    require(
+        !session.begin_frame(0, 0),
+        "constraint_generation wrapping max to zero remeasures instead of adopting"
+    );
+    session.end_frame(1, 16.0F);
+    require(session.begin_frame(0, 0), "the wrapped constraint_generation adopts once committed");
+    require(session.adopted_frames() == 3, "each exact generation match adopts once");
+    require(session.remeasured_frames() == 3, "each wrap transition remeasures once");
+}
+
+void check_session_invalidate_drops_the_logged_frame() {
+    auto session = veyra::LineMeasureSession{};
+    auto frame = veyra::LineMeasureFrame{};
+
+    require(!session.begin_frame(1, 1), "a cold session remeasures");
+    session.end_frame(2, 32.0F);
+    require(session.begin_frame(1, 1), "steady state adopts");
+
+    session.invalidate();
+
+    require(!session.has_frame(), "invalidate drops the recorded frame");
+    require(!session.last_frame(frame), "invalidate drops the replayable extents");
+    require(!session.begin_frame(1, 1), "the next begin remeasures after invalidate");
+    require(session.adopted_frames() == 1, "invalidate keeps the adoption count");
+    require(session.remeasured_frames() == 2, "the post-invalidate begin counts as remeasured");
+}
+
+void check_session_stray_end_frame_commits_nothing() {
+    auto session = veyra::LineMeasureSession{};
+    auto frame = veyra::LineMeasureFrame{};
+
+    session.end_frame(7, 112.0F);
+
+    require(!session.has_frame(), "end_frame without begin_frame commits nothing");
+    require(!session.begin_frame(1, 1), "a stray end leaves the session cold");
+
+    session.end_frame(2, 32.0F);
+    require(session.begin_frame(1, 1), "an adopt opens nothing to close");
+    session.end_frame(9, 144.0F);
+
+    require(
+        session.last_frame(frame) && frame.line_count == 2 && frame.total_extent == 32.0F,
+        "a stray end_frame leaves the committed frame intact"
+    );
+}
+
 }
 
 int main() {
@@ -439,6 +597,13 @@ int main() {
         check_overflow_and_invalid_inputs();
         check_generation_invalidation();
         check_layout_measure_carry();
+        check_session_adopts_when_neither_text_nor_constraints_changed();
+        check_session_any_text_change_bumps_text_generation_and_remeasures();
+        check_session_any_constraint_change_bumps_constraint_generation_and_remeasures();
+        check_session_aborted_frame_never_adopts();
+        check_session_generations_compare_by_equality_across_u64_wraparound();
+        check_session_invalidate_drops_the_logged_frame();
+        check_session_stray_end_frame_commits_nothing();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
