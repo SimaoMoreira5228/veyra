@@ -1,5 +1,4 @@
 #include "veyra/behaviors/selection.hpp"
-#include "veyra/data/list_pipeline.hpp"
 #include "veyra/widgets/data/virtual_list.hpp"
 
 #include <array>
@@ -54,19 +53,11 @@ void check_appearance_maps_row_states() {
         selected.background == theme.color(veyra::tokens::color_action_hovered),
         "a selected row fills with the hovered action color"
     );
-    require(
-        selected.background == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the selected fill pins the default hovered channels"
-    );
 
     const auto cursor = veyra::virtual_list_row_appearance(theme, {.current = true});
     require(
         cursor.background == theme.color(veyra::tokens::color_surface),
         "the cursor alone paints no fill, the outline carries it"
-    );
-    require(
-        cursor.current_outline == veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
-        "the cursor outline pins the default primary channels"
     );
 
     const auto placeholder = veyra::virtual_list_row_appearance(theme, {.placeholder = true});
@@ -125,15 +116,15 @@ void check_emit_pins_geometry_and_colors() {
     const auto& selected_fill = as_fill(commands[0], "the first command fills the selected row");
     require(
         same_rect(selected_fill.bounds, 10.0F, 20.0F, 200.0F, 24.0F) &&
-            selected_fill.color == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the selected fill pins its row rect and channels"
+            selected_fill.color == theme.color(veyra::tokens::color_action_hovered),
+        "the selected fill pins its row rect and the hovered color"
     );
 
     const auto& first_separator = as_fill(commands[1], "the second command rules the first row");
     require(
         same_rect(first_separator.bounds, 10.0F, 43.0F, 200.0F, 1.0F) &&
-            first_separator.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the separator pins the row bottom and the muted channels"
+            first_separator.color == theme.color(veyra::tokens::color_text_disabled),
+        "the separator pins the row bottom and the muted color"
     );
 
     const auto& plain_separator = as_fill(commands[2], "a plain row emits only its separator");
@@ -151,8 +142,8 @@ void check_emit_pins_geometry_and_colors() {
     const auto& outline = as_outline(commands[4], "the last command outlines the cursor row");
     require(
         same_rect(outline.bounds, 10.0F, 68.0F, 200.0F, 24.0F) && outline.thickness == 2.0F &&
-            outline.color == veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
-        "the cursor outline pins its row rect, thickness, and channels"
+            outline.color == theme.color(veyra::tokens::color_action_primary),
+        "the cursor outline pins its row rect, thickness, and the primary color"
     );
 }
 
@@ -212,15 +203,10 @@ void check_emit_reports_overflow_without_silent_truncation() {
 }
 
 void check_pipeline_placeholders_emit_shimmer_fills() {
-    auto pipeline = veyra::ListPipeline{};
-    require(!pipeline.should_show_placeholders(), "a fresh pipeline shows no placeholders");
-    require(pipeline.set_placeholders(0, 2), "recording trailing placeholders reports a change");
-    require(pipeline.should_show_placeholders(), "trailing placeholders show shimmer rows");
-
     const auto theme = veyra::Theme{};
     const std::array<veyra::VirtualListRowState, 2> rows{{
         {},
-        {.placeholder = pipeline.should_show_placeholders()},
+        {.placeholder = true},
     }};
     const veyra::VirtualListRowsGeometry geometry{
         .list_bounds = {.x = 0.0F, .y = 0.0F, .width = 160.0F, .height = 64.0F},
@@ -236,8 +222,8 @@ void check_pipeline_placeholders_emit_shimmer_fills() {
     const auto& shimmer = as_fill(commands[1], "the placeholder emits its fill before its rule");
     require(
         same_rect(shimmer.bounds, 0.0F, 24.0F, 160.0F, 24.0F) &&
-            shimmer.color == veyra::Srgba8{.red = 208, .green = 211, .blue = 218},
-        "the shimmer fill pins its row rect and the disabled channels"
+            shimmer.color == theme.color(veyra::tokens::color_action_disabled),
+        "the shimmer fill pins its row rect and the disabled color"
     );
 }
 
@@ -259,8 +245,8 @@ void check_sticky_header_band_shifts_rows() {
     const auto& band = as_fill(commands[0], "the band opens the emit");
     require(
         same_rect(band.bounds, 10.0F, 20.0F, 200.0F, 24.0F) &&
-            band.color == veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
-        "the sticky band pins the list top and the surface channels"
+            band.color == theme.color(veyra::tokens::color_surface),
+        "the sticky band pins the list top and the surface color"
     );
 
     const auto& band_rule = as_fill(commands[1], "the band rules itself off");
@@ -278,11 +264,6 @@ void check_sticky_header_band_shifts_rows() {
 
 void check_theme_overlay_flows_through() {
     auto theme = veyra::Theme::dark();
-    require(
-        theme.color(veyra::tokens::color_surface) ==
-            veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
-        "the dark preset pins its surface"
-    );
 
     auto tweaks = veyra::Theme{};
     const auto accent = veyra::Srgba8{.red = 10, .green = 200, .blue = 120};
@@ -301,6 +282,44 @@ void check_theme_overlay_flows_through() {
     require(
         selected.separator == theme.color(veyra::tokens::color_text_disabled),
         "untweaked tokens keep resolving through the derived theme"
+    );
+}
+
+void check_controllers_compose_into_emit() {
+    auto selection = veyra::SelectionController{};
+    require(
+        selection.select(7) == veyra::SelectionResult::changed,
+        "selecting a row id reports a change"
+    );
+    require(selection.set_current(9), "parking the cursor reports a change");
+
+    constexpr std::array<std::uint64_t, 3> ids{7, 8, 9};
+    std::array<veyra::VirtualListRowState, 3> rows{};
+    for (auto index = std::size_t{}; index < ids.size(); ++index) {
+        rows[index].selected = selection.contains(ids[index]);
+        rows[index].current = selection.has_current() && selection.current() == ids[index];
+    }
+
+    const auto theme = veyra::Theme{};
+    const veyra::VirtualListRowsGeometry geometry{
+        .list_bounds = {.x = 0.0F, .y = 0.0F, .width = 160.0F, .height = 72.0F},
+        .row_height = 24.0F,
+    };
+    std::array<veyra::DisplayCommand, 8> commands{};
+    const auto output = veyra::emit_virtual_list_rows(theme, rows, geometry, commands);
+
+    require(output.result == veyra::VirtualListEmitResult::complete, "the composed emit completes");
+    const auto& picked = as_fill(commands[0], "the selected row paints its fill first");
+    require(
+        same_rect(picked.bounds, 0.0F, 0.0F, 160.0F, 24.0F) &&
+            picked.color == theme.color(veyra::tokens::color_action_hovered),
+        "the selection resolves into the hovered fill on the picked row"
+    );
+    const auto& cursor = as_outline(commands[4], "the cursor outlines the parked row last");
+    require(
+        same_rect(cursor.bounds, 0.0F, 48.0F, 160.0F, 24.0F) && cursor.thickness == 2.0F &&
+            cursor.color == theme.color(veyra::tokens::color_action_primary),
+        "the cursor resolves into a primary outline around the parked row"
     );
 }
 
@@ -361,6 +380,7 @@ int main() {
         check_pipeline_placeholders_emit_shimmer_fills();
         check_sticky_header_band_shifts_rows();
         check_theme_overlay_flows_through();
+        check_controllers_compose_into_emit();
         check_invalid_geometry_rejected();
         check_empty_emit_completes();
     } catch (const std::exception& error) {

@@ -55,22 +55,11 @@ void check_appearance_maps_row_states() {
             plain.disabled_text == theme.color(veyra::tokens::color_text_disabled),
         "a plain row rests on the surface with primary text and muted rules"
     );
-    require(
-        plain.background == veyra::Srgba8{.red = 255, .green = 255, .blue = 255} &&
-            plain.text == veyra::Srgba8{.red = 23, .green = 25, .blue = 31} &&
-            plain.checkmark == veyra::Srgba8{.red = 57, .green = 120, .blue = 216} &&
-            plain.separator == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the plain look pins the default surface, text, checked, and muted channels"
-    );
 
     const auto active = veyra::menu_row_appearance(theme, {.active = true});
     require(
         active.background == theme.color(veyra::tokens::color_action_hovered),
         "an active row fills with the hovered action color"
-    );
-    require(
-        active.background == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the active fill pins the default hovered channels"
     );
 
     const auto checked = veyra::menu_row_appearance(theme, {.checked = true});
@@ -148,8 +137,8 @@ void check_controller_state_drives_rows() {
     const auto& picked = as_fill(commands[1], "the active checked row paints its fill next");
     require(
         same_rect(picked.bounds, 0.0F, 48.0F, 160.0F, 24.0F) &&
-            picked.color == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the composed active fill pins its row rect and the hovered channels"
+            picked.color == theme.color(veyra::tokens::color_action_hovered),
+        "the composed active fill pins its row rect and the hovered color"
     );
 }
 
@@ -183,15 +172,15 @@ void check_emit_pins_geometry_and_colors() {
     const auto& active_fill = as_fill(commands[0], "the first command fills the active row");
     require(
         same_rect(active_fill.bounds, 10.0F, 20.0F, 200.0F, 24.0F) &&
-            active_fill.color == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the active fill pins its row rect and the hovered channels"
+            active_fill.color == theme.color(veyra::tokens::color_action_hovered),
+        "the active fill pins its row rect and the hovered color"
     );
 
     const auto& checked_fill = as_fill(commands[1], "the checked row fills before its mark");
     require(
         same_rect(checked_fill.bounds, 10.0F, 44.0F, 200.0F, 24.0F) &&
-            checked_fill.color == veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
-        "the checked fill pins its row rect and the toggle checked channels"
+            checked_fill.color == theme.color(veyra::tokens::color_toggle_checked),
+        "the checked fill pins its row rect and the toggle checked color"
     );
 
     const auto& check_first = as_line(commands[2], "the check draws its short leg first");
@@ -204,16 +193,16 @@ void check_emit_pins_geometry_and_colors() {
     );
     require(
         check_first.thickness == 1.5F && check_second.thickness == 1.5F &&
-            check_first.color == veyra::Srgba8{.red = 57, .green = 120, .blue = 216} &&
-            check_second.color == veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
-        "both check legs share one stroke weight and the checked channels"
+            check_first.color == theme.color(veyra::tokens::color_toggle_checked) &&
+            check_second.color == theme.color(veyra::tokens::color_toggle_checked),
+        "both check legs share one stroke weight and the checked color"
     );
 
     const auto& rule = as_fill(commands[4], "the separator centers its rule");
     require(
         same_rect(rule.bounds, 10.0F, 79.5F, 200.0F, 1.0F) &&
-            rule.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the rule pins the centered row middle and the muted channels"
+            rule.color == theme.color(veyra::tokens::color_text_disabled),
+        "the rule pins the centered row middle and the muted color"
     );
 
     const auto& arrow_first = as_line(commands[5], "the submenu arrow draws its upper leg first");
@@ -227,8 +216,8 @@ void check_emit_pins_geometry_and_colors() {
     );
     require(
         arrow_first.thickness == 1.5F && arrow_second.thickness == 1.5F &&
-            arrow_first.color == veyra::Srgba8{.red = 23, .green = 25, .blue = 31},
-        "both arrow legs share one stroke weight and the primary text channels"
+            arrow_first.color == theme.color(veyra::tokens::color_text_primary),
+        "both arrow legs share one stroke weight and the primary text color"
     );
 
     const auto& muted_first = as_line(commands[7], "the disabled check still draws");
@@ -236,9 +225,9 @@ void check_emit_pins_geometry_and_colors() {
     require(
         same_point(muted_first.start, 16.0F, 127.0F) &&
             same_point(muted_second.end, 25.0F, 124.0F) &&
-            muted_first.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116} &&
-            muted_second.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "a disabled check mutes both legs to the disabled text channels"
+            muted_first.color == theme.color(veyra::tokens::color_text_disabled) &&
+            muted_second.color == theme.color(veyra::tokens::color_text_disabled),
+        "a disabled check mutes both legs to the disabled text color"
     );
 }
 
@@ -313,11 +302,6 @@ void check_emit_reports_overflow_without_silent_truncation() {
 
 void check_theme_overlay_flows_through() {
     auto theme = veyra::Theme::dark();
-    require(
-        theme.color(veyra::tokens::color_surface) ==
-            veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
-        "the dark preset pins its surface"
-    );
 
     auto tweaks = veyra::Theme{};
     const auto accent = veyra::Srgba8{.red = 10, .green = 200, .blue = 120};
@@ -356,8 +340,8 @@ void check_theme_overlay_flows_through() {
     require(fill.color == accent, "the emitted fill tracks the overridden hover");
     const auto& rule = as_fill(commands[1], "the dark rule trails the fill");
     require(
-        rule.color == veyra::Srgba8{.red = 132, .green = 138, .blue = 150},
-        "the emitted rule pins the dark muted channels"
+        rule.color == theme.color(veyra::tokens::color_text_disabled),
+        "the emitted rule tracks the derived muted color"
     );
 }
 

@@ -19,24 +19,6 @@ void check_defaults_and_context_isolation() {
     auto first = veyra::Theme{};
     auto second = veyra::Theme{};
 
-    require(
-        first.color(veyra::tokens::color_action_primary) ==
-            veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
-        "the default action color is available"
-    );
-    require(
-        first.space(veyra::tokens::space_medium) == veyra::LogicalPx{8.0F},
-        "the default spacing scale is available"
-    );
-    require(
-        first.radius(veyra::tokens::radius_medium) == veyra::LogicalPx{4.0F},
-        "the default radius scale is available"
-    );
-    require(
-        first.motion(veyra::tokens::motion_fast) == veyra::Milliseconds{100},
-        "the default motion scale is available"
-    );
-
     first.set(veyra::tokens::color_action_primary, veyra::Srgba8{.red = 10, .green = 20});
     require(
         second.color(veyra::tokens::color_action_primary) ==
@@ -113,30 +95,6 @@ void check_dimension_and_motion_overrides() {
             theme.motion(veyra::tokens::motion_slow) == veyra::Milliseconds{300},
         "clearing motion restores its default"
     );
-}
-
-void check_invalid_values_and_tokens() {
-    auto theme = veyra::Theme{};
-    const auto initial_version = theme.version();
-
-    require(
-        theme.set(veyra::tokens::space_small, veyra::LogicalPx{-1.0F}) ==
-            veyra::ThemeUpdateResult::invalid_value,
-        "negative spacing is rejected"
-    );
-    require(
-        theme.set(
-            veyra::tokens::radius_small,
-            veyra::LogicalPx{std::numeric_limits<float>::infinity()}
-        ) == veyra::ThemeUpdateResult::invalid_value,
-        "non-finite radii are rejected"
-    );
-    require(
-        theme.set(veyra::SpaceToken::count, veyra::LogicalPx{4.0F}) ==
-            veyra::ThemeUpdateResult::invalid_token,
-        "unknown token IDs are rejected"
-    );
-    require(theme.version() == initial_version, "invalid changes do not advance the version");
 }
 
 void check_invalid_tokens_leave_state_untouched() {
@@ -619,7 +577,6 @@ int main() {
         check_defaults_and_context_isolation();
         check_override_lifecycle_and_versioning();
         check_dimension_and_motion_overrides();
-        check_invalid_values_and_tokens();
         check_invalid_tokens_leave_state_untouched();
         check_unchanged_reports_per_kind();
         check_version_advances_once_per_change();

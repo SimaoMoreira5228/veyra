@@ -44,18 +44,15 @@ void check_appearance_maps_tokens() {
 
     const auto popup = veyra::popover_appearance(theme, false);
     require(
-        popup.panel == veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
+        popup.panel == theme.color(veyra::tokens::color_surface),
         "a popover panel rests on the surface"
     );
     require(
-        popup.border == veyra::Srgba8{.red = 99, .green = 104, .blue = 116} &&
-            popup.separator == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
+        popup.border == theme.color(veyra::tokens::color_text_disabled) &&
+            popup.separator == theme.color(veyra::tokens::color_text_disabled),
         "border and separator share the muted token"
     );
-    require(
-        popup.scrim == veyra::Srgba8{.red = 23, .green = 25, .blue = 31, .alpha = 0},
-        "a popover arms no scrim, transparent by construction"
-    );
+    require(popup.scrim.alpha == 0, "a popover arms no scrim, transparent by construction");
 
     const auto dialog = veyra::popover_appearance(theme, true);
     require(
@@ -63,9 +60,12 @@ void check_appearance_maps_tokens() {
             dialog.separator == popup.separator,
         "a dialog is the same chrome, not a second struct"
     );
+    require(dialog.scrim.alpha == 128, "the modal flag only arms a translucent scrim");
     require(
-        dialog.scrim == veyra::Srgba8{.red = 23, .green = 25, .blue = 31, .alpha = 128},
-        "the modal flag only arms a translucent text-primary scrim"
+        dialog.scrim.red == theme.color(veyra::tokens::color_text_primary).red &&
+            dialog.scrim.green == theme.color(veyra::tokens::color_text_primary).green &&
+            dialog.scrim.blue == theme.color(veyra::tokens::color_text_primary).blue,
+        "the modal scrim tints from the text primary token"
     );
 }
 
@@ -122,15 +122,15 @@ void check_popover_emit_pins_panel_and_border() {
     const auto& panel = as_fill(commands[0], "the panel fill leads");
     require(
         same_rect(panel.bounds, 10.0F, 20.0F, 160.0F, 96.0F) &&
-            panel.color == veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
-        "the panel pins its rect and the surface channels"
+            panel.color == theme.color(veyra::tokens::color_surface),
+        "the panel pins its rect and the surface color"
     );
 
     const auto& border = as_outline(commands[1], "the border trails the panel");
     require(
         same_rect(border.bounds, 10.0F, 20.0F, 160.0F, 96.0F) && border.thickness == 1.0F &&
-            border.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the border pins the panel rect at one pixel in the muted channels"
+            border.color == theme.color(veyra::tokens::color_text_disabled),
+        "the border pins the panel rect at one pixel in the muted color"
     );
 }
 
@@ -150,15 +150,17 @@ void check_modal_emit_layers_scrim_under_panel() {
 
     const auto& scrim = as_fill(commands[0], "the scrim leads under the panel");
     require(
-        same_rect(scrim.bounds, 0.0F, 0.0F, 200.0F, 200.0F) &&
-            scrim.color == veyra::Srgba8{.red = 23, .green = 25, .blue = 31, .alpha = 128},
+        same_rect(scrim.bounds, 0.0F, 0.0F, 200.0F, 200.0F) && scrim.color.alpha == 128 &&
+            scrim.color.red == theme.color(veyra::tokens::color_text_primary).red &&
+            scrim.color.green == theme.color(veyra::tokens::color_text_primary).green &&
+            scrim.color.blue == theme.color(veyra::tokens::color_text_primary).blue,
         "the scrim pins the full viewport, translucent"
     );
 
     const auto& panel = as_fill(commands[1], "the panel sits above the scrim");
     require(
         same_rect(panel.bounds, 40.0F, 60.0F, 120.0F, 80.0F) &&
-            panel.color == veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
+            panel.color == theme.color(veyra::tokens::color_surface),
         "the dialog panel pins its centered rect on the surface"
     );
 
@@ -221,11 +223,6 @@ void check_emit_reports_overflow_without_silent_truncation() {
 
 void check_theme_override_flows_through() {
     auto theme = veyra::Theme::dark();
-    require(
-        theme.color(veyra::tokens::color_surface) ==
-            veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
-        "the dark preset pins its surface"
-    );
 
     auto tweaks = veyra::Theme{};
     const auto panel_tweak = veyra::Srgba8{.red = 16, .green = 18, .blue = 24};

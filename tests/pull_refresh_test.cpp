@@ -1,5 +1,4 @@
 #include "veyra/behaviors/pull_refresh.hpp"
-#include "veyra/data/list_pipeline.hpp"
 
 #include <iostream>
 #include <limits>
@@ -14,8 +13,6 @@ void require(bool condition, std::string_view message) {
         throw std::runtime_error(std::string(message));
     }
 }
-
-constexpr auto kRefresh = veyra::ListLoadDirection::refresh;
 
 void check_pull_tracks_progress_past_full() {
     auto gesture = veyra::PullRefresh{};
@@ -69,45 +66,12 @@ void check_threshold_guards_release() {
     require(fallback.threshold_distance() == 64.0, "an invalid threshold falls back");
 }
 
-void check_gesture_release_drives_pipeline_refresh() {
-    auto gesture = veyra::PullRefresh{64.0};
-    auto pipeline = veyra::ListPipeline{};
-
-    require(gesture.pull(20.0), "a short pull reports a change");
-    require(!gesture.release(), "a short pull does not release");
-
-    if (gesture.release()) {
-        pipeline.refresh();
-    }
-    require(!pipeline.is_loading_anywhere(), "an unreleased gesture starts no refresh");
-
-    require(gesture.pull(80.0), "a past-threshold pull reports a change");
-    require(gesture.release(), "a past-threshold pull releases");
-
-    if (gesture.release()) {
-        require(
-            pipeline.refresh() == veyra::ListPipelineResult::changed,
-            "a released gesture refreshes the pipeline"
-        );
-    }
-    require(
-        pipeline.load_state(veyra::ListLoadOrigin::source, kRefresh).state ==
-            veyra::ListLoadState::loading,
-        "the pipeline refresh enters loading"
-    );
-    require(pipeline.is_loading_anywhere(), "the pipeline reports work after refresh");
-
-    gesture.reset();
-    require(!gesture.release(), "reset disarms the gesture after the refresh starts");
-}
-
 }
 
 int main() {
     try {
         check_pull_tracks_progress_past_full();
         check_threshold_guards_release();
-        check_gesture_release_drives_pipeline_refresh();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

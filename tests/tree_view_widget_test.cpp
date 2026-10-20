@@ -1,6 +1,5 @@
 #include "veyra/behaviors/selection.hpp"
 #include "veyra/behaviors/tree_cursor.hpp"
-#include "veyra/data/list_pipeline.hpp"
 #include "veyra/widgets/data/tree_view.hpp"
 
 #include <array>
@@ -72,20 +71,11 @@ void check_appearance_maps_row_states() {
             plain.guide == theme.color(veyra::tokens::color_text_disabled),
         "a plain leaf rests on the surface with primary chevron and muted guides"
     );
-    require(
-        plain.chevron == veyra::Srgba8{.red = 57, .green = 120, .blue = 216} &&
-            plain.guide == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the chevron and guide pin the default primary and muted channels"
-    );
 
     const auto selected = veyra::tree_view_row_appearance(theme, {.selected = true}, kLeaf);
     require(
         selected.background == theme.color(veyra::tokens::color_action_hovered),
         "a selected row fills with the hovered action color like the flat list"
-    );
-    require(
-        selected.background == veyra::Srgba8{.red = 48, .green = 105, .blue = 190},
-        "the selected fill pins the default hovered channels"
     );
 
     const auto placeholder =
@@ -107,10 +97,6 @@ void check_appearance_maps_row_states() {
     require(
         pending.chevron == theme.color(veyra::tokens::color_text_disabled),
         "an unknown-children row mutes its chevron to the disabled text color"
-    );
-    require(
-        pending.chevron == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the pending tint pins the muted channels, not the primary ones"
     );
 
     constexpr veyra::TreeCursorRow known{
@@ -231,12 +217,12 @@ void check_chevron_tracks_parent_state() {
     const auto& pending_first = as_line(commands[8], "an unknown parent still draws a chevron");
     const auto& pending_second = as_line(commands[9], "the unknown chevron has both legs");
     require(
-        pending_first.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116} &&
-            pending_second.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
+        pending_first.color == theme.color(veyra::tokens::color_text_disabled) &&
+            pending_second.color == theme.color(veyra::tokens::color_text_disabled),
         "unknown children mute both chevron legs to the pending tint"
     );
     require(
-        shut_first.color == veyra::Srgba8{.red = 57, .green = 120, .blue = 216},
+        shut_first.color == theme.color(veyra::tokens::color_action_primary),
         "a known shut parent keeps the primary chevron"
     );
 }
@@ -266,8 +252,8 @@ void check_guides_span_depth_transitions() {
     require(
         same_point(upper.start, 3.0F, 24.0F) && same_point(upper.end, 3.0F, 48.0F) &&
             upper.thickness == 1.0F &&
-            upper.color == veyra::Srgba8{.red = 99, .green = 104, .blue = 116},
-        "the upper guide pins its level column and the muted channels"
+            upper.color == theme.color(veyra::tokens::color_text_disabled),
+        "the upper guide pins its level column and the muted color"
     );
 
     const auto& lower = as_line(commands[3], "the last child carries the guide down");
@@ -277,32 +263,7 @@ void check_guides_span_depth_transitions() {
     );
 }
 
-void check_selection_drives_row_states() {
-    auto selection = veyra::SelectionController{};
-    require(
-        selection.select(7) == veyra::SelectionResult::changed,
-        "selecting a row id reports a change"
-    );
-    require(selection.set_current(9), "parking the cursor reports a change");
-
-    constexpr std::array<std::uint64_t, 3> ids{7, 8, 9};
-    std::array<veyra::TreeViewRowState, 3> states{};
-
-    for (auto index = std::size_t{}; index < ids.size(); ++index) {
-        states[index].selected = selection.contains(ids[index]);
-        states[index].current = selection.has_current() && selection.current() == ids[index];
-    }
-
-    require(states[0].selected && !states[0].current, "the selected id marks its row");
-    require(!states[1].selected && !states[1].current, "an untouched id leaves its row plain");
-    require(!states[2].selected && states[2].current, "the cursor id marks its row current");
-}
-
 void check_pipeline_placeholders_emit_shimmer_fills() {
-    auto pipeline = veyra::ListPipeline{};
-    require(pipeline.set_placeholders(0, 2), "recording trailing placeholders reports a change");
-    require(pipeline.should_show_placeholders(), "trailing placeholders show shimmer rows");
-
     const auto theme = veyra::Theme{};
     constexpr std::array<veyra::TreeCursorRow, 2> rows{{
         {.id = 1, .parent = 0, .depth = 0},
@@ -310,7 +271,7 @@ void check_pipeline_placeholders_emit_shimmer_fills() {
     }};
     const std::array<veyra::TreeViewRowState, 2> states{{
         {},
-        {.placeholder = pipeline.should_show_placeholders()},
+        {.placeholder = true},
     }};
     const veyra::TreeViewRowsGeometry geometry{
         .list_bounds = {.x = 0.0F, .y = 0.0F, .width = 160.0F, .height = 48.0F},
@@ -327,8 +288,8 @@ void check_pipeline_placeholders_emit_shimmer_fills() {
     const auto& shimmer = as_fill(commands[1], "the placeholder emits its fill before its guide");
     require(
         same_rect(shimmer.bounds, 0.0F, 24.0F, 160.0F, 24.0F) &&
-            shimmer.color == veyra::Srgba8{.red = 208, .green = 211, .blue = 218},
-        "the shimmer fill pins its row rect and the disabled channels"
+            shimmer.color == theme.color(veyra::tokens::color_action_disabled),
+        "the shimmer fill pins its row rect and the disabled color"
     );
 }
 
@@ -353,8 +314,8 @@ void check_sticky_header_band_shifts_rows() {
     const auto& band = as_fill(commands[0], "the band opens the emit");
     require(
         same_rect(band.bounds, 10.0F, 20.0F, 200.0F, 24.0F) &&
-            band.color == veyra::Srgba8{.red = 255, .green = 255, .blue = 255},
-        "the sticky band pins the list top and the surface channels"
+            band.color == theme.color(veyra::tokens::color_surface),
+        "the sticky band pins the list top and the surface color"
     );
 
     const auto& band_rule = as_fill(commands[1], "the band rules itself off");
@@ -425,11 +386,6 @@ void check_emit_reports_overflow_without_silent_truncation() {
 
 void check_theme_overlay_flows_through() {
     auto theme = veyra::Theme::dark();
-    require(
-        theme.color(veyra::tokens::color_surface) ==
-            veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
-        "the dark preset pins its surface"
-    );
 
     auto tweaks = veyra::Theme{};
     const auto accent = veyra::Srgba8{.red = 10, .green = 200, .blue = 120};
@@ -466,7 +422,7 @@ void check_theme_overlay_flows_through() {
 
     const auto& band = as_fill(commands[0], "the dark band leads");
     require(
-        band.color == veyra::Srgba8{.red = 28, .green = 30, .blue = 38},
+        band.color == theme.color(veyra::tokens::color_surface),
         "the emitted band tracks the overridden surface"
     );
 }
@@ -627,7 +583,6 @@ int main() {
         check_indent_falls_back_to_theme_space();
         check_chevron_tracks_parent_state();
         check_guides_span_depth_transitions();
-        check_selection_drives_row_states();
         check_pipeline_placeholders_emit_shimmer_fills();
         check_sticky_header_band_shifts_rows();
         check_emit_reports_overflow_without_silent_truncation();

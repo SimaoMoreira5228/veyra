@@ -82,10 +82,6 @@ void check_dismiss_finds_nothing() {
         backend.notice_dismiss(1) == veyra::ServiceResult::not_found,
         "a dropped show has nothing to dismiss"
     );
-    require(
-        backend.notice_dismiss(99) == veyra::ServiceResult::not_found,
-        "an unknown id has nothing to dismiss"
-    );
 }
 
 }

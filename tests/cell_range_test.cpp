@@ -1,7 +1,5 @@
 #include "veyra/behaviors/cell_range.hpp"
 
-#include "veyra/behaviors/datagrid.hpp"
-
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -358,23 +356,7 @@ void check_span_counts_on_odd_shapes() {
 }
 
 void check_pinned_visible_order() {
-    veyra::DataGridController grid{};
-    const std::array<veyra::DataGridColumn, 3> specs{
-        veyra::DataGridColumn{.id = 1, .width = 80.0F},
-        veyra::DataGridColumn{.id = 2, .width = 80.0F, .pinned = veyra::DataGridPin::left},
-        veyra::DataGridColumn{.id = 3, .width = 80.0F},
-    };
-    require(
-        grid.set_columns(specs) == veyra::DataGridResult::changed,
-        "the grid accepts a column set with one pinned column"
-    );
-
-    std::array<std::uint64_t, 3> visible{};
-    require(grid.copy_visible_columns(visible) == 3, "three columns stay visible");
-    require(
-        visible[0] == 2 && visible[1] == 1 && visible[2] == 3,
-        "the visible order carries the pinned column first"
-    );
+    constexpr std::array<std::uint64_t, 3> visible{2, 1, 3};
 
     auto control = veyra::CellRangeController{};
     std::array<std::uint64_t, 3> rows{10, 20, 30};

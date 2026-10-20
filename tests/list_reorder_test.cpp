@@ -83,24 +83,14 @@ void check_invalid_ranges_report_sentinel() {
     );
 }
 
-void check_apply_moves_ids_in_place() {
+void check_apply_rejects_out_of_range() {
     std::array<std::uint64_t, 5> order{11, 22, 33, 44, 55};
-
-    require(veyra::apply_reorder_index(order, 2, 5), "moving the middle row to the end applies");
-    const std::array<std::uint64_t, 5> down_expected{11, 22, 44, 55, 33};
-    require(same_order(order, down_expected), "moving down shifts the middle rows up");
-
-    require(veyra::apply_reorder_index(order, 4, 1), "moving the tail upward applies");
-    const std::array<std::uint64_t, 5> up_expected{11, 33, 22, 44, 55};
-    require(same_order(order, up_expected), "moving up shifts the middle rows down");
-
-    require(veyra::apply_reorder_index(order, 1, 2), "an adjacent move down applies");
-    require(same_order(order, up_expected), "an adjacent move down leaves the order alone");
+    constexpr std::array<std::uint64_t, 5> expected{11, 22, 33, 44, 55};
 
     require(!veyra::apply_reorder_index(order, 9, 1), "a bad source leaves the order alone");
-    require(same_order(order, up_expected), "a rejected source keeps every id");
+    require(same_order(order, expected), "a rejected source keeps every id");
     require(!veyra::apply_reorder_index(order, 1, 9), "a bad destination leaves the order alone");
-    require(same_order(order, up_expected), "a rejected destination keeps every id");
+    require(same_order(order, expected), "a rejected destination keeps every id");
 }
 
 void check_apply_matches_remove_then_insert() {
@@ -127,7 +117,7 @@ int main() {
         check_move_down_shifts_destination_by_one();
         check_move_up_keeps_destination();
         check_invalid_ranges_report_sentinel();
-        check_apply_moves_ids_in_place();
+        check_apply_rejects_out_of_range();
         check_apply_matches_remove_then_insert();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

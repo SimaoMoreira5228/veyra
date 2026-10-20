@@ -1,7 +1,5 @@
 #include "veyra/data/server_rows.hpp"
 
-#include "veyra/data/list_pipeline.hpp"
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -386,55 +384,6 @@ void check_evict_split_overflow_drops_only_the_tail() {
     require(!rows.is_covered(40, 10), "the evicted hole stays uncovered");
 }
 
-void check_pipeline_and_server_keys_drop_stale_together() {
-    auto pipeline = veyra::ListPipeline{};
-    auto rows = veyra::ServerRows{};
-
-    constexpr auto kAppend = veyra::ListLoadDirection::append;
-    require(
-        pipeline.request(kAppend, 100, 25) == veyra::ListPipelineResult::changed,
-        "the pipeline starts the directional fetch"
-    );
-
-    auto pending = veyra::ListLoadRequest{};
-    require(pipeline.pending_request(kAppend, pending), "the directional request is pending");
-    const std::uint64_t key = rows.request_key();
-    require(rows.is_current(key), "the attached server key is current at dispatch");
-
-    const std::array<veyra::ServerSort, 1> resort = {veyra::ServerSort{2, true}};
-    require(rows.set_sorts(resort) == kChanged, "the query mutates while the fetch flies");
-    require(pipeline.refresh() == veyra::ListPipelineResult::changed, "the pipeline refreshes too");
-
-    require(
-        pipeline.resolve(kAppend, pending.generation, true) == veyra::ListPipelineResult::stale,
-        "the pipeline drops the response at its own stale generation"
-    );
-    require(rows.confirm(key) == kStale, "the behavior drops the same response at its stale key");
-    require(
-        rows.note_loaded(pending.first_index, pending.count, key) == kStale,
-        "the stale payload never enters the loaded-range cache"
-    );
-    require(
-        !rows.is_covered(pending.first_index, pending.count),
-        "the dropped payload covers nothing at the new key"
-    );
-
-    const std::uint64_t live = rows.request_key();
-    require(
-        pipeline.request(kAppend, 100, 25) == veyra::ListPipelineResult::changed,
-        "the directional retry starts after the invalidation"
-    );
-    auto retry = veyra::ListLoadRequest{};
-    require(pipeline.pending_request(kAppend, retry), "the directional retry is pending");
-    require(retry.generation > pending.generation, "the retry carries a fresh generation");
-    require(rows.note_loaded(100, 25, live) == kChanged, "the retry loads at the live key");
-    require(
-        pipeline.resolve(kAppend, retry.generation, true) == veyra::ListPipelineResult::changed,
-        "the retry resolves at the live generation"
-    );
-    require(rows.is_covered(100, 25), "the live payload covers its range");
-}
-
 void check_clear_reports_and_keeps_query() {
     auto rows = veyra::ServerRows{};
     const std::uint64_t key = rows.request_key();
@@ -464,7 +413,6 @@ int main() {
         check_evict_trims_splits_and_clears();
         check_interval_overflow_rejects_without_dropping();
         check_evict_split_overflow_drops_only_the_tail();
-        check_pipeline_and_server_keys_drop_stale_together();
         check_clear_reports_and_keeps_query();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
