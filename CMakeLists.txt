@@ -12,9 +12,7 @@ option(VEYRA_WITH_SDL3 "Build the SDL3 software window backend" OFF)
 option(VEYRA_WITH_GLFW "Build the GLFW platform window backend" OFF)
 option(VEYRA_WITH_VULKAN "Build the Vulkan offscreen rect prototype" OFF)
 option(VEYRA_WITH_CODECS "Build vendored image decoding support" ON)
-option(VEYRA_WITH_SVG "Build nanosvg SVG rasterization support (fetched if missing)" ON)
-set(VEYRA_NANOSVG_URL "https://github.com/memononen/nanosvg/archive/239e102ec2c691f2902e20ace2ed36ee4a35cfe6.zip" CACHE STRING "nanosvg pinned archive")
-set(VEYRA_NANOSVG_SHA256 "10155d7f1027088307283785a3c06f6cb739574dcb110dc612ef83f47588e653" CACHE STRING "nanosvg pinned archive sha256")
+option(VEYRA_WITH_SVG "Build vendored nanosvg SVG rasterization support" ON)
 set(VEYRA_LIBWEBP_URL "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz" CACHE STRING "libwebp pinned tarball")
 set(VEYRA_LIBWEBP_SHA256 "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564" CACHE STRING "libwebp pinned tarball sha256")
 option(VEYRA_WITH_WEBP "Build WebP image support (fetched if missing)" ON)
@@ -318,19 +316,11 @@ if(VEYRA_WITH_CODECS)
  endif()
  target_include_directories(veyra_codecs PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_include_directories(veyra_codecs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
+ target_include_directories(veyra_codecs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanosvg)
  target_compile_features(veyra_codecs PUBLIC cxx_std_23)
 
  if(VEYRA_WITH_SVG)
-  include(FetchContent)
-  FetchContent_Declare(
-   nanosvg
-   URL ${VEYRA_NANOSVG_URL}
-   URL_HASH SHA256=${VEYRA_NANOSVG_SHA256}
-  )
-  FetchContent_MakeAvailable(nanosvg)
   target_compile_definitions(veyra_codecs PRIVATE VEYRA_WITH_SVG=1)
-  target_link_libraries(veyra_codecs PRIVATE nanosvg nanosvgrast)
-  target_include_directories(veyra_codecs PRIVATE ${nanosvg_SOURCE_DIR}/src)
  endif()
 
  if(VEYRA_WITH_WEBP)

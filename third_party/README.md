@@ -29,7 +29,7 @@ call and in the user-facing guide for the feature that needs it.
 
 | Name | Version | Hash | License | Notes |
 | --- | --- | --- | --- | --- |
-| nanosvg | commit `239e102` | sha256 `10155d7f…b110dc` | zlib/MIT (Mikko Mononen) | single header + rasterizer; no system package exists |
+| nanosvg | commit `239e102` | sha256 `e34fd5d0…c8b2b0` (+rasterizer `79a9c5f4…92854f`) | zlib/MIT (Mikko Mononen) | headers vendored under `third_party/nanosvg` (no system package exists, self-contained) |
 | libwebp | 1.6.0 | sha256 `e4ab7009…9a9e38c4564` | BSD | system libwebp + demux/mux preferred; fetch builds libs only |
 | libavif | 1.4.2 | sha256 `2b645287…8366921d` | BSD-2 | system libavif preferred; fetch sets `AVIF_CODEC_AOM=LOCAL`, all other codecs off |
 | libaom | v3.14.1 (via libavif `LOCAL`) | git tag (libavif-pinned) | BSD-2 + AoM patent license | pulled by libavif's own FetchContent; needs perl, plus nasm/yasm for SIMD (else generic target) |

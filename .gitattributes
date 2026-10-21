@@ -1,0 +1,2 @@
+# Vendored third-party sources are byte-pinned; never normalize them.
+third_party/** -text
