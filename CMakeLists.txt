@@ -114,6 +114,7 @@ add_library(
     src/widgets/overlay/toast_card.cpp
     src/widgets/overlay/tooltip_card.cpp
     src/widgets/data/menu_list.cpp
+    src/widgets/data/menubar.cpp
 )
 target_include_directories(veyra_widgets_basic PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -951,6 +952,16 @@ target_link_libraries(
 )
 add_test(NAME popover_widget_behavior COMMAND veyra_popover_widget_test)
 
+add_executable(veyra_dialog_composition_test tests/dialog_composition_test.cpp)
+target_link_libraries(
+    veyra_dialog_composition_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+    veyra
+)
+add_test(NAME dialog_composition_behavior COMMAND veyra_dialog_composition_test)
+
 add_executable(veyra_tooltip_card_widget_test tests/tooltip_card_widget_test.cpp)
 target_link_libraries(
     veyra_tooltip_card_widget_test
@@ -969,6 +980,17 @@ target_link_libraries(
     veyra
 )
 add_test(NAME menu_list_widget_behavior COMMAND veyra_menu_list_widget_test)
+
+add_executable(veyra_menubar_widget_test tests/menubar_widget_test.cpp)
+target_link_libraries(
+    veyra_menubar_widget_test
+    PRIVATE
+    veyra_widgets_basic
+    veyra_behaviors
+    veyra_data
+    veyra
+)
+add_test(NAME menubar_widget_behavior COMMAND veyra_menubar_widget_test)
 
 add_executable(veyra_progress_test tests/progress_test.cpp)
 target_link_libraries(veyra_progress_test PRIVATE veyra_behaviors)
