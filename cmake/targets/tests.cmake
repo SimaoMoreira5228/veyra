@@ -57,6 +57,7 @@ veyra_add_test(NAME menubar_widget_behavior TARGET veyra_menubar_widget_test SOU
 veyra_add_test(NAME progress_behavior TARGET veyra_progress_test SOURCES tests/progress_test.cpp LIBS veyra_behaviors)
 veyra_add_test(NAME progress_bar_widget_behavior TARGET veyra_progress_bar_widget_test SOURCES tests/progress_bar_widget_test.cpp LIBS veyra_widgets_basic veyra_behaviors)
 veyra_add_test(NAME toast_card_widget_behavior TARGET veyra_toast_card_widget_test SOURCES tests/toast_card_widget_test.cpp LIBS veyra_widgets_basic veyra_behaviors)
+veyra_add_test(NAME slider_widget_behavior TARGET veyra_slider_widget_test SOURCES tests/slider_widget_test.cpp LIBS veyra_widgets_basic veyra_behaviors)
 
 veyra_add_test(NAME chat_message_change_queue_behavior TARGET veyra_chat_message_change_queue_test SOURCES tests/chat_message_change_queue_test.cpp LIBS veyra Threads::Threads)
 veyra_add_test(NAME node_id_pool_behavior TARGET veyra_node_id_pool_test SOURCES tests/node_id_pool_test.cpp LIBS veyra)

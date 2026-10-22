@@ -72,6 +72,7 @@ add_library(
     veyra_widgets_basic
     STATIC
     src/widgets/basic/button.cpp
+    src/widgets/basic/slider.cpp
     src/widgets/basic/toggle.cpp
     src/widgets/basic/textfield.cpp
     src/widgets/basic/text_area.cpp
