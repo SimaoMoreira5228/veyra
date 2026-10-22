@@ -14,6 +14,7 @@ add_library(veyra STATIC
  src/core/shortcut_map.cpp
  src/layout/breakpoints.cpp
  src/layout/container_queries.cpp
+ src/layout/dock.cpp
  src/layout/flex.cpp
  src/layout/grid.cpp
  src/layout/grid_placement.cpp
