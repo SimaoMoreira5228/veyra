@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_syntax_spans_test.dir/link.d CMakeFiles/veyra_syntax_spans_test.dir/tests/syntax_spans_test.cpp.o -o veyra_syntax_spans_test  libveyra.a

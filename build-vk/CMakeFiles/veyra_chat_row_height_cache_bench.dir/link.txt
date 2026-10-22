@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_chat_row_height_cache_bench.dir/link.d CMakeFiles/veyra_chat_row_height_cache_bench.dir/bench/chat_row_height_cache.cpp.o -o veyra_chat_row_height_cache_bench  libveyra.a

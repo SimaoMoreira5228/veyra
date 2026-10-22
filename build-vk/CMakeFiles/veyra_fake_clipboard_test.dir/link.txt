@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_fake_clipboard_test.dir/link.d CMakeFiles/veyra_fake_clipboard_test.dir/tests/fake_clipboard_test.cpp.o -o veyra_fake_clipboard_test  libveyra.a

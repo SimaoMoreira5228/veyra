@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_server_rows_test.dir/link.d CMakeFiles/veyra_server_rows_test.dir/tests/server_rows_test.cpp.o -o veyra_server_rows_test  libveyra_data.a

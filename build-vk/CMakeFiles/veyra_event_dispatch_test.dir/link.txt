@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_event_dispatch_test.dir/link.d CMakeFiles/veyra_event_dispatch_test.dir/tests/event_dispatch_test.cpp.o -o veyra_event_dispatch_test  libveyra.a

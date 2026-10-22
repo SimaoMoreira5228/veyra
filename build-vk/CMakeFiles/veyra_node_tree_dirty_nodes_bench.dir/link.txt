@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_node_tree_dirty_nodes_bench.dir/link.d CMakeFiles/veyra_node_tree_dirty_nodes_bench.dir/bench/node_tree_dirty_nodes.cpp.o -o veyra_node_tree_dirty_nodes_bench  libveyra.a

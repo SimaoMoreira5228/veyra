@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_animation_frame_cache_test.dir/link.d CMakeFiles/veyra_animation_frame_cache_test.dir/tests/animation_frame_cache_test.cpp.o -o veyra_animation_frame_cache_test  libveyra.a

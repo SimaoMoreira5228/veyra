@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_paradigm_compare_bench.dir/link.d CMakeFiles/veyra_paradigm_compare_bench.dir/bench/paradigm_compare.cpp.o -o veyra_paradigm_compare_bench  libveyra.a

@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_shortcut_map_test.dir/link.d CMakeFiles/veyra_shortcut_map_test.dir/tests/shortcut_map_test.cpp.o -o veyra_shortcut_map_test  libveyra.a

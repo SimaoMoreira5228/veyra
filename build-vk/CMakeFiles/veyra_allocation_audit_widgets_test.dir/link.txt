@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_allocation_audit_widgets_test.dir/link.d CMakeFiles/veyra_allocation_audit_widgets_test.dir/tests/allocation_audit_widgets_test.cpp.o -o veyra_allocation_audit_widgets_test  libveyra.a libveyra_behaviors.a libveyra_widgets_basic.a libveyra_data.a libveyra_behaviors.a libveyra.a libveyra_style.a

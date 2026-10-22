@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <new>
 
 namespace veyra {
@@ -42,6 +43,56 @@ bool has_validation_layer() noexcept {
     return false;
 }
 
+bool has_instance_extension(const char* wanted) noexcept {
+    VkExtensionProperties available[vulkan_detail::kMaxLayers * 4]{};
+    auto count =
+        std::uint32_t{static_cast<std::uint32_t>(sizeof(available) / sizeof(available[0]))};
+
+    const auto enumerated = vkEnumerateInstanceExtensionProperties(nullptr, &count, available);
+
+    if (enumerated != VK_SUCCESS && enumerated != VK_INCOMPLETE) {
+        return false;
+    }
+
+    if (count > sizeof(available) / sizeof(available[0])) {
+        count = static_cast<std::uint32_t>(sizeof(available) / sizeof(available[0]));
+    }
+
+    for (auto i = std::uint32_t{}; i < count; ++i) {
+        if (std::strcmp(available[i].extensionName, wanted) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool has_device_extension(VkPhysicalDevice physical, const char* wanted) noexcept {
+    VkExtensionProperties available[256]{};
+    auto count =
+        std::uint32_t{static_cast<std::uint32_t>(sizeof(available) / sizeof(available[0]))};
+
+    if (vkEnumerateDeviceExtensionProperties(physical, nullptr, &count, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+
+    if (count == 0 || count > sizeof(available) / sizeof(available[0])) {
+        return false;
+    }
+
+    if (vkEnumerateDeviceExtensionProperties(physical, nullptr, &count, available) != VK_SUCCESS) {
+        return false;
+    }
+
+    for (auto i = std::uint32_t{}; i < count; ++i) {
+        if (std::strcmp(available[i].extensionName, wanted) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 VulkanContextResult create_instance(vulkan_detail::ContextState& state, bool use_layers) noexcept {
     const auto app_info = VkApplicationInfo{
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -54,11 +105,21 @@ VulkanContextResult create_instance(vulkan_detail::ContextState& state, bool use
 
     const char* layer_names[] = {"VK_LAYER_KHRONOS_validation"};
 
+    const auto want_surface = has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
+        has_instance_extension(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+
+    const char* instance_extensions[] = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME,
+    };
+
     const auto instance_info = VkInstanceCreateInfo{
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo = &app_info,
         .enabledLayerCount = use_layers ? 1U : 0U,
         .ppEnabledLayerNames = use_layers ? layer_names : nullptr,
+        .enabledExtensionCount = want_surface ? 2U : 0U,
+        .ppEnabledExtensionNames = want_surface ? instance_extensions : nullptr,
     };
 
     if (vkCreateInstance(&instance_info, nullptr, &state.instance) != VK_SUCCESS) {
@@ -68,6 +129,7 @@ VulkanContextResult create_instance(vulkan_detail::ContextState& state, bool use
     }
 
     state.info.validation_layers = use_layers;
+    state.surface_ready = want_surface;
 
     return VulkanContextResult::ready;
 }
@@ -161,10 +223,17 @@ bool create_device(vulkan_detail::ContextState& state) noexcept {
         .pQueuePriorities = &priority,
     };
 
+    const auto want_swapchain =
+        has_device_extension(state.physical, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+    const char* device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
     const auto device_info = VkDeviceCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queue_info,
+        .enabledExtensionCount = want_swapchain ? 1U : 0U,
+        .ppEnabledExtensionNames = want_swapchain ? device_extensions : nullptr,
     };
 
     if (vkCreateDevice(state.physical, &device_info, nullptr, &state.device) != VK_SUCCESS) {
@@ -172,6 +241,8 @@ bool create_device(vulkan_detail::ContextState& state) noexcept {
 
         return false;
     }
+
+    state.swapchain_ready = want_swapchain;
 
     vkGetDeviceQueue(state.device, state.queue_family, 0, &state.queue);
 

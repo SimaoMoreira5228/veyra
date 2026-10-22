@@ -1,0 +1,2 @@
+/usr/bin/ar qc libveyra_style.a CMakeFiles/veyra_style.dir/src/style/theme.cpp.o
+/usr/bin/ranlib libveyra_style.a

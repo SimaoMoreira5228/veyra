@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_chat_message_change_queue_bench.dir/link.d CMakeFiles/veyra_chat_message_change_queue_bench.dir/bench/chat_message_change_queue.cpp.o -o veyra_chat_message_change_queue_bench  libveyra.a

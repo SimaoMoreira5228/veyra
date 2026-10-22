@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_virtual_list_bench.dir/link.d CMakeFiles/veyra_virtual_list_bench.dir/bench/virtual_list.cpp.o -o veyra_virtual_list_bench  libveyra.a

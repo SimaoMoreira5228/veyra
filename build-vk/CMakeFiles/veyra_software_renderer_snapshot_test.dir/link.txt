@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_software_renderer_snapshot_test.dir/link.d CMakeFiles/veyra_software_renderer_snapshot_test.dir/tests/software_renderer_snapshot_test.cpp.o -o veyra_software_renderer_snapshot_test  libveyra.a

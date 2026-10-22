@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_text_editor_buffer_bench.dir/link.d CMakeFiles/veyra_text_editor_buffer_bench.dir/bench/text_editor_buffer.cpp.o -o veyra_text_editor_buffer_bench  libveyra.a

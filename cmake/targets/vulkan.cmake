@@ -40,6 +40,9 @@ if(VEYRA_WITH_VULKAN)
    src/render/vulkan_mask_cache.cpp
    src/render/vulkan_pipeline_assembly.cpp
    src/render/vulkan_rect_pipeline.cpp
+   src/render/vulkan_present.cpp
+   src/render/vulkan_present_swapchain.cpp
+   src/render/vulkan_present_blit.cpp
     src/render/vulkan_frame_batch.cpp
    src/render/vulkan_frame_emit.cpp
    src/render/vulkan_frame_stroke.cpp
@@ -76,6 +79,7 @@ if(VEYRA_WITH_VULKAN)
 
   veyra_add_test(NAME vulkan_damage_parity TARGET veyra_vulkan_damage_parity_test SOURCES tests/vulkan_damage_parity_test.cpp LIBS veyra_vulkan)
   veyra_add_test(NAME vulkan_device_health TARGET veyra_vulkan_device_health_test SOURCES tests/vulkan_device_health_test.cpp LIBS veyra_vulkan)
+  veyra_add_test(NAME vulkan_present TARGET veyra_vulkan_present_test SOURCES tests/vulkan_present_test.cpp LIBS veyra_vulkan)
   veyra_add_test(NAME vulkan_scroll_parity TARGET veyra_vulkan_scroll_parity_test SOURCES tests/vulkan_scroll_parity_test.cpp LIBS veyra_vulkan)
 
   add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)

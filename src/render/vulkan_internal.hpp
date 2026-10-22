@@ -39,6 +39,8 @@ struct ContextState {
     std::uint64_t timestamp_mask{~0ULL};
     bool target_valid{};
     bool device_lost{};
+    bool surface_ready{};
+    bool swapchain_ready{};
     VkRenderPass shared_pass{VK_NULL_HANDLE};
     VkRenderPass shared_load_pass{VK_NULL_HANDLE};
     VkFramebuffer framebuffer{VK_NULL_HANDLE};

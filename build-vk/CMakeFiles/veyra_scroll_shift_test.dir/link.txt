@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_scroll_shift_test.dir/link.d CMakeFiles/veyra_scroll_shift_test.dir/tests/scroll_shift_test.cpp.o -o veyra_scroll_shift_test  libveyra.a

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libveyra_data.a CMakeFiles/veyra_data.dir/src/data/list_pipeline.cpp.o CMakeFiles/veyra_data.dir/src/data/server_rows.cpp.o
+/usr/bin/ranlib libveyra_data.a

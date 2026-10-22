@@ -38,6 +38,7 @@ add_library(veyra STATIC
  src/render/e3_scenes.cpp
  src/render/display_command_hash.cpp
  src/render/display_equivalence.cpp
+ src/text/editor_viewport.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/syntax_spans.cpp

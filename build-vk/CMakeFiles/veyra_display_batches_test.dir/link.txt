@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_display_batches_test.dir/link.d CMakeFiles/veyra_display_batches_test.dir/tests/display_batches_test.cpp.o -o veyra_display_batches_test  libveyra.a

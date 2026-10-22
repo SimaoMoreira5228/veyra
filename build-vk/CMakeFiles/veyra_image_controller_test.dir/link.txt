@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_image_controller_test.dir/link.d CMakeFiles/veyra_image_controller_test.dir/tests/image_controller_test.cpp.o -o veyra_image_controller_test  libveyra.a

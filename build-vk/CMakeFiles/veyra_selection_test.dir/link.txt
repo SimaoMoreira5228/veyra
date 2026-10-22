@@ -1,0 +1,1 @@
+/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_selection_test.dir/link.d CMakeFiles/veyra_selection_test.dir/tests/selection_test.cpp.o -o veyra_selection_test  libveyra_behaviors.a libveyra.a
