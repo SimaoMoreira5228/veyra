@@ -74,6 +74,7 @@ add_library(
     src/widgets/basic/button.cpp
     src/widgets/basic/toggle.cpp
     src/widgets/basic/textfield.cpp
+    src/widgets/basic/text_area.cpp
     src/widgets/basic/radio.cpp
     src/widgets/data/virtual_list.cpp
     src/widgets/data/data_grid.cpp
