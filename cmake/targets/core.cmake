@@ -53,7 +53,7 @@ target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra PUBLIC cxx_std_23)
 
-add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/datagrid_cursor.cpp src/behaviors/cell_range.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp src/behaviors/command_palette.cpp src/behaviors/progress.cpp)
+add_library(veyra_behaviors STATIC src/behaviors/pressable.cpp src/behaviors/toggle.cpp src/behaviors/selection.cpp src/behaviors/selection_typeahead.cpp src/behaviors/scroll.cpp src/behaviors/breadcrumb.cpp src/behaviors/tooltip.cpp src/behaviors/editable_text.cpp src/behaviors/overlay.cpp src/behaviors/toast.cpp src/behaviors/disclosure.cpp src/behaviors/drag_drop.cpp src/behaviors/datagrid.cpp src/behaviors/datagrid_cursor.cpp src/behaviors/cell_range.cpp src/behaviors/range.cpp src/behaviors/radiogroup.cpp src/behaviors/tabs.cpp src/behaviors/menu.cpp src/behaviors/menubar.cpp src/behaviors/combobox.cpp src/behaviors/keybinding.cpp src/behaviors/file_operation_queue.cpp src/behaviors/command_palette.cpp src/behaviors/progress.cpp src/behaviors/log_feed.cpp src/behaviors/icon_view.cpp)
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
@@ -78,6 +78,8 @@ add_library(
     src/widgets/basic/text_area.cpp
     src/widgets/basic/radio.cpp
     src/widgets/data/virtual_list.cpp
+    src/widgets/data/log_feed.cpp
+    src/widgets/data/icon_view.cpp
     src/widgets/data/data_grid.cpp
     src/widgets/data/tree_view.cpp
     src/widgets/data/progress_bar.cpp
