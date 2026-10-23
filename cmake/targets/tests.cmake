@@ -64,6 +64,7 @@ veyra_add_test(NAME log_feed_widget_behavior TARGET veyra_log_feed_widget_test S
 veyra_add_test(NAME log_feed_composition_behavior TARGET veyra_log_feed_composition_test SOURCES tests/log_feed_composition_test.cpp LIBS veyra_widgets_basic veyra_behaviors veyra_data veyra)
 veyra_add_test(NAME icon_view_behavior TARGET veyra_icon_view_test SOURCES tests/icon_view_test.cpp LIBS veyra_behaviors)
 veyra_add_test(NAME icon_view_widget_behavior TARGET veyra_icon_view_widget_test SOURCES tests/icon_view_widget_test.cpp LIBS veyra_widgets_basic veyra_behaviors veyra_data veyra)
+veyra_add_test(NAME file_grid_behavior TARGET veyra_file_grid_test SOURCES tests/file_grid_test.cpp LIBS veyra_widgets_basic veyra_behaviors veyra_data veyra)
 
 veyra_add_test(NAME chat_message_change_queue_behavior TARGET veyra_chat_message_change_queue_test SOURCES tests/chat_message_change_queue_test.cpp LIBS veyra Threads::Threads)
 veyra_add_test(NAME node_id_pool_behavior TARGET veyra_node_id_pool_test SOURCES tests/node_id_pool_test.cpp LIBS veyra)

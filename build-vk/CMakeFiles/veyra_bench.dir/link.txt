@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_bench.dir/link.d CMakeFiles/veyra_bench.dir/bench/main.cpp.o -o veyra_bench  libveyra.a

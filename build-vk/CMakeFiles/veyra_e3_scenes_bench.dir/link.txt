@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_e3_scenes_bench.dir/link.d CMakeFiles/veyra_e3_scenes_bench.dir/bench/e3_scenes.cpp.o -o veyra_e3_scenes_bench  libveyra.a

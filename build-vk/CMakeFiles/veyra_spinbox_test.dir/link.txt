@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_spinbox_test.dir/link.d CMakeFiles/veyra_spinbox_test.dir/tests/spinbox_test.cpp.o -o veyra_spinbox_test  libveyra_behaviors.a libveyra.a

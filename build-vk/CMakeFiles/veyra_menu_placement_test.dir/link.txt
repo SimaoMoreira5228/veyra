@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_menu_placement_test.dir/link.d CMakeFiles/veyra_menu_placement_test.dir/tests/menu_placement_test.cpp.o -o veyra_menu_placement_test  libveyra.a

@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_editor_viewport_test.dir/link.d CMakeFiles/veyra_editor_viewport_test.dir/tests/editor_viewport_test.cpp.o -o veyra_editor_viewport_test  libveyra.a

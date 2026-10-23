@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_node_tree_test.dir/link.d CMakeFiles/veyra_node_tree_test.dir/tests/node_tree_test.cpp.o -o veyra_node_tree_test  libveyra.a

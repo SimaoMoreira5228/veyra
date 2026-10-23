@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_svg_decode_test.dir/link.d CMakeFiles/veyra_svg_decode_test.dir/tests/svg_decode_test.cpp.o -o veyra_svg_decode_test  libveyra_codecs.a /usr/lib64/libwebpdemux.so /usr/lib64/libwebpmux.so /usr/lib64/libwebp.so /usr/lib64/libavif.so

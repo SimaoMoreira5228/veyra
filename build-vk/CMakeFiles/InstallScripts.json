@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/mnt/hdd/Projects/cpp/veyra-vulkan/build-vk/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

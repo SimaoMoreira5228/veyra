@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_stb_sprintf_test.dir/link.d CMakeFiles/veyra_stb_sprintf_test.dir/tests/stb_sprintf_test.cpp.o -o veyra_stb_sprintf_test

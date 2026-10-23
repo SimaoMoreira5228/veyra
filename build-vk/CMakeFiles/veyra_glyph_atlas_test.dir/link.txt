@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_glyph_atlas_test.dir/link.d CMakeFiles/veyra_glyph_atlas_test.dir/tests/glyph_atlas_test.cpp.o -o veyra_glyph_atlas_test  libveyra.a

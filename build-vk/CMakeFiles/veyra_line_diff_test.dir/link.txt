@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_line_diff_test.dir/link.d CMakeFiles/veyra_line_diff_test.dir/tests/line_diff_test.cpp.o -o veyra_line_diff_test  libveyra.a

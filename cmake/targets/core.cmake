@@ -60,7 +60,7 @@ target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
 
-add_library(veyra_data STATIC src/data/list_pipeline.cpp src/data/server_rows.cpp)
+add_library(veyra_data STATIC src/data/list_pipeline.cpp src/data/server_rows.cpp src/services/shell.cpp)
 target_include_directories(veyra_data PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra_data PUBLIC cxx_std_23)
 

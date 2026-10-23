@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_e0_harness_test.dir/link.d CMakeFiles/veyra_e0_harness_test.dir/tests/e0_harness_test.cpp.o -o veyra_e0_harness_test  libveyra.a

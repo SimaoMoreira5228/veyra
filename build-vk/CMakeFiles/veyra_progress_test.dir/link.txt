@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_progress_test.dir/link.d CMakeFiles/veyra_progress_test.dir/tests/progress_test.cpp.o -o veyra_progress_test  libveyra_behaviors.a libveyra.a

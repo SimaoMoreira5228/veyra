@@ -6,3 +6,4 @@ build/
 *.ps
 *.eps
 *.prn
+build-vk/

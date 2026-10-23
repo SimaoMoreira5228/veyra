@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_stack_layout_test.dir/link.d CMakeFiles/veyra_stack_layout_test.dir/tests/stack_layout_test.cpp.o -o veyra_stack_layout_test  libveyra.a

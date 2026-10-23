@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_file_operation_queue_test.dir/link.d CMakeFiles/veyra_file_operation_queue_test.dir/tests/file_operation_queue_test.cpp.o -o veyra_file_operation_queue_test  libveyra_behaviors.a libveyra.a

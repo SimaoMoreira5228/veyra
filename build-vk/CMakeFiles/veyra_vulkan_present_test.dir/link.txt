@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_vulkan_present_test.dir/link.d CMakeFiles/veyra_vulkan_present_test.dir/tests/vulkan_present_test.cpp.o -o veyra_vulkan_present_test  libveyra_vulkan.a libveyra.a /usr/lib64/libvulkan.so

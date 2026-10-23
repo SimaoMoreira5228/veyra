@@ -1,1 +1,0 @@
-/usr/lib64/ccache/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/veyra_dialog_composition_test.dir/link.d CMakeFiles/veyra_dialog_composition_test.dir/tests/dialog_composition_test.cpp.o -o veyra_dialog_composition_test  libveyra_widgets_basic.a libveyra_behaviors.a libveyra.a libveyra_style.a
