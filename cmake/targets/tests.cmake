@@ -74,6 +74,7 @@ veyra_add_test(NAME event_dispatch_behavior TARGET veyra_event_dispatch_test SOU
 veyra_add_test(NAME hit_test_behavior TARGET veyra_hit_test_test SOURCES tests/hit_test_test.cpp LIBS veyra)
 veyra_add_test(NAME focus_navigation_behavior TARGET veyra_focus_navigation_test SOURCES tests/focus_navigation_test.cpp LIBS veyra)
 veyra_add_test(NAME frame_scheduler_behavior TARGET veyra_frame_scheduler_test SOURCES tests/frame_scheduler_test.cpp LIBS veyra)
+veyra_add_test(NAME run_loop_behavior TARGET veyra_run_loop_test SOURCES tests/run_loop_test.cpp LIBS veyra)
 veyra_add_test(NAME semantics_behavior TARGET veyra_semantics_test SOURCES tests/semantics_test.cpp LIBS veyra)
 veyra_add_test(NAME shortcut_map_behavior TARGET veyra_shortcut_map_test SOURCES tests/shortcut_map_test.cpp LIBS veyra)
 veyra_add_test(NAME platform_window_behavior TARGET veyra_platform_window_test SOURCES tests/platform_window_test.cpp LIBS veyra)

@@ -1,0 +1,42 @@
+#version 450
+
+layout(location = 0) in vec4 inBounds;
+layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec4 inShape;
+layout(location = 3) in float inRadius;
+layout(location = 4) in float inThickness;
+
+layout(set = 1, binding = 0) uniform Extent {
+    vec2 extent;
+};
+
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outShape;
+layout(location = 2) out vec2 outPixel;
+layout(location = 3) out float outRadius;
+layout(location = 4) out float outThickness;
+
+void main() {
+    vec2 pixel = inBounds.xy;
+
+    if (gl_VertexIndex == 1 || gl_VertexIndex == 4) {
+        pixel = vec2(inBounds.z, inBounds.y);
+    } else if (gl_VertexIndex == 2 || gl_VertexIndex == 3) {
+        pixel = vec2(inBounds.x, inBounds.w);
+    } else if (gl_VertexIndex == 5) {
+        pixel = inBounds.zw;
+    }
+
+    outColor = inColor;
+    outShape = inShape;
+    outPixel = pixel;
+    outRadius = inRadius;
+    outThickness = inThickness;
+
+    vec2 ndc = vec2(
+        pixel.x / extent.x * 2.0 - 1.0,
+        1.0 - pixel.y / extent.y * 2.0
+    );
+
+    gl_Position = vec4(ndc, 0.0, 1.0);
+}

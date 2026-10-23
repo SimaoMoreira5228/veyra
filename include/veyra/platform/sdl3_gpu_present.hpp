@@ -26,6 +26,7 @@ class SdlGpuPresenter {
     const char* device_driver() const noexcept;
     std::uint64_t generation() const noexcept;
     bool claimed() const noexcept;
+    void* gpu_device() const noexcept;
 
     WindowResult claim(Sdl3Window& window) noexcept;
     void release() noexcept;
@@ -33,6 +34,8 @@ class SdlGpuPresenter {
     WindowResult
     acquire_surface(SoftwareSurface& surface, std::span<SoftwarePixel> backing) noexcept;
     WindowResult present() noexcept;
+    WindowResult
+    present_texture(const void* texture, std::size_t width, std::size_t height) noexcept;
 
   private:
     void destroy_resources() noexcept;

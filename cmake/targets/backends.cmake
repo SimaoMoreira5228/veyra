@@ -50,6 +50,68 @@ if(VEYRA_WITH_SDL3)
  veyra_add_test(NAME sdl3_gamepad_behavior TARGET veyra_sdl3_gamepad_test SOURCES tests/sdl3_gamepad_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
  veyra_add_test(NAME sdl3_gpu_present_behavior TARGET veyra_sdl3_gpu_present_test SOURCES tests/sdl3_gpu_present_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
  veyra_add_test(NAME sdl3_gpu_present_windowed TARGET veyra_sdl3_gpu_present_test NO_BUILD ENVIRONMENT "VEYRA_GPU_WINDOWED=1;SDL_VIDEODRIVER=x11")
+
+ find_program(VEYRA_SDL_GLSLANG_VALIDATOR glslangValidator)
+ if(NOT VEYRA_SDL_GLSLANG_VALIDATOR)
+  message(STATUS "Veyra: glslangValidator missing, skipping SDL GPU twin shaders")
+ else()
+  set(veyra_sdl_gpu_gen "${CMAKE_CURRENT_BINARY_DIR}/sdl_gpu_gen")
+  file(MAKE_DIRECTORY "${veyra_sdl_gpu_gen}")
+  set(veyra_sdl_gpu_spv_headers "")
+  foreach(shader_spec "rect_sdl:RectSdl" "rounded_rect_sdl:RoundedRectSdl" "image_sdl:ImageSdl" "mask_sdl:MaskSdl" "stroke_sdl:StrokeSdl" "rounded_stroke_sdl:RoundedStrokeSdl" "glyph_sdl:GlyphSdl")
+   string(REPLACE ":" ";" shader_parts "${shader_spec}")
+   list(GET shader_parts 0 shader_name)
+   list(GET shader_parts 1 shader_prefix)
+   foreach(stage Vert Frag)
+    string(TOLOWER "${stage}" stage_lower)
+    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/${shader_name}.${stage_lower}")
+    set(shader_spv "${veyra_sdl_gpu_gen}/${shader_name}.${stage_lower}.spv")
+    set(shader_header "${veyra_sdl_gpu_gen}/${shader_name}_${stage_lower}_spv.hpp")
+    add_custom_command(
+     OUTPUT "${shader_spv}"
+     COMMAND "${VEYRA_SDL_GLSLANG_VALIDATOR}" -V "${shader_source}" -o "${shader_spv}"
+     DEPENDS "${shader_source}"
+     COMMENT "Veyra: compiling ${shader_name}.${stage_lower} to SPIR-V"
+    )
+    add_custom_command(
+     OUTPUT "${shader_header}"
+     COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
+      "-DVAR=k${shader_prefix}${stage}Spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+     DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+     COMMENT "Veyra: embedding ${shader_name}.${stage_lower}.spv"
+    )
+    list(APPEND veyra_sdl_gpu_spv_headers "${shader_header}")
+   endforeach()
+  endforeach()
+  add_library(veyra_sdl_gpu STATIC
+   src/render/sdl_gpu_renderer.cpp
+   src/render/sdl_gpu_emit.cpp
+   src/render/sdl_gpu_stroke.cpp
+   src/render/sdl_gpu_path.cpp
+   src/render/sdl_gpu_frame.cpp
+   src/render/sdl_gpu_pipelines.cpp
+   src/render/sdl_gpu_textures.cpp
+   ${veyra_sdl_gpu_spv_headers}
+  )
+  target_include_directories(veyra_sdl_gpu PUBLIC
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+  target_include_directories(veyra_sdl_gpu PRIVATE
+   "${veyra_sdl_gpu_gen}"
+   "${CMAKE_CURRENT_SOURCE_DIR}/src/render"
+  )
+  target_link_libraries(veyra_sdl_gpu PUBLIC veyra veyra_sdl3 SDL3::SDL3)
+  target_compile_features(veyra_sdl_gpu PUBLIC cxx_std_23)
+
+  veyra_add_test(NAME sdl_gpu_rect_fill_parity TARGET veyra_sdl_gpu_rect_fill_parity_test SOURCES tests/sdl_gpu_rect_fill_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_rounded_rect_parity TARGET veyra_sdl_gpu_rounded_rect_parity_test SOURCES tests/sdl_gpu_rounded_rect_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_image_parity TARGET veyra_sdl_gpu_image_parity_test SOURCES tests/sdl_gpu_image_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_stroke_parity TARGET veyra_sdl_gpu_stroke_parity_test SOURCES tests/sdl_gpu_stroke_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_mask_parity TARGET veyra_sdl_gpu_mask_parity_test SOURCES tests/sdl_gpu_mask_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_glyph_parity TARGET veyra_sdl_gpu_glyph_parity_test SOURCES tests/sdl_gpu_glyph_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_clip_parity TARGET veyra_sdl_gpu_clip_parity_test SOURCES tests/sdl_gpu_clip_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+  veyra_add_test(NAME sdl_gpu_path_parity TARGET veyra_sdl_gpu_path_parity_test SOURCES tests/sdl_gpu_path_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+ endif()
 endif()
 
 if(VEYRA_WITH_GLFW)

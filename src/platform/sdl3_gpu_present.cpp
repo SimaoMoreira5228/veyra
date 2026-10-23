@@ -86,6 +86,10 @@ bool SdlGpuPresenter::claimed() const noexcept {
     return window_ != nullptr;
 }
 
+void* SdlGpuPresenter::gpu_device() const noexcept {
+    return device_;
+}
+
 WindowResult SdlGpuPresenter::claim(Sdl3Window& window) noexcept {
     if (device_ == nullptr) {
         return WindowResult::invalid_state;
@@ -186,6 +190,95 @@ WindowResult SdlGpuPresenter::present() noexcept {
     const WindowResult result = present_pixels();
     acquired_pixels_ = {};
     return result;
+}
+
+WindowResult SdlGpuPresenter::present_texture(
+    const void* texture,
+    std::size_t width,
+    std::size_t height
+) noexcept {
+    if (device_ == nullptr || window_ == nullptr) {
+        return WindowResult::presentation_failed;
+    }
+
+    if (texture == nullptr || width == 0 || height == 0) {
+        return WindowResult::invalid_input;
+    }
+
+    if (width > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) ||
+        height > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+        return WindowResult::unsupported_size;
+    }
+
+    void* handle = window_->window_handle();
+
+    if (handle == nullptr) {
+        return WindowResult::presentation_failed;
+    }
+
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(as_device(device_));
+
+    if (commands == nullptr) {
+        return WindowResult::presentation_failed;
+    }
+
+    SDL_GPUTexture* swapchain = nullptr;
+    std::uint32_t swapchain_width = 0;
+    std::uint32_t swapchain_height = 0;
+
+    if (!SDL_WaitAndAcquireGPUSwapchainTexture(
+            commands,
+            as_window(handle),
+            &swapchain,
+            &swapchain_width,
+            &swapchain_height
+        )) {
+        SDL_CancelGPUCommandBuffer(commands);
+
+        return WindowResult::presentation_failed;
+    }
+
+    if (swapchain == nullptr || swapchain_width == 0 || swapchain_height == 0) {
+        SDL_SubmitGPUCommandBuffer(commands);
+
+        return WindowResult::suspended;
+    }
+
+    const auto blit = SDL_GPUBlitInfo{
+        .source =
+            {
+                .texture = const_cast<SDL_GPUTexture*>(static_cast<const SDL_GPUTexture*>(texture)),
+                .mip_level = 0,
+                .layer_or_depth_plane = 0,
+                .x = 0,
+                .y = 0,
+                .w = static_cast<std::uint32_t>(width),
+                .h = static_cast<std::uint32_t>(height),
+            },
+        .destination =
+            {
+                .texture = swapchain,
+                .mip_level = 0,
+                .layer_or_depth_plane = 0,
+                .x = 0,
+                .y = 0,
+                .w = swapchain_width,
+                .h = swapchain_height,
+            },
+        .load_op = SDL_GPU_LOADOP_DONT_CARE,
+        .clear_color = {},
+        .flip_mode = SDL_FLIP_NONE,
+        .filter = SDL_GPU_FILTER_LINEAR,
+        .cycle = false,
+    };
+
+    SDL_BlitGPUTexture(commands, &blit);
+
+    if (!SDL_SubmitGPUCommandBuffer(commands)) {
+        return WindowResult::presentation_failed;
+    }
+
+    return WindowResult::ready;
 }
 
 void SdlGpuPresenter::destroy_resources() noexcept {
