@@ -77,6 +77,7 @@ veyra_add_test(NAME frame_scheduler_behavior TARGET veyra_frame_scheduler_test S
 veyra_add_test(NAME semantics_behavior TARGET veyra_semantics_test SOURCES tests/semantics_test.cpp LIBS veyra)
 veyra_add_test(NAME shortcut_map_behavior TARGET veyra_shortcut_map_test SOURCES tests/shortcut_map_test.cpp LIBS veyra)
 veyra_add_test(NAME platform_window_behavior TARGET veyra_platform_window_test SOURCES tests/platform_window_test.cpp LIBS veyra)
+veyra_add_test(NAME present_choice_behavior TARGET veyra_present_choice_test SOURCES tests/present_choice_test.cpp LIBS veyra)
 veyra_add_test(NAME window_router_behavior TARGET veyra_window_router_test SOURCES tests/window_router_test.cpp LIBS veyra)
 veyra_add_test(NAME fake_clipboard_behavior TARGET veyra_fake_clipboard_test SOURCES tests/fake_clipboard_test.cpp LIBS veyra)
 veyra_add_test(NAME fake_dialog_behavior TARGET veyra_fake_dialog_test SOURCES tests/fake_dialog_test.cpp LIBS veyra)

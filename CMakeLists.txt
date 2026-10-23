@@ -19,7 +19,7 @@ option(VEYRA_WITH_WEBP "Build WebP image support (fetched if missing)" ON)
 option(VEYRA_WITH_AVIF "Build AVIF image support (fetched if missing)" ON)
 set(VEYRA_LIBAVIF_URL "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v1.4.2.tar.gz" CACHE STRING "libavif pinned tarball")
 set(VEYRA_LIBAVIF_SHA256 "2b645287340ba5a631d0b55508b1d2f7bd73ac6b6d8366d0be6921d" CACHE STRING "libavif pinned tarball sha256")
-set(VEYRA_PARADIGM "all" CACHE STRING "arena, reactive, ecs, or all")
+set(VEYRA_PARADIGM "arena" CACHE STRING "arena, reactive, ecs, or all")
 set_property(CACHE VEYRA_PARADIGM PROPERTY STRINGS arena reactive ecs all)
 set(valid_paradigms arena reactive ecs all)
 

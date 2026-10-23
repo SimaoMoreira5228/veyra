@@ -100,6 +100,7 @@ struct WindowCapabilities {
     bool srgb_transfer_approximate{};
     bool device_loss_recovery{};
     bool external_render_target{};
+    bool vulkan_surface{};
 };
 
 static_assert(std::is_trivially_copyable_v<WindowCapabilities>);
@@ -253,6 +254,11 @@ concept SoftwareSurfacePresenter =
         { presenter.acquire_surface(surface, pixels) } noexcept -> std::same_as<WindowResult>;
         { presenter.present() } noexcept -> std::same_as<WindowResult>;
     };
+
+template <typename Window>
+concept VulkanSurfaceProvider = requires(Window& window, void* instance, void*& surface) {
+    { window.create_vulkan_surface(instance, surface) } noexcept -> std::same_as<WindowResult>;
+};
 
 }
 

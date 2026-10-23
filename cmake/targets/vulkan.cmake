@@ -82,6 +82,31 @@ if(VEYRA_WITH_VULKAN)
   veyra_add_test(NAME vulkan_present TARGET veyra_vulkan_present_test SOURCES tests/vulkan_present_test.cpp LIBS veyra_vulkan)
   veyra_add_test(NAME vulkan_scroll_parity TARGET veyra_vulkan_scroll_parity_test SOURCES tests/vulkan_scroll_parity_test.cpp LIBS veyra_vulkan)
 
+  if(VEYRA_WITH_GLFW AND TARGET veyra_glfw)
+   target_sources(veyra_glfw PRIVATE src/platform/glfw_vulkan_surface.cpp)
+   target_link_libraries(veyra_glfw PRIVATE Vulkan::Vulkan)
+   veyra_add_test(
+    NAME glfw_vulkan_surface_behavior
+    TARGET veyra_glfw_vulkan_surface_test
+    SOURCES tests/glfw_vulkan_surface_test.cpp
+    LIBS veyra_glfw Vulkan::Vulkan
+    SKIP_RETURN_CODE 77
+   )
+  endif()
+
+  if(VEYRA_WITH_SDL3 AND TARGET veyra_sdl3)
+   target_compile_definitions(veyra_sdl3 PRIVATE VEYRA_WITH_VULKAN=1)
+   target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_vulkan_surface.cpp)
+   target_link_libraries(veyra_sdl3 PRIVATE Vulkan::Vulkan)
+   veyra_add_test(
+    NAME sdl3_vulkan_surface_behavior
+    TARGET veyra_sdl3_vulkan_surface_test
+    SOURCES tests/sdl3_vulkan_surface_test.cpp
+    LIBS veyra_sdl3 Vulkan::Vulkan
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy"
+   )
+  endif()
+
   add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
   target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)
   target_compile_definitions(veyra_vulkan_e3_bench PRIVATE

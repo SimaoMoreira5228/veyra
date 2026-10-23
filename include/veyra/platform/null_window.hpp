@@ -41,6 +41,8 @@ class NullWindow {
     acquire_surface(SoftwareSurface& surface, std::span<SoftwarePixel> backing) noexcept;
     WindowResult present() noexcept;
 
+    WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
+
     WindowResult start_text_input() noexcept;
     WindowResult stop_text_input() noexcept;
     WindowResult set_text_input_area(TextInputArea area) noexcept;
@@ -77,6 +79,7 @@ class NullWindow {
 
 static_assert(WindowBackend<NullWindow>);
 static_assert(SoftwareSurfacePresenter<NullWindow>);
+static_assert(VulkanSurfaceProvider<NullWindow>);
 
 class NullNotices {
   public:
