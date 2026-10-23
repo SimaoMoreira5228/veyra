@@ -144,6 +144,10 @@ enum class WindowEventKind : std::uint8_t {
     text_editing,
     focus_gained,
     focus_lost,
+    gamepad_axis,
+    gamepad_button,
+    gamepad_added,
+    gamepad_removed,
 };
 
 struct WindowResize {
@@ -194,6 +198,26 @@ struct WindowTextEditing {
     bool truncated{};
 };
 
+struct WindowGamepadAxis {
+    std::uint32_t device{};
+    std::uint32_t axis{};
+    float value{};
+};
+
+struct WindowGamepadButton {
+    std::uint32_t device{};
+    std::uint32_t button{};
+    bool pressed{};
+};
+
+struct WindowGamepadDevice {
+    std::uint32_t device{};
+};
+
+static_assert(std::is_trivially_copyable_v<WindowGamepadAxis>);
+static_assert(std::is_trivially_copyable_v<WindowGamepadButton>);
+static_assert(std::is_trivially_copyable_v<WindowGamepadDevice>);
+
 union WindowEventData {
     WindowResize resize;
     WindowScale scale;
@@ -202,6 +226,9 @@ union WindowEventData {
     WindowKey key;
     WindowTextCommit commit;
     WindowTextEditing editing;
+    WindowGamepadAxis gamepad_axis;
+    WindowGamepadButton gamepad_button;
+    WindowGamepadDevice gamepad_device;
 
     WindowEventData() noexcept : resize{} {
     }
@@ -240,6 +267,7 @@ concept WindowBackend = requires(
     { observer.surface_generation() } noexcept -> std::same_as<std::uint64_t>;
     { observer.capabilities() } noexcept -> std::same_as<WindowCapabilities>;
     { backend.poll_event(event) } noexcept -> std::same_as<bool>;
+    { observer.gamepad_count() } noexcept -> std::same_as<std::uint32_t>;
     { backend.start_text_input() } noexcept -> std::same_as<WindowResult>;
     { backend.stop_text_input() } noexcept -> std::same_as<WindowResult>;
     { backend.set_text_input_area(area) } noexcept -> std::same_as<WindowResult>;

@@ -47,6 +47,8 @@ class GlfwWindow {
 
     WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
 
+    std::uint32_t gamepad_count() const noexcept;
+
   private:
     struct WindowDeleter {
         void operator()(GLFWwindow* window) const noexcept;
@@ -70,8 +72,17 @@ class GlfwWindow {
     std::size_t event_count_{};
     bool text_input_active_{};
 
+    static constexpr std::size_t kGamepadAxes = 6;
+    static constexpr std::size_t kGamepadButtons = 15;
+
+    GlfwWindow* next_{};
+    std::uint16_t gamepads_{};
+    std::array<float, kGamepadAxes> gamepad_axes_{};
+    std::array<bool, kGamepadButtons> gamepad_pressed_{};
+
     void enqueue(WindowEvent event) noexcept;
     bool dequeue(WindowEvent& event) noexcept;
+    void poll_gamepads() noexcept;
 
     static GlfwWindow* self(GLFWwindow* window) noexcept;
     static std::uint32_t translate_modifiers(int modifiers) noexcept;
@@ -86,6 +97,7 @@ class GlfwWindow {
     on_key(GLFWwindow* window, int key, int scancode, int action, int modifiers) noexcept;
     static void on_character(GLFWwindow* window, unsigned int codepoint) noexcept;
     static void on_focus(GLFWwindow* window, int focused) noexcept;
+    static void on_joystick(int id, int action) noexcept;
 };
 
 static_assert(WindowBackend<GlfwWindow>);

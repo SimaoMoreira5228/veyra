@@ -51,6 +51,11 @@ class Sdl3Window {
 
     WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
 
+    WindowResult claim_for_gpu_device(void* device) noexcept;
+    void release_from_gpu_device(void* device) noexcept;
+    void* window_handle() noexcept;
+    std::uint32_t gamepad_count() const noexcept;
+
   private:
     struct WindowDeleter {
         void operator()(SDL_Window* window) const noexcept;
@@ -95,6 +100,7 @@ class Sdl3Window {
     std::size_t event_head_{};
     std::size_t event_count_{};
     bool video_initialized_{};
+    bool gamepad_initialized_{};
     bool frame_acquired_{};
 };
 

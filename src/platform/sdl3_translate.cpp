@@ -1,5 +1,6 @@
 #include "veyra/platform/sdl3_translate.hpp"
 
+#include <algorithm>
 #include <span>
 
 namespace veyra {
@@ -223,6 +224,86 @@ bool translate_text_editing(const SDL_TextEditingEvent& in, WindowEvent& out) no
     return true;
 }
 
+float normalize_stick(Sint16 value) noexcept {
+    constexpr float kPositive = 32767.0F;
+    constexpr float kNegative = 32768.0F;
+
+    const float scaled =
+        value < 0 ? static_cast<float>(value) / kNegative : static_cast<float>(value) / kPositive;
+
+    return std::clamp(scaled, -1.0F, 1.0F);
+}
+
+bool translate_gamepad_axis(const SDL_GamepadAxisEvent& in, WindowEvent& out) noexcept {
+    if (in.axis >= SDL_GAMEPAD_AXIS_COUNT) {
+        return false;
+    }
+
+    out.kind = WindowEventKind::gamepad_axis;
+    out.data.gamepad_axis = {
+        .device = static_cast<std::uint32_t>(in.which),
+        .axis = static_cast<std::uint32_t>(in.axis),
+        .value = normalize_stick(in.value),
+    };
+
+    return true;
+}
+
+bool translate_gamepad_button(const SDL_GamepadButtonEvent& in, WindowEvent& out) noexcept {
+    if (in.button >= SDL_GAMEPAD_BUTTON_COUNT) {
+        return false;
+    }
+
+    out.kind = WindowEventKind::gamepad_button;
+    out.data.gamepad_button = {
+        .device = static_cast<std::uint32_t>(in.which),
+        .button = static_cast<std::uint32_t>(in.button),
+        .pressed = in.down,
+    };
+
+    return true;
+}
+
+bool translate_gamepad_device(
+    bool added,
+    const SDL_GamepadDeviceEvent& in,
+    WindowEvent& out
+) noexcept {
+    out.kind = added ? WindowEventKind::gamepad_added : WindowEventKind::gamepad_removed;
+    out.data.gamepad_device = {.device = static_cast<std::uint32_t>(in.which)};
+
+    return true;
+}
+
+bool translate_joy_axis(const SDL_JoyAxisEvent& in, WindowEvent& out) noexcept {
+    out.kind = WindowEventKind::gamepad_axis;
+    out.data.gamepad_axis = {
+        .device = static_cast<std::uint32_t>(in.which),
+        .axis = static_cast<std::uint32_t>(in.axis),
+        .value = normalize_stick(in.value),
+    };
+
+    return true;
+}
+
+bool translate_joy_button(const SDL_JoyButtonEvent& in, WindowEvent& out) noexcept {
+    out.kind = WindowEventKind::gamepad_button;
+    out.data.gamepad_button = {
+        .device = static_cast<std::uint32_t>(in.which),
+        .button = static_cast<std::uint32_t>(in.button),
+        .pressed = in.down,
+    };
+
+    return true;
+}
+
+bool translate_joy_device(bool added, const SDL_JoyDeviceEvent& in, WindowEvent& out) noexcept {
+    out.kind = added ? WindowEventKind::gamepad_added : WindowEventKind::gamepad_removed;
+    out.data.gamepad_device = {.device = static_cast<std::uint32_t>(in.which)};
+
+    return true;
+}
+
 }
 
 bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out) noexcept {
@@ -265,6 +346,32 @@ bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out)
         break;
     case SDL_EVENT_TEXT_EDITING:
         handled = translate_text_editing(in.edit, mapped);
+        break;
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        handled = translate_gamepad_axis(in.gaxis, mapped);
+        break;
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        handled = translate_gamepad_button(in.gbutton, mapped);
+        break;
+    case SDL_EVENT_GAMEPAD_ADDED:
+        handled = translate_gamepad_device(true, in.gdevice, mapped);
+        break;
+    case SDL_EVENT_GAMEPAD_REMOVED:
+        handled = translate_gamepad_device(false, in.gdevice, mapped);
+        break;
+    case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+        handled = translate_joy_axis(in.jaxis, mapped);
+        break;
+    case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+    case SDL_EVENT_JOYSTICK_BUTTON_UP:
+        handled = translate_joy_button(in.jbutton, mapped);
+        break;
+    case SDL_EVENT_JOYSTICK_ADDED:
+        handled = translate_joy_device(true, in.jdevice, mapped);
+        break;
+    case SDL_EVENT_JOYSTICK_REMOVED:
+        handled = translate_joy_device(false, in.jdevice, mapped);
         break;
     default:
         handled = false;

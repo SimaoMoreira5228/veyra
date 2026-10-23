@@ -59,6 +59,10 @@ std::uint64_t NullWindow::presented_frames() const noexcept {
     return presented_frames_;
 }
 
+std::uint32_t NullWindow::gamepad_count() const noexcept {
+    return 0;
+}
+
 bool NullWindow::text_input_active() const noexcept {
     return text_input_active_;
 }

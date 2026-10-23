@@ -44,8 +44,12 @@ if(VEYRA_WITH_SDL3)
  veyra_add_test(NAME sdl3_window_behavior TARGET veyra_sdl3_window_test SOURCES tests/sdl3_window_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 
  target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_translate.cpp)
+ target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_gpu_present.cpp)
 
  veyra_add_test(NAME sdl3_translate_behavior TARGET veyra_sdl3_translate_test SOURCES tests/sdl3_translate_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+ veyra_add_test(NAME sdl3_gamepad_behavior TARGET veyra_sdl3_gamepad_test SOURCES tests/sdl3_gamepad_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+ veyra_add_test(NAME sdl3_gpu_present_behavior TARGET veyra_sdl3_gpu_present_test SOURCES tests/sdl3_gpu_present_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+ veyra_add_test(NAME sdl3_gpu_present_windowed TARGET veyra_sdl3_gpu_present_test NO_BUILD ENVIRONMENT "VEYRA_GPU_WINDOWED=1;SDL_VIDEODRIVER=x11")
 endif()
 
 if(VEYRA_WITH_GLFW)

@@ -9,6 +9,7 @@
 #endif
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <utility>
@@ -16,6 +17,24 @@
 namespace veyra {
 namespace {
 Sdl3Window* windows{};
+
+bool is_gamepad_event(std::uint32_t type) noexcept {
+    switch (type) {
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+    case SDL_EVENT_GAMEPAD_ADDED:
+    case SDL_EVENT_GAMEPAD_REMOVED:
+    case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+    case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+    case SDL_EVENT_JOYSTICK_BUTTON_UP:
+    case SDL_EVENT_JOYSTICK_ADDED:
+    case SDL_EVENT_JOYSTICK_REMOVED:
+        return true;
+    default:
+        return false;
+    }
+}
 }
 
 Sdl3Window* Sdl3Window::find_window(WindowId id) noexcept {
@@ -34,6 +53,16 @@ void Sdl3Window::route_event(const SDL_Event& event) noexcept {
             close.kind = WindowEventKind::close_request;
             close.window = window->window_id();
             window->enqueue(close);
+        }
+        return;
+    }
+
+    if (is_gamepad_event(event.type)) {
+        WindowEvent translated{};
+        if (translate_sdl_event(event, kInvalidWindowId, translated)) {
+            for (auto* window = windows; window != nullptr; window = window->next_) {
+                window->enqueue(translated);
+            }
         }
         return;
     }
@@ -78,6 +107,8 @@ Sdl3Window::Sdl3Window(const char* title, int width, int height) noexcept {
         creation_result_ = WindowResult::creation_failed;
         return;
     }
+
+    gamepad_initialized_ = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
 
     SDL_Window* native_window = nullptr;
     SDL_Renderer* native_renderer = nullptr;
@@ -131,6 +162,9 @@ Sdl3Window::~Sdl3Window() {
     texture_.reset();
     renderer_.reset();
     window_.reset();
+    if (gamepad_initialized_) {
+        SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
+    }
     if (video_initialized_) {
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
@@ -194,6 +228,23 @@ WindowCapabilities Sdl3Window::capabilities() const noexcept {
 
 std::uint64_t Sdl3Window::dropped_events() const noexcept {
     return dropped_events_;
+}
+
+std::uint32_t Sdl3Window::gamepad_count() const noexcept {
+    if (creation_result_ != WindowResult::ready || !gamepad_initialized_) {
+        return 0;
+    }
+
+    int count = 0;
+    SDL_JoystickID* ids = SDL_GetGamepads(&count);
+    if (ids != nullptr) {
+        SDL_free(ids);
+    }
+    if (count <= 0) {
+        return 0;
+    }
+
+    return static_cast<std::uint32_t>(count);
 }
 
 bool Sdl3Window::poll_event(WindowEvent& event) noexcept {

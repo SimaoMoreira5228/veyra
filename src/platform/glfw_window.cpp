@@ -12,6 +12,10 @@ namespace veyra {
 namespace {
 
 std::size_t glfw_window_count{};
+GlfwWindow* instances{};
+
+static_assert(GLFW_GAMEPAD_AXIS_LAST + 1 == 6, "glfw gamepad axes fit the window cache");
+static_assert(GLFW_GAMEPAD_BUTTON_LAST + 1 == 15, "glfw gamepad buttons fit the window cache");
 
 std::uint32_t mouse_button_flag(int button) noexcept {
     switch (button) {
@@ -96,6 +100,11 @@ GlfwWindow::GlfwWindow(
     ++glfw_window_count;
     window_id_ = id;
     creation_result_ = WindowResult::ready;
+    if (instances == nullptr) {
+        glfwSetJoystickCallback(on_joystick);
+    }
+    next_ = instances;
+    instances = this;
     glfwSetWindowUserPointer(window_.get(), this);
     glfwSetWindowCloseCallback(window_.get(), on_close);
     glfwSetWindowSizeCallback(window_.get(), on_resize);
@@ -123,6 +132,20 @@ GlfwWindow::~GlfwWindow() {
         return;
     }
 
+    if (instances == this) {
+        instances = next_;
+    } else {
+        for (auto* instance = instances; instance != nullptr; instance = instance->next_) {
+            if (instance->next_ == this) {
+                instance->next_ = next_;
+                break;
+            }
+        }
+    }
+    if (instances == nullptr) {
+        glfwSetJoystickCallback(nullptr);
+    }
+    next_ = nullptr;
     window_.reset();
     --glfw_window_count;
     if (glfw_window_count == 0) {
@@ -195,6 +218,7 @@ bool GlfwWindow::poll_event(WindowEvent& event) noexcept {
     }
 
     glfwPollEvents();
+    poll_gamepads();
     return dequeue(event);
 }
 
@@ -490,6 +514,99 @@ void GlfwWindow::on_focus(GLFWwindow* window, int focused) noexcept {
     WindowEvent event{};
     event.kind = focused == GLFW_TRUE ? WindowEventKind::focus_gained : WindowEventKind::focus_lost;
     self(window)->enqueue(event);
+}
+
+void GlfwWindow::on_joystick(int id, int action) noexcept {
+    if (id < GLFW_JOYSTICK_1 || id > GLFW_JOYSTICK_LAST) {
+        return;
+    }
+    if (action != GLFW_CONNECTED && action != GLFW_DISCONNECTED) {
+        return;
+    }
+
+    WindowEvent event{};
+    event.kind = action == GLFW_CONNECTED ? WindowEventKind::gamepad_added
+                                          : WindowEventKind::gamepad_removed;
+    event.data.gamepad_device = {.device = static_cast<std::uint32_t>(id)};
+    for (auto* instance = instances; instance != nullptr; instance = instance->next_) {
+        instance->enqueue(event);
+    }
+}
+
+void GlfwWindow::poll_gamepads() noexcept {
+    std::uint16_t present = 0;
+
+    for (int id = GLFW_JOYSTICK_1; id <= GLFW_JOYSTICK_LAST; ++id) {
+        if (glfwJoystickPresent(id) != GLFW_TRUE || glfwJoystickIsGamepad(id) != GLFW_TRUE) {
+            continue;
+        }
+
+        const auto bit = static_cast<std::uint16_t>(1U << id);
+        present |= bit;
+
+        GLFWgamepadstate state{};
+        if (glfwGetGamepadState(id, &state) != GLFW_TRUE) {
+            continue;
+        }
+
+        const auto device = static_cast<std::uint32_t>(id);
+        if ((gamepads_ & bit) == 0) {
+            for (std::size_t index = 0; index < kGamepadAxes; ++index) {
+                gamepad_axes_[index] = state.axes[index];
+            }
+            for (std::size_t index = 0; index < kGamepadButtons; ++index) {
+                gamepad_pressed_[index] = state.buttons[index] == GLFW_PRESS;
+            }
+            continue;
+        }
+
+        for (std::size_t index = 0; index < kGamepadAxes; ++index) {
+            if (state.axes[index] == gamepad_axes_[index]) {
+                continue;
+            }
+            gamepad_axes_[index] = state.axes[index];
+            WindowEvent event{};
+            event.kind = WindowEventKind::gamepad_axis;
+            event.data.gamepad_axis = {
+                .device = device,
+                .axis = static_cast<std::uint32_t>(index),
+                .value = state.axes[index],
+            };
+            enqueue(event);
+        }
+        for (std::size_t index = 0; index < kGamepadButtons; ++index) {
+            const bool pressed = state.buttons[index] == GLFW_PRESS;
+            if (pressed == gamepad_pressed_[index]) {
+                continue;
+            }
+            gamepad_pressed_[index] = pressed;
+            WindowEvent event{};
+            event.kind = WindowEventKind::gamepad_button;
+            event.data.gamepad_button = {
+                .device = device,
+                .button = static_cast<std::uint32_t>(index),
+                .pressed = pressed,
+            };
+            enqueue(event);
+        }
+    }
+
+    gamepads_ = present;
+}
+
+std::uint32_t GlfwWindow::gamepad_count() const noexcept {
+    if (creation_result_ != WindowResult::ready) {
+        return 0;
+    }
+
+    std::uint32_t count = 0;
+    for (int id = GLFW_JOYSTICK_1; id <= GLFW_JOYSTICK_LAST; ++id) {
+        if (glfwJoystickPresent(id) == GLFW_TRUE && glfwJoystickIsGamepad(id) == GLFW_TRUE) {
+            ++count;
+        }
+    }
+
+    return count;
 }
 
 void GlfwWindow::WindowDeleter::operator()(GLFWwindow* window) const noexcept {

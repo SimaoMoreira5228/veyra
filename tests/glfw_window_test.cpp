@@ -30,6 +30,21 @@ bool drain_events(veyra::GlfwWindow& window) {
     return true;
 }
 
+void check_no_gamepads(veyra::GlfwWindow& window) {
+    require(window.gamepad_count() == 0, "the null platform reports zero gamepads");
+
+    veyra::WindowEvent event{};
+    while (window.poll_event(event)) {
+        require(
+            event.kind != veyra::WindowEventKind::gamepad_axis &&
+                event.kind != veyra::WindowEventKind::gamepad_button &&
+                event.kind != veyra::WindowEventKind::gamepad_added &&
+                event.kind != veyra::WindowEventKind::gamepad_removed,
+            "no gamepad events surface without a device"
+        );
+    }
+}
+
 }
 
 int main() {
@@ -107,6 +122,7 @@ int main() {
         );
         require(drain_events(main_window), "main events carry the main window id");
         require(drain_events(inspector), "inspector events carry the inspector id");
+        check_no_gamepads(main_window);
         std::cout << "GLFW window checks passed\n";
         return 0;
     } catch (const std::exception& error) {

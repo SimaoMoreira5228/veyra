@@ -43,6 +43,8 @@ class NullWindow {
 
     WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
 
+    std::uint32_t gamepad_count() const noexcept;
+
     WindowResult start_text_input() noexcept;
     WindowResult stop_text_input() noexcept;
     WindowResult set_text_input_area(TextInputArea area) noexcept;

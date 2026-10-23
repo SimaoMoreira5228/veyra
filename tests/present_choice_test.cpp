@@ -44,6 +44,11 @@ void check_select_starts_on_cpu() {
     auto choice = veyra::PresentChoice{};
     require(choice.path == veyra::PresentPath::software, "a fresh choice stays on the cpu");
     require(veyra::present_choice_generation(choice) == 0, "a fresh choice has no generation");
+    require(
+        static_cast<int>(veyra::PresentPath::software) == 0 &&
+            static_cast<int>(veyra::PresentPath::gpu) == 1,
+        "the gpu enumerator covers every gpu route behind one value"
+    );
 
     veyra::select_present_path(choice, veyra::PresentPath::gpu);
     require(choice.path == veyra::PresentPath::gpu, "explicit select arms the gpu path");
