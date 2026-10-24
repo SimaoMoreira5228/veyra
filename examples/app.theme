@@ -1,0 +1,4 @@
+schema: 1
+color_action_primary = #4f7cff
+space_medium = 12px
+motion_fast = 120
