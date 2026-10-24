@@ -119,6 +119,7 @@ veyra_add_test(NAME glyph_atlas_behavior TARGET veyra_glyph_atlas_test SOURCES t
 veyra_add_test(NAME e3_scenes_behavior TARGET veyra_e3_scenes_test SOURCES tests/e3_scenes_test.cpp LIBS veyra)
 veyra_add_test(NAME glyph_bounds_cache_behavior TARGET veyra_glyph_bounds_cache_test SOURCES tests/glyph_bounds_cache_test.cpp LIBS veyra)
 veyra_add_test(NAME glyph_image_cache_behavior TARGET veyra_glyph_image_cache_test SOURCES tests/glyph_image_cache_test.cpp LIBS veyra)
+veyra_add_test(NAME font_discovery_behavior TARGET veyra_font_discovery_test SOURCES tests/font_discovery_test.cpp LIBS veyra DEFINES "VEYRA_TESTDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/testdata\"")
 veyra_add_test(NAME line_diff_behavior TARGET veyra_line_diff_test SOURCES tests/line_diff_test.cpp LIBS veyra)
 veyra_add_test(NAME stb_rect_pack_behavior TARGET veyra_stb_rect_pack_test SOURCES tests/stb_rect_pack_test.cpp INCLUDES third_party/stb)
 veyra_add_test(NAME stb_sprintf_behavior TARGET veyra_stb_sprintf_test SOURCES tests/stb_sprintf_test.cpp INCLUDES third_party/stb)

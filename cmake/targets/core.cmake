@@ -40,6 +40,7 @@ add_library(veyra STATIC
  src/render/display_equivalence.cpp
  src/render/present_choice.cpp
  src/text/editor_viewport.cpp
+ src/text/font_discovery.cpp
  src/text/glyph_mask_cache.cpp
  src/text/glyph_image_cache.cpp
  src/text/syntax_spans.cpp
