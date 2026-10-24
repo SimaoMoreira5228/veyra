@@ -182,13 +182,6 @@ WindowResult NullWindow::present() noexcept {
     return WindowResult::ready;
 }
 
-WindowResult NullWindow::create_vulkan_surface(void* instance, void*& surface) noexcept {
-    static_cast<void>(instance);
-    surface = nullptr;
-
-    return WindowResult::unsupported;
-}
-
 WindowResult NullWindow::start_text_input() noexcept {
     if (creation_result_ != WindowResult::ready) {
         return creation_result_;

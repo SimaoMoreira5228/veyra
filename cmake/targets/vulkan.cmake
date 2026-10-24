@@ -1,143 +1,277 @@
 if(VEYRA_WITH_VULKAN)
  find_package(Vulkan QUIET)
- find_program(VEYRA_GLSLANG_VALIDATOR glslangValidator)
- if(NOT Vulkan_FOUND OR NOT VEYRA_GLSLANG_VALIDATOR)
-  message(STATUS "Veyra: Vulkan headers/loader or glslangValidator missing, skipping offscreen target")
+ if(NOT Vulkan_FOUND)
+  message(STATUS "Veyra: Vulkan loader missing, skipping NoGraphicsAPI backend")
  else()
-  set(veyra_vulkan_gen "${CMAKE_CURRENT_BINARY_DIR}/vulkan_gen")
-  file(MAKE_DIRECTORY "${veyra_vulkan_gen}")
-  set(veyra_vulkan_spv_headers "")
-  foreach(shader_spec "rect:Rect" "rounded_rect:RoundedRect" "image:Image" "mask:Mask" "stroke:Stroke" "rounded_stroke:RoundedStroke" "glyph:Glyph")
-   string(REPLACE ":" ";" shader_parts "${shader_spec}")
-   list(GET shader_parts 0 shader_name)
-   list(GET shader_parts 1 shader_prefix)
-   foreach(stage Vert Frag)
-    string(TOLOWER "${stage}" stage_lower)
-    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/${shader_name}.${stage_lower}")
-    set(shader_spv "${veyra_vulkan_gen}/${shader_name}.${stage_lower}.spv")
-    set(shader_header "${veyra_vulkan_gen}/${shader_name}_${stage_lower}_spv.hpp")
-    add_custom_command(
-     OUTPUT "${shader_spv}"
-     COMMAND "${VEYRA_GLSLANG_VALIDATOR}" -V "${shader_source}" -o "${shader_spv}"
-     DEPENDS "${shader_source}"
-     COMMENT "Veyra: compiling ${shader_name}.${stage_lower} to SPIR-V"
+  find_program(VEYRA_NOGA_SLANGC slangc)
+  if(NOT VEYRA_NOGA_SLANGC)
+   message(STATUS "Veyra: slangc missing, skipping NoGraphicsAPI backend")
+  else()
+   set(veyra_noga_probe_dir "${CMAKE_CURRENT_BINARY_DIR}/noga_probe")
+   file(MAKE_DIRECTORY "${veyra_noga_probe_dir}")
+   file(WRITE "${veyra_noga_probe_dir}/probe.slang"
+    "[shader(\"fragment\")]\nfloat4 probeMain() : SV_Target0 { return float4(1.0, 0.0, 0.0, 1.0); }\n"
+   )
+   execute_process(
+    COMMAND "${VEYRA_NOGA_SLANGC}" "${veyra_noga_probe_dir}/probe.slang" -target spirv
+     -profile spirv_1_5 -emit-spirv-directly -fvk-use-entrypoint-name -entry probeMain
+     -stage fragment -o "${veyra_noga_probe_dir}/probe.spv"
+    RESULT_VARIABLE veyra_noga_probe_result
+    OUTPUT_QUIET
+    ERROR_QUIET
+   )
+   if(NOT veyra_noga_probe_result EQUAL 0)
+    message(STATUS "Veyra: system slangc cannot emit SPIR-V, fetching pinned slangc")
+    include(FetchContent)
+    FetchContent_Declare(
+     slang-linux
+     URL https://github.com/shader-slang/slang/releases/download/v2026.20/slang-2026.20-linux-x86_64.tar.gz
+     URL_HASH SHA256=e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
     )
-    add_custom_command(
-     OUTPUT "${shader_header}"
-     COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
-      "-DVAR=k${shader_prefix}${stage}Spv" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
-     DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
-     COMMENT "Veyra: embedding ${shader_name}.${stage_lower}.spv"
-    )
-    list(APPEND veyra_vulkan_spv_headers "${shader_header}")
-   endforeach()
-  endforeach()
-  add_library(veyra_vulkan STATIC
-   src/render/vulkan_context.cpp
-   src/render/vulkan_internal.cpp
-   src/render/vulkan_texture_cache.cpp
-   src/render/vulkan_texture_upload.cpp
-   src/render/vulkan_mask_cache.cpp
-   src/render/vulkan_pipeline_assembly.cpp
-   src/render/vulkan_rect_pipeline.cpp
-   src/render/vulkan_present.cpp
-   src/render/vulkan_present_swapchain.cpp
-   src/render/vulkan_present_blit.cpp
-    src/render/vulkan_frame_batch.cpp
-   src/render/vulkan_frame_emit.cpp
-   src/render/vulkan_frame_stroke.cpp
-   src/render/vulkan_frame_transfer.cpp
-   src/render/vulkan_rect_frame.cpp
-   ${veyra_vulkan_spv_headers}
-  )
-  target_include_directories(veyra_vulkan PUBLIC
-   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  )
-  target_include_directories(veyra_vulkan PRIVATE "${veyra_vulkan_gen}")
-  target_link_libraries(veyra_vulkan PUBLIC veyra Vulkan::Vulkan)
-  target_compile_features(veyra_vulkan PUBLIC cxx_std_23)
-
-  veyra_add_test(NAME vulkan_rect_fill_parity TARGET veyra_vulkan_rect_fill_parity_test SOURCES tests/vulkan_rect_fill_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_rounded_rect_parity TARGET veyra_vulkan_rounded_rect_parity_test SOURCES tests/vulkan_rounded_rect_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_rect_validation_parity TARGET veyra_vulkan_rect_validation_parity_test SOURCES tests/vulkan_rect_validation_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_e3_scenes TARGET veyra_vulkan_e3_scenes_test SOURCES tests/vulkan_e3_scenes_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_image_parity TARGET veyra_vulkan_image_parity_test SOURCES tests/vulkan_image_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_mask_parity TARGET veyra_vulkan_mask_parity_test SOURCES tests/vulkan_mask_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_stroke_parity TARGET veyra_vulkan_stroke_parity_test SOURCES tests/vulkan_stroke_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_rounded_stroke_parity TARGET veyra_vulkan_rounded_stroke_parity_test SOURCES tests/vulkan_rounded_stroke_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_path_parity TARGET veyra_vulkan_path_parity_test SOURCES tests/vulkan_path_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_clip_parity TARGET veyra_vulkan_clip_parity_test SOURCES tests/vulkan_clip_parity_test.cpp LIBS veyra_vulkan)
-
-  if(VEYRA_WITH_TEXT)
-   veyra_add_test(NAME vulkan_glyph_parity TARGET veyra_vulkan_glyph_parity_test SOURCES tests/vulkan_glyph_parity_test.cpp LIBS veyra_vulkan veyra_text)
-   veyra_add_test(NAME vulkan_glyph_atlas_parity TARGET veyra_vulkan_glyph_atlas_parity_test SOURCES tests/vulkan_glyph_atlas_parity_test.cpp LIBS veyra_vulkan veyra_text)
-   if(VEYRA_WITH_FREETYPE)
-    veyra_add_test(NAME vulkan_raster_atlas_parity TARGET veyra_vulkan_raster_atlas_parity_test SOURCES tests/vulkan_raster_atlas_parity_test.cpp LIBS veyra_vulkan veyra_text veyra_freetype)
-    veyra_add_test(NAME real_font_text TARGET veyra_real_font_text_test SOURCES tests/real_font_text_test.cpp LIBS veyra_vulkan veyra_text veyra_freetype DEFINES "VEYRA_TESTDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/testdata\"")
+    FetchContent_MakeAvailable(slang-linux)
+    set(VEYRA_NOGA_SLANGC "${slang-linux_SOURCE_DIR}/bin/slangc")
    endif()
-  endif()
-
-  veyra_add_test(NAME vulkan_damage_parity TARGET veyra_vulkan_damage_parity_test SOURCES tests/vulkan_damage_parity_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_device_health TARGET veyra_vulkan_device_health_test SOURCES tests/vulkan_device_health_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_present TARGET veyra_vulkan_present_test SOURCES tests/vulkan_present_test.cpp LIBS veyra_vulkan)
-  veyra_add_test(NAME vulkan_scroll_parity TARGET veyra_vulkan_scroll_parity_test SOURCES tests/vulkan_scroll_parity_test.cpp LIBS veyra_vulkan)
-
-  if(VEYRA_WITH_GLFW AND TARGET veyra_glfw)
-   target_sources(veyra_glfw PRIVATE src/platform/glfw_vulkan_surface.cpp)
-   target_link_libraries(veyra_glfw PRIVATE Vulkan::Vulkan)
+   find_program(VEYRA_NOGA_SPIRV_VAL spirv-val)
+   # NOTE: NoGraphicsAPI declares Vulkan 1.4.357 as its floor, but the pinned
+   # HEAD needs newer device-address-command declarations, so fetch 1.4.365.
+   set(veyra_noga_vh_dir "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-1.4.365")
+   if(NOT EXISTS "${veyra_noga_vh_dir}/include/vulkan/vulkan_core.h")
+    file(
+     DOWNLOAD
+      https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.365.tar.gz
+      "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-1.4.365.tar.gz"
+     EXPECTED_HASH SHA256=ed832b3292cce324ebba6522fd2d3004bf1b797fa49bfbcad0b302ff23d56abc
+     SHOW_PROGRESS
+    )
+    file(REMOVE_RECURSE "${veyra_noga_vh_dir}")
+    file(
+     ARCHIVE_EXTRACT
+      INPUT "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-1.4.365.tar.gz"
+      DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-extract"
+    )
+    file(RENAME "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-extract/Vulkan-Headers-1.4.365" "${veyra_noga_vh_dir}")
+    file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/vulkan-headers-extract")
+   endif()
+   set(Vulkan_INCLUDE_DIR "${veyra_noga_vh_dir}/include" CACHE PATH "" FORCE)
+   if(TARGET Vulkan::Headers)
+    # NOTE: the outer unversioned find_package already created this imported
+    # target against system headers, so repoint it after overriding the dir.
+    set_target_properties(
+     Vulkan::Headers
+     PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${veyra_noga_vh_dir}/include"
+    )
+   endif()
+   # NOTE: brief hash ffd9f2...80089 is off by one nibble and matches no upstream
+   # object; pin the verified upstream HEAD the reference clone sits on instead.
+   FetchContent_Declare(
+    NoGraphicsAPI
+    GIT_REPOSITORY https://github.com/sebbbi/NoGraphicsAPI.git
+    GIT_TAG ffd9f2ab6b7442dcfbe0cb0051d84d0edb078d89
+   )
+   FetchContent_MakeAvailable(NoGraphicsAPI)
+   set(veyra_noga_gen "${CMAKE_CURRENT_BINARY_DIR}/noga_gen")
+   file(MAKE_DIRECTORY "${veyra_noga_gen}")
+   set(veyra_noga_slang_flags
+    -target spirv -profile spirv_1_5 -emit-spirv-directly -fvk-use-entrypoint-name
+    -fvk-use-c-layout -matrix-layout-row-major -capability spvDescriptorHeapEXT
+    -I "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga"
+    -I "${nographicsapi_SOURCE_DIR}/include"
+    -I "${nographicsapi_SOURCE_DIR}/utility/include"
+   )
+   set(veyra_noga_mesh_validate "")
+   set(veyra_noga_frag_validate "")
+   if(VEYRA_NOGA_SPIRV_VAL)
+    set(veyra_noga_mesh_validate
+     COMMAND "${VEYRA_NOGA_SPIRV_VAL}" --target-env vulkan1.4 --scalar-block-layout
+      "${veyra_noga_gen}/rect.mesh.spv"
+    )
+    set(veyra_noga_frag_validate
+     COMMAND "${VEYRA_NOGA_SPIRV_VAL}" --target-env vulkan1.4 --scalar-block-layout
+      "${veyra_noga_gen}/rect.frag.spv"
+    )
+   endif()
+   add_custom_command(
+    OUTPUT "${veyra_noga_gen}/rect.mesh.spv"
+    COMMAND "${VEYRA_NOGA_SLANGC}" "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect.slang"
+     ${veyra_noga_slang_flags} -capability spvMeshShadingEXT -entry meshMain -stage mesh
+     -o "${veyra_noga_gen}/rect.mesh.spv"
+    ${veyra_noga_mesh_validate}
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect.slang"
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect_shared.h"
+     "${nographicsapi_SOURCE_DIR}/include/NoGraphicsAPI/shader.slang"
+     "${nographicsapi_SOURCE_DIR}/utility/include/NoGraphicsAPIUtility/shader_types.h"
+    COMMENT "Veyra: compiling noga rect mesh shader to SPIR-V"
+   )
+   add_custom_command(
+    OUTPUT "${veyra_noga_gen}/rect.frag.spv"
+    COMMAND "${VEYRA_NOGA_SLANGC}" "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect.slang"
+     ${veyra_noga_slang_flags} -entry fragmentMain -stage fragment
+     -o "${veyra_noga_gen}/rect.frag.spv"
+    ${veyra_noga_frag_validate}
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect.slang"
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/rect_shared.h"
+     "${nographicsapi_SOURCE_DIR}/include/NoGraphicsAPI/shader.slang"
+     "${nographicsapi_SOURCE_DIR}/utility/include/NoGraphicsAPIUtility/shader_types.h"
+    COMMENT "Veyra: compiling noga rect fragment shader to SPIR-V"
+   )
+   add_custom_command(
+    OUTPUT "${veyra_noga_gen}/rect_mesh_spv.hpp"
+    COMMAND "${CMAKE_COMMAND}" -DINPUT="${veyra_noga_gen}/rect.mesh.spv"
+     -DOUTPUT="${veyra_noga_gen}/rect_mesh_spv.hpp" "-DVAR=kNogaRectMeshSpv"
+     "-DNAMESPACE=veyra::noga_detail"
+     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    DEPENDS "${veyra_noga_gen}/rect.mesh.spv"
+     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    COMMENT "Veyra: embedding noga rect mesh SPIR-V"
+   )
+   add_custom_command(
+    OUTPUT "${veyra_noga_gen}/rect_frag_spv.hpp"
+    COMMAND "${CMAKE_COMMAND}" -DINPUT="${veyra_noga_gen}/rect.frag.spv"
+     -DOUTPUT="${veyra_noga_gen}/rect_frag_spv.hpp" "-DVAR=kNogaRectFragSpv"
+     "-DNAMESPACE=veyra::noga_detail"
+     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    DEPENDS "${veyra_noga_gen}/rect.frag.spv"
+     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+    COMMENT "Veyra: embedding noga rect fragment SPIR-V"
+   )
+   set(veyra_noga_spv_headers
+    "${veyra_noga_gen}/rect_mesh_spv.hpp"
+    "${veyra_noga_gen}/rect_frag_spv.hpp"
+   )
+   foreach(shader_spec "rect_frame:RectFrame" "rounded_rect_frame:RoundedRectFrame" "image_frame:ImageFrame" "mask_frame:MaskFrame" "stroke_frame:StrokeFrame" "rounded_stroke_frame:RoundedStrokeFrame" "glyph_frame:GlyphFrame")
+    string(REPLACE ":" ";" shader_parts "${shader_spec}")
+    list(GET shader_parts 0 shader_name)
+    list(GET shader_parts 1 shader_prefix)
+    foreach(stage_spec "vertexMain:vertex:vert" "fragmentMain:fragment:frag")
+     string(REPLACE ":" ";" stage_parts "${stage_spec}")
+     list(GET stage_parts 0 stage_entry)
+     list(GET stage_parts 1 stage_name)
+     list(GET stage_parts 2 stage_short)
+     set(shader_spv "${veyra_noga_gen}/${shader_name}.${stage_short}.spv")
+     set(shader_header "${veyra_noga_gen}/${shader_name}_${stage_short}_spv.hpp")
+     add_custom_command(
+      OUTPUT "${shader_spv}"
+      COMMAND "${VEYRA_NOGA_SLANGC}" "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/${shader_name}.slang"
+       ${veyra_noga_slang_flags} -entry "${stage_entry}" -stage "${stage_name}"
+       -o "${shader_spv}"
+      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/${shader_name}.slang"
+       "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/frame_common.slang"
+       "${CMAKE_CURRENT_SOURCE_DIR}/src/render/noga/frame_shared.h"
+       "${nographicsapi_SOURCE_DIR}/include/NoGraphicsAPI/shader.slang"
+       "${nographicsapi_SOURCE_DIR}/utility/include/NoGraphicsAPIUtility/shader_types.h"
+      COMMENT "Veyra: compiling noga ${shader_name} ${stage_name} shader to SPIR-V"
+     )
+     if(stage_short STREQUAL "vert")
+      set(shader_var "k${shader_prefix}VertSpv")
+     else()
+      set(shader_var "k${shader_prefix}FragSpv")
+     endif()
+     add_custom_command(
+      OUTPUT "${shader_header}"
+      COMMAND "${CMAKE_COMMAND}" -DINPUT="${shader_spv}" -DOUTPUT="${shader_header}"
+       "-DVAR=${shader_var}" "-DNAMESPACE=veyra::noga_detail"
+       -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+      DEPENDS "${shader_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake/veyra_embed_spirv.cmake"
+      COMMENT "Veyra: embedding noga ${shader_name} ${stage_name} SPIR-V"
+     )
+     list(APPEND veyra_noga_spv_headers "${shader_header}")
+    endforeach()
+   endforeach()
+   add_library(veyra_noga STATIC
+    src/render/noga_rect.cpp
+    src/render/noga_frame.cpp
+    src/render/noga_frame_batch.cpp
+    src/render/noga_frame_emit.cpp
+    src/render/noga_frame_stroke.cpp
+    src/render/noga_frame_submit.cpp
+    src/render/noga_frame_upload.cpp
+    ${veyra_noga_spv_headers}
+   )
+   target_include_directories(veyra_noga PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+   )
+   target_include_directories(veyra_noga PRIVATE
+    "${veyra_noga_gen}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render"
+    "${nographicsapi_SOURCE_DIR}/include"
+    "${nographicsapi_SOURCE_DIR}/utility/include"
+   )
+   target_link_libraries(veyra_noga PUBLIC veyra PRIVATE NoGraphicsAPI::NoGraphicsAPI)
+   target_compile_features(veyra_noga PUBLIC cxx_std_23)
    veyra_add_test(
-    NAME glfw_vulkan_surface_behavior
-    TARGET veyra_glfw_vulkan_surface_test
-    SOURCES tests/glfw_vulkan_surface_test.cpp
-    LIBS veyra_glfw Vulkan::Vulkan
-    SKIP_RETURN_CODE 77
+    NAME noga_rect_parity
+    TARGET veyra_noga_rect_parity_test
+    SOURCES tests/noga_rect_parity_test.cpp
+    LIBS veyra_noga
    )
-  endif()
-
-  if(VEYRA_WITH_SDL3 AND TARGET veyra_sdl3)
-   target_compile_definitions(veyra_sdl3 PRIVATE VEYRA_WITH_VULKAN=1)
-   target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_vulkan_surface.cpp)
-   target_link_libraries(veyra_sdl3 PRIVATE Vulkan::Vulkan)
    veyra_add_test(
-    NAME sdl3_vulkan_surface_behavior
-    TARGET veyra_sdl3_vulkan_surface_test
-    SOURCES tests/sdl3_vulkan_surface_test.cpp
-    LIBS veyra_sdl3 Vulkan::Vulkan
-    ENVIRONMENT "SDL_VIDEODRIVER=dummy"
+    NAME noga_ordering_parity
+    TARGET veyra_noga_ordering_parity_test
+    SOURCES tests/noga_ordering_parity_test.cpp
+    LIBS veyra_noga
    )
-  endif()
-
-  add_executable(veyra_vulkan_e3_bench bench/vulkan_e3_scenes.cpp)
-  target_link_libraries(veyra_vulkan_e3_bench PRIVATE veyra_vulkan)
-  target_compile_definitions(veyra_vulkan_e3_bench PRIVATE
-   "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
-   "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
-   "VEYRA_BUILD_CONFIG=\"$<CONFIG>\""
-  )
-  add_test(
-   NAME vulkan_e3_benchmark_smoke
-   COMMAND veyra_vulkan_e3_bench --scene shadowed-boxes-600 --frames 2 --warmup 1
-  )
-  add_test(
-   NAME vulkan_e3_benchmark_scroll_smoke
-   COMMAND veyra_vulkan_e3_bench --scene row-scroll-1000 --mode scroll --frames 2 --warmup 1
-  )
-  add_test(
-   NAME vulkan_e3_benchmark_damage_smoke
-   COMMAND veyra_vulkan_e3_bench --scene dashboard-12 --mode damage --frames 2 --warmup 1
-  )
-  if(VEYRA_WITH_TEXT)
-   add_executable(veyra_vulkan_text_churn_bench bench/vulkan_text_churn.cpp)
-   target_link_libraries(veyra_vulkan_text_churn_bench PRIVATE veyra_vulkan veyra_text)
-   target_compile_definitions(veyra_vulkan_text_churn_bench PRIVATE
-    "VEYRA_BUILD_PLATFORM=\"${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}\""
-    "VEYRA_BUILD_COMPILER=\"${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\""
-    "VEYRA_BUILD_CONFIG=\"$<CONFIG>\""
+   veyra_add_test(
+    NAME noga_rounded_rect_parity
+    TARGET veyra_noga_rounded_rect_parity_test
+    SOURCES tests/noga_rounded_rect_parity_test.cpp
+    LIBS veyra_noga
    )
-   add_test(
-    NAME vulkan_text_churn_benchmark_smoke
-    COMMAND veyra_vulkan_text_churn_bench --lines 8 --fresh-per-frame 1 --frames 2 --warmup 1
+   veyra_add_test(
+    NAME noga_image_parity
+    TARGET veyra_noga_image_parity_test
+    SOURCES tests/noga_image_parity_test.cpp
+    LIBS veyra_noga
    )
+   veyra_add_test(
+    NAME noga_mask_parity
+    TARGET veyra_noga_mask_parity_test
+    SOURCES tests/noga_mask_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_stroke_parity
+    TARGET veyra_noga_stroke_parity_test
+    SOURCES tests/noga_stroke_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_rounded_stroke_parity
+    TARGET veyra_noga_rounded_stroke_parity_test
+    SOURCES tests/noga_rounded_stroke_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_path_parity
+    TARGET veyra_noga_path_parity_test
+    SOURCES tests/noga_path_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_clip_parity
+    TARGET veyra_noga_clip_parity_test
+    SOURCES tests/noga_clip_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_frame_validation_parity
+    TARGET veyra_noga_frame_validation_parity_test
+    SOURCES tests/noga_frame_validation_parity_test.cpp
+    LIBS veyra_noga
+   )
+   if(VEYRA_WITH_TEXT)
+    veyra_add_test(
+     NAME noga_glyph_parity
+     TARGET veyra_noga_glyph_parity_test
+     SOURCES tests/noga_glyph_parity_test.cpp
+     LIBS veyra_noga veyra_text
+    )
+    veyra_add_test(
+     NAME noga_glyph_atlas_parity
+     TARGET veyra_noga_glyph_atlas_parity_test
+     SOURCES tests/noga_glyph_atlas_parity_test.cpp
+     LIBS veyra_noga veyra_text
+    )
+   endif()
   endif()
  endif()
 endif()

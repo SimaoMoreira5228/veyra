@@ -207,22 +207,12 @@ WindowCapabilities Sdl3Window::capabilities() const noexcept {
         texture_formats |= texture_format_flag(WindowTextureFormat::rgba8_unorm);
     }
 
-    bool vulkan_surface = false;
-
-#ifdef VEYRA_WITH_VULKAN
-    if (ready && SDL_Vulkan_LoadLibrary(nullptr)) {
-        vulkan_surface = true;
-        SDL_Vulkan_UnloadLibrary();
-    }
-#endif
-
     return {
         .clipboard = ready,
         .text_input = ready,
         .text_preedit = ready,
         .text_input_area = ready,
         .texture_formats = texture_formats,
-        .vulkan_surface = vulkan_surface,
     };
 }
 

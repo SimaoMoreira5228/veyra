@@ -45,8 +45,6 @@ class GlfwWindow {
     WindowResult set_clipboard_text(const char* text) noexcept;
     WindowResult get_clipboard_text(std::span<char> output, std::size_t& length) noexcept;
 
-    WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
-
     std::uint32_t gamepad_count() const noexcept;
 
   private:
@@ -101,7 +99,6 @@ class GlfwWindow {
 };
 
 static_assert(WindowBackend<GlfwWindow>);
-static_assert(VulkanSurfaceProvider<GlfwWindow>);
 
 }
 

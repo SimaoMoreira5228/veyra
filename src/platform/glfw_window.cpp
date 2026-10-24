@@ -191,7 +191,6 @@ WindowCapabilities GlfwWindow::capabilities() const noexcept {
         .text_input = true,
         .text_preedit = false,
         .text_input_area = false,
-        .vulkan_surface = glfwVulkanSupported() == GLFW_TRUE,
     };
 }
 

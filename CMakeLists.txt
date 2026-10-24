@@ -10,7 +10,7 @@ option(VEYRA_WITH_UNICODE "Build ICU-based Unicode editing, bidi, and line break
 option(VEYRA_WITH_FREETYPE "Build FreeType glyph rasterization support" OFF)
 option(VEYRA_WITH_SDL3 "Build the SDL3 software window backend" OFF)
 option(VEYRA_WITH_GLFW "Build the GLFW platform window backend" OFF)
-option(VEYRA_WITH_VULKAN "Build the Vulkan offscreen rect prototype" OFF)
+option(VEYRA_WITH_VULKAN "Build the NoGraphicsAPI GPU backend" OFF)
 option(VEYRA_WITH_CODECS "Build vendored image decoding support" ON)
 option(VEYRA_WITH_SVG "Build vendored nanosvg SVG rasterization support" ON)
 set(VEYRA_LIBWEBP_URL "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz" CACHE STRING "libwebp pinned tarball")

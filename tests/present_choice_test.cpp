@@ -17,29 +17,6 @@ void require(bool condition, std::string_view message) {
     }
 }
 
-void check_null_surface_unsupported() {
-    veyra::NullWindow window("present choice", 64, 48);
-    require(window.creation_result() == veyra::WindowResult::ready, "null window creates");
-
-    void* surface = reinterpret_cast<void*>(0x1);
-    require(
-        window.create_vulkan_surface(nullptr, surface) == veyra::WindowResult::unsupported,
-        "null reports unsupported with no instance"
-    );
-    require(surface == nullptr, "null never hands out a surface");
-
-    auto token = 0;
-    require(
-        window.create_vulkan_surface(&token, surface) == veyra::WindowResult::unsupported,
-        "null reports unsupported with a foreign instance"
-    );
-    require(surface == nullptr, "null still hands out nothing");
-    require(window.capabilities().vulkan_surface == false, "null advertises no vulkan surface");
-
-    const auto defaults = veyra::WindowCapabilities{};
-    require(defaults.vulkan_surface == false, "a default struct promises no surface");
-}
-
 void check_select_starts_on_cpu() {
     auto choice = veyra::PresentChoice{};
     require(choice.path == veyra::PresentPath::software, "a fresh choice stays on the cpu");
@@ -107,7 +84,6 @@ void check_software_frame_survives_fallback() {
 
 int main() {
     try {
-        check_null_surface_unsupported();
         check_select_starts_on_cpu();
         check_failure_falls_back_without_retry();
         check_software_frame_survives_fallback();

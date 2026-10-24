@@ -41,8 +41,6 @@ class NullWindow {
     acquire_surface(SoftwareSurface& surface, std::span<SoftwarePixel> backing) noexcept;
     WindowResult present() noexcept;
 
-    WindowResult create_vulkan_surface(void* instance, void*& surface) noexcept;
-
     std::uint32_t gamepad_count() const noexcept;
 
     WindowResult start_text_input() noexcept;
@@ -81,7 +79,6 @@ class NullWindow {
 
 static_assert(WindowBackend<NullWindow>);
 static_assert(SoftwareSurfacePresenter<NullWindow>);
-static_assert(VulkanSurfaceProvider<NullWindow>);
 
 class NullNotices {
   public:
