@@ -1,4 +1,6 @@
 #include "veyra/behaviors/datagrid.hpp"
+#include "veyra/behaviors/drag_drop.hpp"
+#include "veyra/layout/geometry.hpp"
 
 #include <array>
 #include <cstdint>
@@ -1276,6 +1278,313 @@ void check_overflow_past_capacity() {
     );
 }
 
+constexpr float kHeaderDragThreshold = 4.0F;
+
+constexpr veyra::LayoutPoint header_at(float x, float y) {
+    return veyra::LayoutPoint{.x = x, .y = y};
+}
+
+struct HeaderHit {
+    std::uint64_t target{};
+    ColumnEdge edge{ColumnEdge::before};
+    bool found{};
+};
+
+HeaderHit header_hit(veyra::DataGridController& grid, float x) {
+    std::array<std::uint64_t, veyra::DataGridController::kCapacity> visible{};
+    const std::size_t seen = grid.copy_visible_columns(visible);
+
+    float origin = 0.0F;
+
+    for (std::size_t i = 0; i < seen; ++i) {
+        const float width = grid.column_width(visible[i]);
+        const float local = x - origin;
+
+        if (local >= 0.0F && local < width) {
+            const ColumnEdge edge = local < width * 0.5F ? ColumnEdge::before : ColumnEdge::after;
+
+            return {.target = visible[i], .edge = edge, .found = true};
+        }
+
+        origin += width;
+    }
+
+    return {};
+}
+
+bool column_locked(veyra::DataGridController& grid, std::uint64_t id) {
+    std::array<veyra::DataGridColumn, veyra::DataGridController::kCapacity> stored{};
+    const std::size_t seen = grid.copy_columns(stored);
+
+    for (std::size_t i = 0; i < seen; ++i) {
+        if (stored[i].id == id) {
+            return stored[i].locked_position;
+        }
+    }
+
+    return false;
+}
+
+void require_order(
+    veyra::DataGridController& grid,
+    std::uint64_t first,
+    std::uint64_t second,
+    std::uint64_t third
+) {
+    std::array<std::uint64_t, 3> order{};
+    require(grid.copy_visible_columns(order) == 3, "three columns stay visible");
+
+    require(
+        order[0] == first && order[1] == second && order[2] == third,
+        "the visible order reads back"
+    );
+}
+
+void check_header_drag_threshold_click_sorts_not_drags() {
+    auto grid = make_grid();
+    auto drag = veyra::DragDropController{};
+
+    require(
+        drag.begin(1, veyra::DragAction::move, 7, header_at(0.0F, 0.0F), kHeaderDragThreshold) ==
+            veyra::DragResult::handled,
+        "pressing a header parks the gesture in pending"
+    );
+    require(
+        drag.update(7, header_at(2.0F, 0.0F)) == veyra::DragResult::handled && !drag.dragging(),
+        "a press-then-small-move stays pending, so the release sorts instead of dragging"
+    );
+    require(
+        drag.drop().result == veyra::DragResult::ignored,
+        "dropping while pending is a no-op gated by the controller"
+    );
+    require(
+        drag.cancel(7) == veyra::DragResult::cancelled && drag.idle(),
+        "releasing the tap clears the pending gesture"
+    );
+    require_order(grid, 1, 2, 3);
+}
+
+void check_header_drag_reorders_across_columns() {
+    auto grid = make_grid();
+    auto drag = veyra::DragDropController{};
+
+    require(
+        drag.begin(1, veyra::DragAction::move, 7, header_at(10.0F, 0.0F), kHeaderDragThreshold) ==
+            veyra::DragResult::handled,
+        "pressing the first header starts the drag recipe"
+    );
+    require(
+        drag.update(7, header_at(200.0F, 0.0F)) == veyra::DragResult::armed && drag.dragging(),
+        "crossing the threshold arms the header drag"
+    );
+
+    const HeaderHit hovered = header_hit(grid, 250.0F);
+    require(
+        hovered.found && hovered.target == 3 && hovered.edge == ColumnEdge::after,
+        "the far pointer lands on the last column past its midpoint"
+    );
+    require(
+        drag.enter_target(hovered.target, veyra::DragAction::move).result ==
+            veyra::DragResult::entered,
+        "the hovered header enters as the drop target"
+    );
+
+    const veyra::DragDrop done = drag.drop();
+    require(
+        done.result == veyra::DragResult::dropped && done.source == 1 && done.target == 3,
+        "the drop negotiates the dragged header onto the hovered one"
+    );
+    require(
+        grid.move_column(done.source, done.target, hovered.edge) == DataGridResult::changed,
+        "the drop commits through the programmatic reorder"
+    );
+    require_order(grid, 2, 3, 1);
+
+    require(
+        drag.begin(1, veyra::DragAction::move, 7, header_at(250.0F, 0.0F), kHeaderDragThreshold) ==
+            veyra::DragResult::handled,
+        "a second press starts a fresh gesture after the committed drop"
+    );
+    require(
+        drag.update(7, header_at(90.0F, 0.0F)) == veyra::DragResult::armed,
+        "dragging back left arms again"
+    );
+
+    const HeaderHit back = header_hit(grid, 90.0F);
+    require(
+        back.found && back.target == 3 && back.edge == ColumnEdge::before,
+        "the return pointer lands on the middle column before its midpoint"
+    );
+    drag.enter_target(back.target, veyra::DragAction::move);
+    const veyra::DragDrop again = drag.drop();
+    require(
+        again.result == veyra::DragResult::dropped && again.source == 1 && again.target == 3,
+        "the return drop negotiates onto the middle column"
+    );
+    require(
+        grid.move_column(again.source, again.target, back.edge) == DataGridResult::changed,
+        "the return drop commits through the same reorder"
+    );
+    require_order(grid, 2, 1, 3);
+}
+
+void check_header_drag_refuses_locked_both_sides() {
+    std::array<veyra::DataGridColumn, 3> spec{kSpec[0], kSpec[1], kSpec[2]};
+    spec[0].locked_position = true;
+
+    auto grid = veyra::DataGridController{};
+    require(grid.set_columns(spec) == DataGridResult::changed, "the locked fixture is accepted");
+
+    auto drag = veyra::DragDropController{};
+    require(column_locked(grid, 1), "the caller sees the source lock before pressing");
+    require(
+        grid.move_column(1, 2, ColumnEdge::after) == DataGridResult::ignored,
+        "a locked source rejects the programmatic reorder"
+    );
+    require(drag.idle(), "the recipe refuses to begin a drag from a locked header");
+
+    require(
+        drag.begin(3, veyra::DragAction::move, 7, header_at(200.0F, 0.0F), kHeaderDragThreshold) ==
+            veyra::DragResult::handled,
+        "an unlocked header still presses"
+    );
+    require(
+        drag.update(7, header_at(10.0F, 0.0F)) == veyra::DragResult::armed,
+        "dragging toward the lock arms"
+    );
+    drag.enter_target(1, veyra::DragAction::move);
+    const veyra::DragDrop done = drag.drop();
+    require(
+        done.result == veyra::DragResult::dropped && done.target == 1,
+        "the drop negotiates at the DragDrop level, which knows no locks"
+    );
+    require(
+        grid.move_column(done.source, done.target, ColumnEdge::before) == DataGridResult::ignored,
+        "the grid refuses the drop onto the locked target exactly like the programmatic call"
+    );
+    require_order(grid, 1, 2, 3);
+}
+
+void check_header_drag_pin_boundary_parity() {
+    auto grid = make_grid();
+    grid.set_pinned(1, veyra::DataGridPin::left);
+
+    auto drag = veyra::DragDropController{};
+    require(
+        drag.begin(3, veyra::DragAction::move, 7, header_at(200.0F, 0.0F), kHeaderDragThreshold) ==
+            veyra::DragResult::handled,
+        "pressing the unpinned header starts the recipe"
+    );
+    require(
+        drag.update(7, header_at(10.0F, 0.0F)) == veyra::DragResult::armed,
+        "dragging toward the pin arms"
+    );
+    drag.enter_target(1, veyra::DragAction::move);
+    const veyra::DragDrop done = drag.drop();
+    require(
+        done.result == veyra::DragResult::dropped,
+        "the drop negotiates at the DragDrop level, which knows no pins"
+    );
+    require(
+        grid.move_column(done.source, done.target, ColumnEdge::after) == DataGridResult::ignored,
+        "the grid refuses the cross-boundary drop exactly like the programmatic call"
+    );
+    require_order(grid, 1, 2, 3);
+}
+
+void check_header_drag_edge_from_pointer_x() {
+    auto grid = make_grid();
+
+    const HeaderHit leading = header_hit(grid, 110.0F);
+    require(
+        leading.found && leading.target == 2 && leading.edge == ColumnEdge::before,
+        "ten pixels into the 80-wide middle header picks before"
+    );
+
+    const HeaderHit trailing = header_hit(grid, 150.0F);
+    require(
+        trailing.found && trailing.target == 2 && trailing.edge == ColumnEdge::after,
+        "fifty pixels into the same header picks after"
+    );
+
+    const HeaderHit middle = header_hit(grid, 140.0F);
+    require(
+        middle.found && middle.target == 2 && middle.edge == ColumnEdge::after,
+        "exactly half the width rounds to after"
+    );
+
+    require(
+        grid.move_column(3, leading.target, leading.edge) == DataGridResult::changed,
+        "the leading edge commits through the programmatic reorder"
+    );
+    require_order(grid, 1, 3, 2);
+
+    auto self = make_grid();
+    auto drag = veyra::DragDropController{};
+    drag.begin(2, veyra::DragAction::move, 7, header_at(110.0F, 0.0F), kHeaderDragThreshold);
+    drag.update(7, header_at(150.0F, 0.0F));
+    drag.enter_target(2, veyra::DragAction::move);
+    const veyra::DragDrop done = drag.drop();
+    require(done.result == veyra::DragResult::dropped, "dropping onto self still negotiates");
+    require(
+        self.move_column(done.source, done.target, ColumnEdge::after) == DataGridResult::handled,
+        "dropping onto self commits as a handled no-op with the order untouched"
+    );
+    require_order(self, 1, 2, 3);
+}
+
+void check_header_drag_cancel_leaves_order() {
+    auto escape = make_grid();
+    auto drag = veyra::DragDropController{};
+    drag.begin(1, veyra::DragAction::move, 7, header_at(10.0F, 0.0F), kHeaderDragThreshold);
+    drag.update(7, header_at(200.0F, 0.0F));
+    drag.enter_target(3, veyra::DragAction::move);
+    require(
+        drag.cancel(7) == veyra::DragResult::cancelled && drag.idle(),
+        "Escape from the owning pointer cancels the hovered drag"
+    );
+    require_order(escape, 1, 2, 3);
+    require(escape.column_count() == 3, "the cancel touches no columns");
+
+    auto unmount = make_grid();
+    unmount.set_pinned(1, veyra::DataGridPin::left);
+    drag.begin(2, veyra::DragAction::move, 7, header_at(110.0F, 0.0F), kHeaderDragThreshold);
+    drag.update(7, header_at(200.0F, 0.0F));
+    drag.enter_target(3, veyra::DragAction::move);
+    require(
+        drag.abort() == veyra::DragResult::cancelled && drag.idle() && !drag.over_target(),
+        "the pointer leaving the window aborts gesture and hover together"
+    );
+    require_order(unmount, 1, 2, 3);
+
+    auto invalid = make_grid();
+    drag.begin(1, veyra::DragAction::move, 7, header_at(10.0F, 0.0F), kHeaderDragThreshold);
+    drag.update(7, header_at(400.0F, 0.0F));
+    require(!header_hit(invalid, 400.0F).found, "past the last header there is no target");
+    drag.enter_target(99, veyra::DragAction::move);
+    const veyra::DragDrop foreign = drag.drop();
+    require(
+        foreign.result == veyra::DragResult::dropped && foreign.target == 99,
+        "the DragDrop level negotiates even an unknown target id"
+    );
+    require(
+        invalid.move_column(foreign.source, foreign.target, ColumnEdge::before) ==
+            DataGridResult::ignored,
+        "the grid rejects the unknown drop target"
+    );
+    require_order(invalid, 1, 2, 3);
+
+    auto hoverless = make_grid();
+    drag.begin(1, veyra::DragAction::move, 7, header_at(10.0F, 0.0F), kHeaderDragThreshold);
+    drag.update(7, header_at(200.0F, 0.0F));
+    require(
+        drag.drop().result == veyra::DragResult::rejected && drag.idle(),
+        "dropping with no hovered target rejects and ends the gesture"
+    );
+    require_order(hoverless, 1, 2, 3);
+    require(hoverless.column_count() == 3, "the rejected drop touches no columns");
+}
+
 }
 
 int main() {
@@ -1315,6 +1624,12 @@ int main() {
         check_cell_semantics();
         check_rowheader_in_virtual_window();
         check_overflow_past_capacity();
+        check_header_drag_threshold_click_sorts_not_drags();
+        check_header_drag_reorders_across_columns();
+        check_header_drag_refuses_locked_both_sides();
+        check_header_drag_pin_boundary_parity();
+        check_header_drag_edge_from_pointer_x();
+        check_header_drag_cancel_leaves_order();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
