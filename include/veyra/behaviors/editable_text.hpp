@@ -74,6 +74,22 @@ class EditableTextController {
     EditableTextEdit erase_backward() noexcept;
     EditableTextEdit erase_forward() noexcept;
     EditableTextEdit set_cursor(std::size_t byte_offset, bool extend_selection = false) noexcept;
+    EditableTextEdit
+    move_cursor(TextCursorDirection direction, bool extend_selection = false) noexcept;
+    EditableTextEdit move_to_line_edge(
+        TextVisualEdge edge,
+        std::span<const TextCaretStop> caret_stops,
+        std::size_t& selected_stop,
+        bool extend_selection = false
+    ) noexcept;
+    EditableTextEdit move_vertically(
+        std::span<const TextVisualLine> lines,
+        TextVisualPosition current_position,
+        TextVerticalDirection direction,
+        float preferred_x,
+        TextVisualPosition& next_position,
+        bool extend_selection = false
+    ) noexcept;
     EditableTextResult select_all() noexcept;
     EditableTextEdit clear() noexcept;
 

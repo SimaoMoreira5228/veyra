@@ -46,6 +46,7 @@ if(VEYRA_WITH_UNICODE)
   target_compile_features(veyra_font_fallback PUBLIC cxx_std_23)
 
   veyra_add_test(NAME text_font_fallback_behavior TARGET veyra_font_fallback_test SOURCES tests/font_fallback_test.cpp LIBS veyra_font_fallback)
+  veyra_add_test(NAME text_shaping_pipeline_behavior TARGET veyra_shaping_pipeline_test SOURCES tests/shaping_pipeline_test.cpp LIBS veyra_font_fallback)
 
   if(VEYRA_BUILD_BENCH)
    veyra_add_test(NAME text_font_fallback_benchmark_smoke TARGET veyra_font_fallback_bench SOURCES bench/font_fallback.cpp LIBS veyra_font_fallback BENCH_DEFINES)

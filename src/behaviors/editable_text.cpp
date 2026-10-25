@@ -195,6 +195,64 @@ EditableTextController::set_cursor(std::size_t byte_offset, bool extend_selectio
     return finish(before, buffer_->set_cursor(byte_offset, extend_selection), false);
 }
 
+EditableTextEdit
+EditableTextController::move_cursor(TextCursorDirection direction, bool extend_selection) noexcept {
+    if (disabled_) {
+        return {};
+    }
+
+    const auto before = snapshot();
+
+    return finish(before, buffer_->move_cursor(direction, extend_selection), false);
+}
+
+EditableTextEdit EditableTextController::move_to_line_edge(
+    TextVisualEdge edge,
+    std::span<const TextCaretStop> caret_stops,
+    std::size_t& selected_stop,
+    bool extend_selection
+) noexcept {
+    if (disabled_) {
+        return {};
+    }
+
+    const auto before = snapshot();
+
+    return finish(
+        before,
+        buffer_->move_cursor_to_visual_edge(caret_stops, edge, selected_stop, extend_selection),
+        false
+    );
+}
+
+EditableTextEdit EditableTextController::move_vertically(
+    std::span<const TextVisualLine> lines,
+    TextVisualPosition current_position,
+    TextVerticalDirection direction,
+    float preferred_x,
+    TextVisualPosition& next_position,
+    bool extend_selection
+) noexcept {
+    if (disabled_) {
+        return {};
+    }
+
+    const auto before = snapshot();
+
+    return finish(
+        before,
+        buffer_->move_cursor_vertically(
+            lines,
+            current_position,
+            direction,
+            preferred_x,
+            next_position,
+            extend_selection
+        ),
+        false
+    );
+}
+
 EditableTextResult EditableTextController::select_all() noexcept {
     if (disabled_) {
         return EditableTextResult::ignored;

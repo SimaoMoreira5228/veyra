@@ -1,10 +1,15 @@
 #include "veyra/behaviors/editable_text.hpp"
+#include "veyra/platform/null_window.hpp"
 
 #include <array>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#ifdef VEYRA_EDITABLE_TEXT_HAS_UNICODE
+#include "veyra/text/grapheme.hpp"
+#endif
 
 namespace {
 
@@ -495,6 +500,465 @@ void check_cut_copies_then_deletes() {
     require(cramped.buffer.size() == 5, "a failed cut keeps the text");
 }
 
+void check_move_cursor_steps_code_points() {
+    auto fix = Fixture{"a\xc3\xa9x"};
+    require(
+        fix.field.set_cursor(0).result == veyra::EditableTextResult::changed,
+        "movement starts at the front of multibyte text"
+    );
+    require(
+        fix.field.set_cursor(4).result == veyra::EditableTextResult::changed,
+        "movement reaches the end of multibyte text"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::backward).result ==
+                veyra::EditableTextResult::changed &&
+            fix.buffer.cursor() == 3,
+        "backward movement crosses one code point"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::backward).result ==
+                veyra::EditableTextResult::changed &&
+            fix.buffer.cursor() == 1,
+        "backward movement crosses a two-byte code point in one step"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::backward).result ==
+                veyra::EditableTextResult::changed &&
+            fix.buffer.cursor() == 0,
+        "backward movement reaches the start"
+    );
+    const auto pinned = fix.field.move_cursor(veyra::TextCursorDirection::backward);
+    require(
+        pinned.result == veyra::EditableTextResult::handled &&
+            pinned.edit == veyra::TextEditResult::complete && fix.buffer.cursor() == 0,
+        "backward movement at the start reports no change"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::forward).result ==
+                veyra::EditableTextResult::changed &&
+            fix.buffer.cursor() == 1,
+        "forward movement crosses one code point"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::forward, true).result ==
+            veyra::EditableTextResult::changed,
+        "forward movement can extend a selection"
+    );
+    require(
+        fix.buffer.cursor() == 3 && fix.buffer.selection().start == 1 &&
+            fix.buffer.selection().length == 2,
+        "extended movement selects the whole multibyte code point"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::backward).result ==
+            veyra::EditableTextResult::changed,
+        "movement without extend collapses a selection"
+    );
+    require(
+        fix.buffer.cursor() == 1 && fix.buffer.selection().length == 0,
+        "collapsed movement lands at the selection start"
+    );
+
+    const auto cursor_before_rejection = fix.buffer.cursor();
+    const auto rejected = fix.field.move_cursor(static_cast<veyra::TextCursorDirection>(99));
+    require(
+        rejected.result == veyra::EditableTextResult::handled &&
+            rejected.edit == veyra::TextEditResult::invalid_direction &&
+            fix.buffer.cursor() == cursor_before_rejection,
+        "an invalid direction reports no change and keeps the cursor"
+    );
+
+    require(
+        fix.field.set_kind(veyra::EditableTextKind::search),
+        "search kind tracks submit intent"
+    );
+    require(
+        fix.field.set_focused(true) == veyra::EditableTextResult::handled,
+        "intent checks need focus"
+    );
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::forward).result ==
+            veyra::EditableTextResult::changed,
+        "movement works while focused"
+    );
+    require(
+        fix.field.submit_search() == veyra::EditableTextResult::handled,
+        "caret moves never arm the search intent"
+    );
+
+    require(fix.field.set_disabled(true), "disabling reports a change");
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::forward).result ==
+            veyra::EditableTextResult::ignored,
+        "movement is rejected while disabled"
+    );
+    require(fix.field.set_disabled(false), "enabling reports a change");
+    require(fix.field.set_readonly(true), "readonly reports a change");
+    require(
+        fix.field.move_cursor(veyra::TextCursorDirection::forward).result ==
+            veyra::EditableTextResult::changed,
+        "movement still works while readonly"
+    );
+}
+
+void check_move_to_line_edge_reports_visual_stops() {
+    auto fix = Fixture{"word"};
+    const std::array caret_stops{
+        veyra::TextCaretStop{.byte_offset = 0, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 1, .x = 12.0F},
+        veyra::TextCaretStop{.byte_offset = 2, .x = 21.0F},
+        veyra::TextCaretStop{.byte_offset = 3, .x = 31.0F},
+        veyra::TextCaretStop{.byte_offset = 4, .x = 42.0F},
+    };
+    require(
+        fix.field.set_cursor(2).result == veyra::EditableTextResult::changed,
+        "edge movement starts inside the line"
+    );
+
+    auto selected_stop = std::size_t{99};
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::right, caret_stops, selected_stop)
+                .result == veyra::EditableTextResult::changed,
+        "edge movement reaches the rightmost caret stop"
+    );
+    require(fix.buffer.cursor() == 4 && selected_stop == 4, "right edge reports its visual stop");
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::left, caret_stops, selected_stop, true)
+                .result == veyra::EditableTextResult::changed,
+        "edge movement can extend a selection"
+    );
+    require(
+        fix.buffer.cursor() == 0 && selected_stop == 0 && fix.buffer.selection().start == 0 &&
+            fix.buffer.selection().length == 4,
+        "extended edge movement selects through the left edge"
+    );
+
+    selected_stop = 99;
+    const auto rejected =
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::left, {}, selected_stop);
+    require(
+        rejected.result == veyra::EditableTextResult::handled &&
+            rejected.edit == veyra::TextEditResult::invalid_state && selected_stop == 99 &&
+            fix.buffer.cursor() == 0,
+        "an empty stop span reports no change and keeps its outputs"
+    );
+
+    const auto bad_direction = fix.field.move_to_line_edge(
+        static_cast<veyra::TextVisualEdge>(99),
+        caret_stops,
+        selected_stop
+    );
+    require(
+        bad_direction.result == veyra::EditableTextResult::handled &&
+            bad_direction.edit == veyra::TextEditResult::invalid_direction &&
+            fix.buffer.cursor() == 0,
+        "an invalid edge reports no change and keeps the cursor"
+    );
+
+    require(fix.field.set_disabled(true), "disabling reports a change");
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::right, caret_stops, selected_stop)
+                .result == veyra::EditableTextResult::ignored,
+        "edge movement is rejected while disabled"
+    );
+}
+
+void check_visual_order_composes_for_bidi() {
+    auto fix = Fixture{"\xd7\x90\xd7\x91"};
+    const std::array rtl_stops{
+        veyra::TextCaretStop{.byte_offset = 4, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 2, .x = 12.0F},
+        veyra::TextCaretStop{.byte_offset = 0, .x = 24.0F},
+    };
+
+    auto selected_stop = std::size_t{99};
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::left, rtl_stops, selected_stop).result ==
+            veyra::EditableTextResult::handled,
+        "visual-left starts at the caller-ordered first stop"
+    );
+    require(
+        fix.buffer.cursor() == 4 && selected_stop == 0,
+        "visual-left is the logical end of a right-to-left line"
+    );
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::right, rtl_stops, selected_stop)
+                .result == veyra::EditableTextResult::changed,
+        "visual-right reaches the caller-ordered last stop"
+    );
+    require(
+        fix.buffer.cursor() == 0 && selected_stop == 2,
+        "visual-right is the logical start of a right-to-left line"
+    );
+    require(
+        fix.field.move_to_line_edge(veyra::TextVisualEdge::left, rtl_stops, selected_stop, true)
+                .result == veyra::EditableTextResult::changed,
+        "visual edge movement can extend across the Hebrew run"
+    );
+    require(
+        fix.buffer.selection().start == 0 && fix.buffer.selection().length == 4,
+        "extended visual movement selects the whole run"
+    );
+}
+
+void check_move_vertically_threads_visual_positions() {
+    auto fix = Fixture{"one\ntwo"};
+    const std::array first_line_stops{
+        veyra::TextCaretStop{.byte_offset = 0, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 1, .x = 10.0F},
+        veyra::TextCaretStop{.byte_offset = 2, .x = 20.0F},
+        veyra::TextCaretStop{.byte_offset = 3, .x = 30.0F},
+    };
+    const std::array second_line_stops{
+        veyra::TextCaretStop{.byte_offset = 4, .x = 0.0F},
+        veyra::TextCaretStop{.byte_offset = 5, .x = 10.0F},
+        veyra::TextCaretStop{.byte_offset = 6, .x = 20.0F},
+        veyra::TextCaretStop{.byte_offset = 7, .x = 30.0F},
+    };
+    const std::array lines{
+        veyra::TextVisualLine{.caret_stops = first_line_stops},
+        veyra::TextVisualLine{.caret_stops = second_line_stops},
+    };
+    require(
+        fix.field.set_cursor(2).result == veyra::EditableTextResult::changed,
+        "vertical movement starts on the first line"
+    );
+
+    auto position = veyra::TextVisualPosition{.line_index = 0, .stop_index = 2};
+    auto next_position = veyra::TextVisualPosition{.line_index = 99, .stop_index = 99};
+    require(
+        fix.field
+                .move_vertically(
+                    lines,
+                    position,
+                    veyra::TextVerticalDirection::down,
+                    19.0F,
+                    next_position,
+                    true
+                )
+                .result == veyra::EditableTextResult::changed,
+        "Down moves to the nearest caret on the next visual line"
+    );
+    require(
+        next_position.line_index == 1 && next_position.stop_index == 2 && fix.buffer.cursor() == 6,
+        "Down reports the selected visual position"
+    );
+    require(
+        fix.buffer.selection().start == 2 && fix.buffer.selection().length == 4,
+        "Down can extend the current selection"
+    );
+
+    position = next_position;
+    require(
+        fix.field
+                .move_vertically(
+                    lines,
+                    position,
+                    veyra::TextVerticalDirection::up,
+                    19.0F,
+                    next_position
+                )
+                .result == veyra::EditableTextResult::changed,
+        "Up returns to the preceding visual line"
+    );
+    require(
+        next_position.line_index == 0 && next_position.stop_index == 2 && fix.buffer.cursor() == 2,
+        "Up keeps the preferred x position"
+    );
+
+    const auto stale_output = veyra::TextVisualPosition{.line_index = 77, .stop_index = 77};
+    auto stale_next = stale_output;
+    const auto cursor_before_stale = fix.buffer.cursor();
+    require(
+        fix.field
+                .move_vertically(
+                    lines,
+                    {.line_index = 0, .stop_index = 1},
+                    veyra::TextVerticalDirection::down,
+                    19.0F,
+                    stale_next
+                )
+                .result == veyra::EditableTextResult::handled,
+        "a stale visual position reports no change"
+    );
+    require(
+        fix.buffer.cursor() == cursor_before_stale &&
+            stale_next.line_index == stale_output.line_index &&
+            stale_next.stop_index == stale_output.stop_index,
+        "a stale visual position keeps the cursor and its outputs"
+    );
+}
+
+void check_pointer_drag_selects_whole_code_points() {
+    auto fix = Fixture{"a\xc3\xa9x"};
+    require(
+        fix.field.set_cursor(0).result == veyra::EditableTextResult::changed,
+        "press lands the caret"
+    );
+    require(
+        fix.field.set_cursor(1, true).result == veyra::EditableTextResult::changed,
+        "drag reaches the second code point"
+    );
+    require(
+        fix.buffer.selection().start == 0 && fix.buffer.selection().length == 1,
+        "drag covers the first code point"
+    );
+    require(
+        fix.field.set_cursor(2, true).result == veyra::EditableTextResult::handled,
+        "dragging into the middle of a code point reports no change"
+    );
+    require(
+        fix.buffer.selection().start == 0 && fix.buffer.selection().length == 1,
+        "a mid-code-point drag target leaves the selection alone"
+    );
+    require(
+        fix.field.set_cursor(3, true).result == veyra::EditableTextResult::changed,
+        "drag crosses the multibyte code point"
+    );
+    require(
+        fix.buffer.selection().start == 0 && fix.buffer.selection().length == 3,
+        "drag covers whole code points, never half of one"
+    );
+    require(
+        fix.field.set_cursor(4, true).result == veyra::EditableTextResult::changed,
+        "release covers the drag span"
+    );
+    require(
+        fix.buffer.selection().start == 0 && fix.buffer.selection().length == 4,
+        "the released selection spans the dragged text"
+    );
+}
+
+void check_clipboard_recipe_through_null_window() {
+    auto source = Fixture{"hello"};
+    source.field.select_all();
+
+    std::array<char, 256> copied{};
+    std::size_t copied_length = 0;
+    require(
+        source.field.copy_selection(copied, copied_length) == veyra::TextEditResult::complete &&
+            copied_length == 5,
+        "copy reads the selection into caller storage"
+    );
+    copied[copied_length] = '\0';
+
+    veyra::NullWindow window("clipboard", 320, 240, 7);
+    require(window.creation_result() == veyra::WindowResult::ready, "null window is ready");
+    require(
+        window.set_clipboard_text(copied.data()) == veyra::WindowResult::ready,
+        "copied text reaches the window clipboard"
+    );
+
+    std::array<char, 256> retrieved{};
+    std::size_t retrieved_length = 0;
+    require(
+        window.get_clipboard_text(retrieved, retrieved_length) == veyra::WindowResult::ready &&
+            retrieved_length == 5,
+        "pasted text leaves the window clipboard"
+    );
+
+    auto target = Fixture{};
+    require(
+        target.field.paste({retrieved.data(), retrieved_length}).result ==
+            veyra::EditableTextResult::changed,
+        "paste inserts the clipboard bytes"
+    );
+    std::array<char, 16> flattened{};
+    std::size_t flattened_length = 0;
+    require(
+        target.field.buffer().copy_text(flattened, flattened_length) ==
+                veyra::TextEditResult::complete &&
+            flattened_length == 5,
+        "the target holds the pasted bytes"
+    );
+    require(
+        std::string_view{flattened.data(), flattened_length} == "hello",
+        "the clipboard round trip preserves the text"
+    );
+
+    std::array<char, 256> cut{};
+    std::size_t cut_length = 0;
+    const auto removed = source.field.cut_selection(cut, cut_length);
+    require(
+        removed.result == veyra::EditableTextResult::changed &&
+            removed.edit == veyra::TextEditResult::complete && cut_length == 5 &&
+            source.field.buffer().size() == 0,
+        "cut copies the selection, then deletes it"
+    );
+    cut[cut_length] = '\0';
+    require(
+        window.set_clipboard_text(cut.data()) == veyra::WindowResult::ready,
+        "cut text reaches the window clipboard"
+    );
+    require(
+        window.get_clipboard_text(retrieved, retrieved_length) == veyra::WindowResult::ready &&
+            retrieved_length == 5,
+        "cut text leaves the window clipboard"
+    );
+    require(
+        target.field.paste({retrieved.data(), retrieved_length}).result ==
+            veyra::EditableTextResult::changed,
+        "cut text pastes into the target"
+    );
+    require(
+        target.field.buffer().copy_text(flattened, flattened_length) ==
+                veyra::TextEditResult::complete &&
+            std::string_view{flattened.data(), flattened_length} == "hellohello",
+        "cut text appends after the earlier paste"
+    );
+}
+
+#ifdef VEYRA_EDITABLE_TEXT_HAS_UNICODE
+void check_grapheme_steps_compose_through_buffer() {
+    auto fix = Fixture{"e\xcc\x81x"};
+    require(
+        veyra::move_cursor_by_grapheme(fix.field.buffer(), veyra::TextCursorDirection::backward) ==
+            veyra::TextEditResult::complete,
+        "grapheme movement crosses the trailing code point"
+    );
+    require(fix.field.buffer().cursor() == 3, "cursor stops after the combining sequence");
+    require(
+        veyra::move_cursor_by_grapheme(fix.field.buffer(), veyra::TextCursorDirection::backward) ==
+            veyra::TextEditResult::complete,
+        "grapheme movement crosses the combined character"
+    );
+    require(fix.field.buffer().cursor() == 0, "base character and combining mark move together");
+
+    auto emoji = Fixture{"\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbbx"};
+    require(
+        veyra::move_cursor_by_grapheme(
+            emoji.field.buffer(),
+            veyra::TextCursorDirection::backward
+        ) == veyra::TextEditResult::complete,
+        "joined emoji separates from following text"
+    );
+    require(emoji.field.buffer().cursor() == 11, "joined emoji stays in one grapheme");
+    require(
+        veyra::move_cursor_by_grapheme(
+            emoji.field.buffer(),
+            veyra::TextCursorDirection::backward
+        ) == veyra::TextEditResult::complete,
+        "joined emoji moves as one unit"
+    );
+    require(emoji.field.buffer().cursor() == 0, "joined emoji begins at the first byte");
+
+    require(fix.field.buffer().cursor() == 0, "grapheme drag anchors at the start");
+    require(
+        veyra::move_cursor_by_grapheme(
+            fix.field.buffer(),
+            veyra::TextCursorDirection::forward,
+            true
+        ) == veyra::TextEditResult::complete,
+        "grapheme drag extends forward"
+    );
+    require(
+        fix.field.buffer().selection().start == 0 && fix.field.buffer().selection().length == 3,
+        "grapheme drag covers the whole cluster, never half"
+    );
+}
+#endif
+
 }
 
 int main() {
@@ -510,6 +974,15 @@ int main() {
         check_paste_and_erase_apply_edits();
         check_platform_commit_flow();
         check_cut_copies_then_deletes();
+        check_move_cursor_steps_code_points();
+        check_move_to_line_edge_reports_visual_stops();
+        check_visual_order_composes_for_bidi();
+        check_move_vertically_threads_visual_positions();
+        check_pointer_drag_selects_whole_code_points();
+        check_clipboard_recipe_through_null_window();
+#ifdef VEYRA_EDITABLE_TEXT_HAS_UNICODE
+        check_grapheme_steps_compose_through_buffer();
+#endif
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
