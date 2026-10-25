@@ -66,6 +66,9 @@ struct NogaBatch {
     std::uint32_t pending_sampler{};
     std::size_t run_base{};
     bool scissor_dirty{true};
+    bool load_existing{false};
+    bool damage_active{false};
+    SoftwareClipRect damage_clip{};
     SoftwareClipRect current_clip{};
 
     NogaBatch(
@@ -87,6 +90,8 @@ struct NogaBatch {
     void flush_pending() noexcept;
     void flush_unless(NogaPipe pipe, std::uint32_t slot, std::uint32_t sampler) noexcept;
     void set_clip(SoftwareClipRect clip) noexcept;
+    void begin_region(SoftwareClipRect clip) noexcept;
+    bool outside_damage(SoftwareClipRect bounds) noexcept;
     void draw_run(NogaPipe pipe, std::size_t first, std::size_t count) noexcept;
 
     template <typename Instance>
@@ -170,6 +175,9 @@ struct NogaEmitter {
     emit_polyline(const StrokePolyline& polylined, const LayoutPoint& translation) noexcept;
     NogaRenderResult emit_path(const FillPath& pathed, const LayoutPoint& translation) noexcept;
 };
+
+NogaRenderResult
+replay_frame_commands(NogaBatch& batch, std::span<const DisplayCommand> commands) noexcept;
 
 }
 

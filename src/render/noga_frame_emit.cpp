@@ -32,6 +32,17 @@ struct PathRectSink {
             return;
         }
 
+        const auto span_clip = SoftwareClipRect{
+            .left = span.left,
+            .top = span.y,
+            .right = span.right,
+            .bottom = span.y + 1,
+        };
+
+        if (batch.outside_damage(span_clip)) {
+            return;
+        }
+
         if (span.left >= clip.right || span.right <= clip.left) {
             return;
         }
@@ -279,6 +290,10 @@ NogaEmitter::emit_shape(const NogaShapeStyle& style, const LayoutPoint& translat
     const auto bounds = render_detail::pixel_bounds(translated, state.width, state.height);
 
     if (bounds.left >= bounds.right || bounds.top >= bounds.bottom) {
+        return NogaRenderResult::complete;
+    }
+
+    if (batch.outside_damage(bounds)) {
         return NogaRenderResult::complete;
     }
 

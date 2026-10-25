@@ -131,6 +131,10 @@ NogaRenderResult emit_stroke_segment(
         return NogaRenderResult::complete;
     }
 
+    if (batch.outside_damage(bounds)) {
+        return NogaRenderResult::complete;
+    }
+
     if (noga_clip_excludes(batch.current_clip, bounds)) {
         return NogaRenderResult::complete;
     }
@@ -198,6 +202,10 @@ NogaEmitter::emit_stroke_rect(const StrokeRect& stroked, const LayoutPoint& tran
         const auto bar_bounds = render_detail::pixel_bounds(bars[bar], state.width, state.height);
 
         if (bar_bounds.left >= bar_bounds.right || bar_bounds.top >= bar_bounds.bottom) {
+            continue;
+        }
+
+        if (batch.outside_damage(bar_bounds)) {
             continue;
         }
 

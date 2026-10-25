@@ -31,14 +31,24 @@ void NogaBatch::ensure_pass() noexcept {
         return;
     }
 
-    gpu::begin_render_pass(
-        commands,
-        {.colors = {{
-             .render_view = state.view,
-             .load = gpu::LoadOp::clear,
-             .clear = {.x = 0.0F, .y = 0.0F, .z = 0.0F, .w = 1.0F},
-         }}}
-    );
+    if (load_existing) {
+        gpu::begin_render_pass(
+            commands,
+            {.colors = {{
+                 .render_view = state.view,
+                 .load = gpu::LoadOp::load,
+             }}}
+        );
+    } else {
+        gpu::begin_render_pass(
+            commands,
+            {.colors = {{
+                 .render_view = state.view,
+                 .load = gpu::LoadOp::clear,
+                 .clear = {.x = 0.0F, .y = 0.0F, .z = 0.0F, .w = 1.0F},
+             }}}
+        );
+    }
 
     const auto width = static_cast<float>(state.width);
     const auto height = static_cast<float>(state.height);
@@ -104,6 +114,27 @@ void NogaBatch::set_clip(SoftwareClipRect clip) noexcept {
 
     current_clip = clip;
     scissor_dirty = true;
+}
+
+void NogaBatch::begin_region(SoftwareClipRect clip) noexcept {
+    for (auto& count : pipe_counts) {
+        count = 0;
+    }
+
+    pending_valid = false;
+    scissor_dirty = true;
+    damage_clip = clip;
+    current_clip = clip;
+}
+
+bool NogaBatch::outside_damage(SoftwareClipRect bounds) noexcept {
+    if (!damage_active || !noga_clip_excludes(damage_clip, bounds)) {
+        return false;
+    }
+
+    ++stats.damage_skipped;
+
+    return true;
 }
 
 void NogaBatch::draw_run(NogaPipe pipe, std::size_t first, std::size_t count) noexcept {

@@ -15,71 +15,14 @@
 
 namespace veyra {
 
-namespace {
-
-NogaRenderResult render_frame(
-    noga_detail::State& state,
-    noga_detail::FramePipelines& stored,
-    std::span<const DisplayCommand> commands,
-    std::span<SoftwarePixel> output,
-    NogaFrameStats& stats
-) noexcept {
-    gpu::wait_timeline({.semaphore = state.semaphore, .value = state.completed});
-    gpu::reset_command_pool(state.pool);
-
-    gpu::CommandBuffer* frame_commands = gpu::begin_commands(state.pool);
-
-    if (frame_commands == nullptr) {
-        return NogaRenderResult::device_error;
-    }
-
-    gpu::set_texture_descriptor_heap(frame_commands, stored.textures);
-    gpu::set_sampler_descriptor_heap(frame_commands, stored.samplers);
-
-    stored.frame_seq += 1;
-    stored.staging_used = 0;
-    stored.bump = stored.root_base;
-
-    auto batch = NogaBatch{state, stored, stats, frame_commands};
-
-    {
-        auto frame_uploads = std::size_t{};
-        auto frame_bytes = std::size_t{};
-        const auto uploaded = noga_detail::upload_frame_textures(
-            state,
-            stored,
-            frame_commands,
-            commands,
-            frame_uploads,
-            frame_bytes
-        );
-
-        stats.uploads += frame_uploads;
-        stats.upload_bytes += frame_bytes;
-
-        if (uploaded != NogaRenderResult::complete) {
-            batch.abandon();
-
-            return uploaded;
-        }
-    }
-
-    if (stats.uploads > 0) {
-        gpu::barrier(
-            frame_commands,
-            gpu::Stage::transfer,
-            gpu::Access::transfer_write,
-            gpu::Stage::fragment,
-            gpu::Access::shader_read
-        );
-    }
-
+NogaRenderResult
+replay_frame_commands(NogaBatch& batch, std::span<const DisplayCommand> commands) noexcept {
     auto translation = LayoutPoint{};
     auto translation_stack = std::array<LayoutPoint, noga_detail::kTranslationDepth>{};
     auto translation_depth = std::size_t{};
     auto clip_stack = std::array<SoftwareClipRect, noga_detail::kTranslationDepth>{};
     auto clip_depth = std::size_t{};
-    auto emitter = NogaEmitter{batch, state, stored};
+    auto emitter = NogaEmitter{batch, batch.state, batch.stored};
 
     for (const auto& command : commands) {
         if (const auto* push = std::get_if<PushTranslation>(&command)) {
@@ -129,7 +72,8 @@ NogaRenderResult render_frame(
             translated.x += translation.x;
             translated.y += translation.y;
 
-            const auto pushed = render_detail::pixel_bounds(translated, state.width, state.height);
+            const auto pushed =
+                render_detail::pixel_bounds(translated, batch.state.width, batch.state.height);
 
             batch.set_clip(render_detail::intersect(batch.current_clip, pushed));
 
@@ -262,6 +206,74 @@ NogaRenderResult render_frame(
         batch.abandon();
 
         return NogaRenderResult::invalid_input;
+    }
+
+    return NogaRenderResult::complete;
+}
+
+namespace {
+
+NogaRenderResult render_frame(
+    noga_detail::State& state,
+    noga_detail::FramePipelines& stored,
+    std::span<const DisplayCommand> commands,
+    std::span<SoftwarePixel> output,
+    NogaFrameStats& stats
+) noexcept {
+    gpu::wait_timeline({.semaphore = state.semaphore, .value = state.completed});
+    gpu::reset_command_pool(state.pool);
+
+    gpu::CommandBuffer* frame_commands = gpu::begin_commands(state.pool);
+
+    if (frame_commands == nullptr) {
+        return NogaRenderResult::device_error;
+    }
+
+    gpu::set_texture_descriptor_heap(frame_commands, stored.textures);
+    gpu::set_sampler_descriptor_heap(frame_commands, stored.samplers);
+
+    stored.frame_seq += 1;
+    stored.staging_used = 0;
+    stored.bump = stored.root_base;
+
+    auto batch = NogaBatch{state, stored, stats, frame_commands};
+
+    {
+        auto frame_uploads = std::size_t{};
+        auto frame_bytes = std::size_t{};
+        const auto uploaded = noga_detail::upload_frame_textures(
+            state,
+            stored,
+            frame_commands,
+            commands,
+            frame_uploads,
+            frame_bytes
+        );
+
+        stats.uploads += frame_uploads;
+        stats.upload_bytes += frame_bytes;
+
+        if (uploaded != NogaRenderResult::complete) {
+            batch.abandon();
+
+            return uploaded;
+        }
+    }
+
+    if (stats.uploads > 0) {
+        gpu::barrier(
+            frame_commands,
+            gpu::Stage::transfer,
+            gpu::Access::transfer_write,
+            gpu::Stage::fragment,
+            gpu::Access::shader_read
+        );
+    }
+
+    const auto replayed = replay_frame_commands(batch, commands);
+
+    if (replayed != NogaRenderResult::complete) {
+        return replayed;
     }
 
     batch.flush_pending();

@@ -24,6 +24,7 @@ enum class NogaRenderResult : std::uint8_t {
     insufficient_capacity,
     unsupported_commands,
     device_error,
+    unchanged,
 };
 
 struct NogaDeviceInfo {

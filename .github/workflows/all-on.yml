@@ -1,0 +1,59 @@
+name: All backends on
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  all-on:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          # Linux-only coverage suite: VEYRA_WITH_VULKAN=ON needs a real
+          # Vulkan device (NGA tests fail closed without one), provisioned
+          # here via lavapipe; the windowed SDL leg needs a display,
+          # provided by xvfb. The apt packages are installed explicitly
+          # rather than relying on runner-image contents. Windows/macOS
+          # backend coverage stays with the per-backend workflows
+          # (sdl3, glfw): those runners have no Vulkan driver (Windows) or
+          # no Vulkan loader (macOS), so an everything-on leg there could
+          # never execute the NGA tests.
+          - ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Install system dependencies
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb libwebp-dev libavif-dev
+        # libwebp-dev/libavif-dev: system-first, faster than FetchContent builds
+        # (malformed VEYRA_LIBWEBP_SHA256/VEYRA_LIBAVIF_SHA256 in
+        # CMakeLists.txt — see roadmap §2 status), so take the system
+        # libraries instead of the FetchContent download path.
+
+      - name: Install libraries
+        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install sdl3 glfw3 freetype harfbuzz icu"
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVEYRA_WITH_FILESYSTEM=ON
+          -DVEYRA_WITH_SDL3=ON
+          -DVEYRA_WITH_GLFW=ON
+          -DVEYRA_WITH_VULKAN=ON
+          -DVEYRA_WITH_TEXT=ON
+          -DVEYRA_WITH_UNICODE=ON
+          -DVEYRA_WITH_FREETYPE=ON
+          -DVEYRA_WITH_CODECS=ON
+          -DVEYRA_BUILD_BENCH=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: xvfb-run -a ctest --test-dir build --build-config Release --output-on-failure

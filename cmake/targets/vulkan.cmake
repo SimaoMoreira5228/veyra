@@ -181,6 +181,7 @@ if(VEYRA_WITH_VULKAN)
     src/render/noga_rect.cpp
     src/render/noga_frame.cpp
     src/render/noga_frame_batch.cpp
+    src/render/noga_frame_damage.cpp
     src/render/noga_frame_emit.cpp
     src/render/noga_frame_stroke.cpp
     src/render/noga_frame_submit.cpp
@@ -256,6 +257,12 @@ if(VEYRA_WITH_VULKAN)
     NAME noga_frame_validation_parity
     TARGET veyra_noga_frame_validation_parity_test
     SOURCES tests/noga_frame_validation_parity_test.cpp
+    LIBS veyra_noga
+   )
+   veyra_add_test(
+    NAME noga_damage_parity
+    TARGET veyra_noga_damage_parity_test
+    SOURCES tests/noga_damage_parity_test.cpp
     LIBS veyra_noga
    )
    if(VEYRA_WITH_TEXT)
