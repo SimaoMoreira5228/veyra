@@ -15,6 +15,8 @@
 #include "veyra/widgets/basic/toggle.hpp"
 #include "veyra/widgets/data/data_grid.hpp"
 
+#include "gallery_backends.hpp"
+
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -55,7 +57,11 @@ struct Options {
     std::size_t width{kMinWidth};
     std::size_t height{kMinHeight};
     double scale{1.0};
+    gallery::Backend backend{gallery::Backend::cpu};
 };
+
+constexpr std::string_view kUsage =
+    "usage: veyra_gallery <output.ppm> [width height] [--scale S] [--backend cpu|noga|sdlgpu]";
 
 std::size_t parse_size(const char* value) {
     const std::string_view text(value);
@@ -90,7 +96,7 @@ void check_dimension(std::size_t value, std::size_t minimum, std::string_view na
 
 Options parse_options(int argc, char** argv) {
     if (argc < 2) {
-        throw std::invalid_argument("usage: veyra_gallery <output.ppm> [width height] [--scale S]");
+        throw std::invalid_argument(std::string(kUsage));
     }
     auto options = Options{};
     options.output = argv[1];
@@ -98,24 +104,30 @@ Options parse_options(int argc, char** argv) {
         throw std::invalid_argument("gallery output path must not be empty");
     }
     auto seen_scale = false;
+    auto seen_backend = false;
     auto seen_size = std::size_t{0};
     for (auto index = 2; index < argc; ++index) {
         const std::string_view token(argv[index]);
         if (token == "--scale") {
             ++index;
             if (seen_scale || index >= argc) {
-                throw std::invalid_argument(
-                    "usage: veyra_gallery <output.ppm> [width height] [--scale S]"
-                );
+                throw std::invalid_argument(std::string(kUsage));
             }
             options.scale = parse_scale(argv[index]);
             seen_scale = true;
             continue;
         }
+        if (token == "--backend") {
+            ++index;
+            if (seen_backend || index >= argc ||
+                !gallery::parse_backend(argv[index], options.backend)) {
+                throw std::invalid_argument(std::string(kUsage));
+            }
+            seen_backend = true;
+            continue;
+        }
         if (token.starts_with("--") || seen_size >= 2) {
-            throw std::invalid_argument(
-                "usage: veyra_gallery <output.ppm> [width height] [--scale S]"
-            );
+            throw std::invalid_argument(std::string(kUsage));
         }
         const auto parsed = parse_size(argv[index]);
         if (seen_size == 0) {
@@ -882,21 +894,10 @@ int run(int argc, char** argv) {
         .height = static_cast<float>(height),
     };
     std::vector<veyra::SoftwarePixel> pixels(width * height);
-    std::array<veyra::SoftwareClipRect, 8> clips{};
-    std::array<veyra::LayoutPoint, 8> translations{};
-    const veyra::SoftwareRenderWorkspace workspace{
-        .clips = clips,
-        .translations = translations,
-    };
-    const veyra::SoftwareSurface surface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = pixels,
-    };
-    const auto result = veyra::render_software(commands, surface, workspace);
-    if (result != veyra::SoftwareRenderResult::complete) {
-        throw std::runtime_error("gallery rendering failed");
+    const int backend_result =
+        gallery::render_pixels(commands, pixels, width, height, options.backend);
+    if (backend_result != 0) {
+        return backend_result;
     }
     write_ppm(options.output, pixels, width, height);
     return 0;
