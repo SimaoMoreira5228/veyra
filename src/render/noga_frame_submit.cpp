@@ -232,6 +232,11 @@ NogaRenderResult render_frame(
     gpu::set_texture_descriptor_heap(frame_commands, stored.textures);
     gpu::set_sampler_descriptor_heap(frame_commands, stored.samplers);
 
+    auto start_tick = ~std::uint64_t{};
+    auto end_tick = std::uint64_t{};
+
+    gpu::write_timestamp(frame_commands, &start_tick);
+
     stored.frame_seq += 1;
     stored.staging_used = 0;
     stored.bump = stored.root_base;
@@ -299,6 +304,7 @@ NogaRenderResult render_frame(
         gpu::Stage::host,
         gpu::Access::host_read
     );
+    gpu::write_timestamp(frame_commands, &end_tick);
     gpu::end_commands(frame_commands);
 
     state.completed += 1;
@@ -308,6 +314,15 @@ NogaRenderResult render_frame(
          .completion = {.semaphore = state.semaphore, .value = state.completed}}
     );
     gpu::wait_timeline({.semaphore = state.semaphore, .value = state.completed});
+    gpu::read_timestamps(state.pool);
+
+    if (state.timestamp_period_ns > 0.0F && end_tick >= start_tick) {
+        const auto elapsed = static_cast<double>(end_tick - start_tick) *
+            static_cast<double>(state.timestamp_period_ns);
+
+        stats.gpu_ns = static_cast<std::uint64_t>(elapsed);
+        stats.gpu_timed = true;
+    }
 
     std::memcpy(
         output.data(),
@@ -338,12 +353,13 @@ NogaRenderResult render_noga_frame(
         return NogaRenderResult::invalid_input;
     }
 
+    if (state->device_lost) {
+        return NogaRenderResult::device_lost;
+    }
+
     stats = NogaFrameStats{};
 
     const auto rendered = render_frame(*state, *stored, commands, output, stats);
-
-    stats.gpu_ns = 0;
-    stats.gpu_timed = false;
 
     return rendered;
 }

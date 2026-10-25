@@ -290,4 +290,37 @@ void destroy_noga_frame_pipeline(NogaContext& context, NogaFramePipeline& pipeli
     pipeline.ready = false;
 }
 
+NogaContextResult recover_noga_context(NogaContext& context, NogaFramePipeline& pipeline) noexcept {
+    auto* state = noga_detail::state_of(context);
+    auto* stored = noga_detail::frames_of(pipeline);
+
+    if (state == nullptr || stored == nullptr || !context.ready || !pipeline.ready) {
+        return NogaContextResult::invalid_input;
+    }
+
+    const auto width = state->width;
+    const auto height = state->height;
+    const auto epoch = state->epoch;
+
+    // NOTE: pipeline first — its teardown issues GPU waits against the live device.
+    destroy_noga_frame_pipeline(context, pipeline);
+    destroy_noga_context(context);
+
+    const auto brought = create_noga_context(context, width, height);
+
+    if (brought != NogaContextResult::ready) {
+        return brought;
+    }
+
+    if (create_noga_frame_pipeline(context, pipeline) != NogaRenderResult::complete) {
+        destroy_noga_context(context);
+
+        return NogaContextResult::creation_failed;
+    }
+
+    noga_detail::state_of(context)->epoch = epoch + 1;
+
+    return NogaContextResult::ready;
+}
+
 }

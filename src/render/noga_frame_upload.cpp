@@ -122,6 +122,7 @@ bool upload_image_entry(
 
     entry.key = &image;
     entry.generation = image.generation;
+    entry.epoch = state.epoch;
     entry.frame_tag = stored.frame_seq;
     entry.width = image.width;
     entry.height = image.height;
@@ -205,6 +206,7 @@ bool upload_mask_entry(
 
     entry.key = &mask;
     entry.generation = mask.generation;
+    entry.epoch = state.epoch;
     entry.frame_tag = stored.frame_seq;
     entry.width = mask.width;
     entry.height = mask.height;
@@ -227,7 +229,8 @@ NogaRenderResult resolve_image_upload(
 
     for (auto& cached : stored.images) {
         if (!cached.occupied || cached.key != &image || cached.generation != image.generation ||
-            cached.width != image.width || cached.height != image.height) {
+            cached.epoch != state.epoch || cached.width != image.width ||
+            cached.height != image.height) {
             continue;
         }
 
@@ -285,7 +288,8 @@ NogaRenderResult resolve_mask_upload(
 
     for (auto& cached : stored.masks) {
         if (!cached.occupied || cached.key != &mask || cached.generation != mask.generation ||
-            cached.width != mask.width || cached.height != mask.height) {
+            cached.epoch != state.epoch || cached.width != mask.width ||
+            cached.height != mask.height) {
             continue;
         }
 
@@ -336,6 +340,7 @@ NogaRenderResult resolve_mask_upload(
 
 const NogaImageEntry* lookup_image(
     const FramePipelines& stored,
+    std::uint64_t epoch,
     const SoftwareImage& image,
     SoftwareImageSampling sampling
 ) noexcept {
@@ -343,7 +348,7 @@ const NogaImageEntry* lookup_image(
 
     for (const auto& entry : stored.images) {
         if (!entry.occupied || entry.key != &image || entry.generation != image.generation ||
-            entry.width != image.width || entry.height != image.height) {
+            entry.epoch != epoch || entry.width != image.width || entry.height != image.height) {
             continue;
         }
 
@@ -353,10 +358,11 @@ const NogaImageEntry* lookup_image(
     return nullptr;
 }
 
-const NogaMaskEntry* lookup_mask(const FramePipelines& stored, const SoftwareMask& mask) noexcept {
+const NogaMaskEntry*
+lookup_mask(const FramePipelines& stored, std::uint64_t epoch, const SoftwareMask& mask) noexcept {
     for (const auto& entry : stored.masks) {
         if (!entry.occupied || entry.key != &mask || entry.generation != mask.generation ||
-            entry.width != mask.width || entry.height != mask.height) {
+            entry.epoch != epoch || entry.width != mask.width || entry.height != mask.height) {
             continue;
         }
 

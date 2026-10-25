@@ -265,6 +265,12 @@ if(VEYRA_WITH_VULKAN)
     SOURCES tests/noga_damage_parity_test.cpp
     LIBS veyra_noga
    )
+   veyra_add_test(
+    NAME noga_device_health
+    TARGET veyra_noga_device_health_test
+    SOURCES tests/noga_device_health_test.cpp
+    LIBS veyra_noga
+   )
    if(VEYRA_WITH_TEXT)
     veyra_add_test(
      NAME noga_glyph_parity

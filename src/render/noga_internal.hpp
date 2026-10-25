@@ -34,6 +34,7 @@ constexpr std::size_t kFrameUploadBytes = (3 << 20);
 struct NogaImageEntry {
     const SoftwareImage* key{};
     std::uint64_t generation{};
+    std::uint64_t epoch{};
     std::uint64_t frame_tag{};
     std::size_t width{};
     std::size_t height{};
@@ -46,6 +47,7 @@ struct NogaImageEntry {
 struct NogaMaskEntry {
     const SoftwareMask* key{};
     std::uint64_t generation{};
+    std::uint64_t epoch{};
     std::uint64_t frame_tag{};
     std::size_t width{};
     std::size_t height{};
@@ -85,11 +87,18 @@ struct State {
     std::uint64_t completed{};
     std::size_t width{};
     std::size_t height{};
+    float timestamp_period_ns{};
+    std::uint64_t epoch{1};
     bool target_ready{};
+    bool device_lost{};
 };
 
 inline State* state_of(NogaContext& context) noexcept {
     return static_cast<State*>(context.context_state);
+}
+
+inline const State* state_of(const NogaContext& context) noexcept {
+    return static_cast<const State*>(context.context_state);
 }
 
 inline gpu::PSO* pso_of(NogaRectPipeline& pipeline) noexcept {
@@ -108,11 +117,13 @@ bool create_target(State& state, std::size_t width, std::size_t height) noexcept
 
 const NogaImageEntry* lookup_image(
     const FramePipelines& stored,
+    std::uint64_t epoch,
     const SoftwareImage& image,
     SoftwareImageSampling sampling
 ) noexcept;
 
-const NogaMaskEntry* lookup_mask(const FramePipelines& stored, const SoftwareMask& mask) noexcept;
+const NogaMaskEntry*
+lookup_mask(const FramePipelines& stored, std::uint64_t epoch, const SoftwareMask& mask) noexcept;
 
 NogaRenderResult upload_frame_textures(
     State& state,

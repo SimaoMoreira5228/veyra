@@ -138,7 +138,13 @@ create_state(NogaContext& context, std::size_t width, std::size_t height) noexce
         return NogaContextResult::creation_failed;
     }
 
-    const gpu::DeviceInit initialized = gpu::create_device({.timestamp_query_count = 0});
+    const gpu::DeviceInit initialized = gpu::create_device({.timestamp_query_count = 2});
+
+    if (initialized.error == gpu::Error::device_lost) {
+        delete state;
+
+        return NogaContextResult::device_lost;
+    }
 
     if (initialized.error == gpu::Error::unsupported || initialized.device == nullptr) {
         delete state;
@@ -160,6 +166,9 @@ create_state(NogaContext& context, std::size_t width, std::size_t height) noexce
     context.info.timestamp_period_ns = caps.timestamp_period_ns;
     context.info.queue_count = caps.queue_count;
     context.info.indirect_mesh_draw = caps.indirect_mesh_draw;
+
+    state->timestamp_period_ns = caps.timestamp_period_ns;
+    state->epoch = 1;
 
     state->pool = gpu::create_command_pool(state->device);
 
@@ -462,6 +471,22 @@ bool noga_context_ready(const NogaContext& context) noexcept {
     return context.ready && context.context_state != nullptr;
 }
 
+bool noga_context_device_lost(const NogaContext& context) noexcept {
+    const auto* state = noga_detail::state_of(context);
+
+    return state != nullptr && state->device_lost;
+}
+
+std::uint64_t noga_context_generation(const NogaContext& context) noexcept {
+    const auto* state = noga_detail::state_of(context);
+
+    if (state == nullptr) {
+        return 0;
+    }
+
+    return state->epoch;
+}
+
 NogaRenderResult
 create_noga_rect_pipeline(NogaContext& context, NogaRectPipeline& pipeline) noexcept {
     auto* state = noga_detail::state_of(context);
@@ -552,6 +577,10 @@ NogaRenderResult render_noga_rects(
 
     if (output.size() != state->width * state->height || !state->target_ready) {
         return NogaRenderResult::invalid_input;
+    }
+
+    if (state->device_lost) {
+        return NogaRenderResult::device_lost;
     }
 
     stats = NogaRectStats{};

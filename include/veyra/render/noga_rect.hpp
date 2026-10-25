@@ -16,6 +16,7 @@ enum class NogaContextResult : std::uint8_t {
     invalid_input,
     unsupported,
     creation_failed,
+    device_lost,
 };
 
 enum class NogaRenderResult : std::uint8_t {
@@ -25,6 +26,7 @@ enum class NogaRenderResult : std::uint8_t {
     unsupported_commands,
     device_error,
     unchanged,
+    device_lost,
 };
 
 struct NogaDeviceInfo {
@@ -61,6 +63,10 @@ NogaContextResult
 resize_noga_target(NogaContext& context, std::size_t width, std::size_t height) noexcept;
 
 bool noga_context_ready(const NogaContext& context) noexcept;
+
+bool noga_context_device_lost(const NogaContext& context) noexcept;
+
+std::uint64_t noga_context_generation(const NogaContext& context) noexcept;
 
 NogaRenderResult
 create_noga_rect_pipeline(NogaContext& context, NogaRectPipeline& pipeline) noexcept;

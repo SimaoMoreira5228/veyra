@@ -44,6 +44,8 @@ create_noga_frame_pipeline(NogaContext& context, NogaFramePipeline& pipeline) no
 
 void destroy_noga_frame_pipeline(NogaContext& context, NogaFramePipeline& pipeline) noexcept;
 
+NogaContextResult recover_noga_context(NogaContext& context, NogaFramePipeline& pipeline) noexcept;
+
 NogaRenderResult render_noga_frame(
     NogaContext& context,
     NogaFramePipeline& pipeline,

@@ -87,7 +87,7 @@ NogaEmitter::resolve_image(const DrawImage& drawn, NogaShapeStyle& style) noexce
         return NogaRenderResult::complete;
     }
 
-    const auto found = noga_detail::lookup_image(stored, *image, drawn.sampling);
+    const auto found = noga_detail::lookup_image(stored, state.epoch, *image, drawn.sampling);
 
     if (found == nullptr) {
         batch.abandon();
@@ -123,7 +123,7 @@ NogaRenderResult NogaEmitter::resolve_mask(const DrawMask& masked, NogaShapeStyl
         return NogaRenderResult::complete;
     }
 
-    const auto found = noga_detail::lookup_mask(stored, *mask);
+    const auto found = noga_detail::lookup_mask(stored, state.epoch, *mask);
 
     if (found == nullptr) {
         batch.abandon();
@@ -165,7 +165,7 @@ NogaEmitter::resolve_glyph(const DrawGlyph& glyphed, NogaShapeStyle& style) noex
     }
 
     const auto& view = atlas->view();
-    const auto found = noga_detail::lookup_mask(stored, view);
+    const auto found = noga_detail::lookup_mask(stored, state.epoch, view);
 
     if (found == nullptr) {
         batch.abandon();
