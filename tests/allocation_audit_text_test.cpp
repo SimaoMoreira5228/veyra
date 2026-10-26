@@ -1,6 +1,5 @@
 #include "allocation_counter.hpp"
 #include "veyra/behaviors/editable_text.hpp"
-#include "veyra/engine.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 #include "veyra/text/text_editor_buffer.hpp"
 #ifdef VEYRA_AUDIT_TEXT
@@ -342,63 +341,6 @@ void check_shaped_run_hits_allocate_nothing() {
 }
 #endif
 
-void check_engine_frames_allocate_nothing() {
-    const auto engines = veyra::available_engines();
-    require(!engines.empty(), "at least one engine is registered");
-
-    for (const auto name : engines) {
-        auto engine = veyra::create_engine(name);
-        engine->reset(64);
-        const auto changes = std::array<veyra::Update, 3>{
-            veyra::Update{8, 5},
-            veyra::Update{20, 7},
-            veyra::Update{63, 9},
-        };
-        engine->apply(changes);
-
-        auto out = std::array<veyra::Rect, 24>{};
-        const auto warm = engine->frame(8, 24, out);
-        require(warm.visited == 24 && warm.emitted == 24, "warm frame covers its window");
-        const auto steady = engine->frame(8, 24, out);
-        require(
-            steady.visited == 24 && steady.invalidated == 0 && steady.emitted == 24,
-            "second frame settles its paint"
-        );
-        auto baseline = std::uint64_t{14695981039346656037ULL};
-        baseline = mix_hash(baseline, steady.visited);
-        baseline = mix_hash(baseline, steady.invalidated);
-        baseline = mix_hash(baseline, steady.emitted);
-        for (const auto& rect : out) {
-            baseline = mix_hash(baseline, rect.color);
-        }
-        baseline = mix_hash(baseline, engine->checksum());
-
-        auto allocations = std::size_t{0};
-        {
-            auto measure = Measure{};
-            for (auto repeat = 0; repeat < 200; ++repeat) {
-                const auto stats = engine->frame(8, 24, out);
-                require(
-                    stats.visited == steady.visited && stats.invalidated == steady.invalidated &&
-                        stats.emitted == steady.emitted,
-                    "steady frame repeats its stats"
-                );
-                auto hash = std::uint64_t{14695981039346656037ULL};
-                hash = mix_hash(hash, stats.visited);
-                hash = mix_hash(hash, stats.invalidated);
-                hash = mix_hash(hash, stats.emitted);
-                for (const auto& rect : out) {
-                    hash = mix_hash(hash, rect.color);
-                }
-                hash = mix_hash(hash, engine->checksum());
-                require(hash == baseline, "steady frame repeats its paint");
-            }
-            allocations = measure.count();
-        }
-        require(allocations == 0, "steady engine frames allocate nothing");
-    }
-}
-
 void check_harness_counts_every_form() {
     auto counted = std::size_t{0};
     {
@@ -431,7 +373,6 @@ int main() {
 #ifdef VEYRA_AUDIT_TEXT
         check_shaped_run_hits_allocate_nothing();
 #endif
-        check_engine_frames_allocate_nothing();
         check_harness_counts_every_form();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

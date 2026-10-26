@@ -16,10 +16,10 @@ bool same_retained_storage(
 
 LayoutRect strip_damage(const ScrollShiftRect& strip) noexcept {
     return LayoutRect{
-        .x = static_cast<double>(strip.left),
-        .y = static_cast<double>(strip.top),
-        .width = static_cast<double>(strip.width),
-        .height = static_cast<double>(strip.height),
+        .x = static_cast<float>(strip.left),
+        .y = static_cast<float>(strip.top),
+        .width = static_cast<float>(strip.width),
+        .height = static_cast<float>(strip.height),
     };
 }
 

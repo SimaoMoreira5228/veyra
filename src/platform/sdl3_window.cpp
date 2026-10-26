@@ -4,10 +4,6 @@
 
 #include <SDL3/SDL.h>
 
-#ifdef VEYRA_WITH_VULKAN
-#include <SDL3/SDL_vulkan.h>
-#endif
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>

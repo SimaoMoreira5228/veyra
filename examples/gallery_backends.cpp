@@ -1,9 +1,5 @@
 #include "gallery_backends.hpp"
 
-#if defined(VEYRA_GALLERY_HAS_NOGA)
-#include "veyra/render/noga_frame.hpp"
-#include "veyra/render/noga_rect.hpp"
-#endif
 #if defined(VEYRA_GALLERY_HAS_SDLGPU)
 #include "veyra/platform/sdl3_gpu_present.hpp"
 #include "veyra/platform/sdl3_window.hpp"
@@ -21,10 +17,6 @@ namespace gallery {
 bool parse_backend(std::string_view name, Backend& backend) {
     if (name == "cpu") {
         backend = Backend::cpu;
-        return true;
-    }
-    if (name == "noga") {
-        backend = Backend::noga;
         return true;
     }
     if (name == "sdlgpu") {
@@ -58,37 +50,6 @@ int render_cpu(
     }
     return 0;
 }
-
-#if defined(VEYRA_GALLERY_HAS_NOGA)
-
-int render_noga(
-    const std::vector<veyra::DisplayCommand>& commands,
-    std::vector<veyra::SoftwarePixel>& pixels,
-    std::size_t width,
-    std::size_t height
-) {
-    auto context = veyra::NogaContext{};
-    if (veyra::create_noga_context(context, width, height) != veyra::NogaContextResult::ready) {
-        std::cerr << "gallery: noga device unavailable, skipping\n";
-        return 77;
-    }
-    auto pipeline = veyra::NogaFramePipeline{};
-    if (veyra::create_noga_frame_pipeline(context, pipeline) != veyra::NogaRenderResult::complete) {
-        veyra::destroy_noga_context(context);
-        std::cerr << "gallery: noga pipeline unavailable, skipping\n";
-        return 77;
-    }
-    auto stats = veyra::NogaFrameStats{};
-    const auto result = veyra::render_noga_frame(context, pipeline, commands, pixels, stats);
-    veyra::destroy_noga_frame_pipeline(context, pipeline);
-    veyra::destroy_noga_context(context);
-    if (result != veyra::NogaRenderResult::complete) {
-        throw std::runtime_error("gallery noga rendering failed");
-    }
-    return 0;
-}
-
-#endif
 
 #if defined(VEYRA_GALLERY_HAS_SDLGPU)
 
@@ -142,14 +103,6 @@ int render_pixels(
     if (backend == Backend::cpu) {
         return render_cpu(commands, pixels, width, height);
     }
-    if (backend == Backend::noga) {
-#if defined(VEYRA_GALLERY_HAS_NOGA)
-        return render_noga(commands, pixels, width, height);
-#else
-        std::cerr << "gallery: noga backend not built, skipping\n";
-        return 77;
-#endif
-    }
     if (backend == Backend::sdlgpu) {
 #if defined(VEYRA_GALLERY_HAS_SDLGPU)
         return render_sdlgpu(commands, pixels, width, height);
@@ -158,7 +111,7 @@ int render_pixels(
         return 77;
 #endif
     }
-    throw std::invalid_argument("gallery backend must be cpu, noga, or sdlgpu");
+    throw std::invalid_argument("gallery backend must be cpu or sdlgpu");
 }
 
 }

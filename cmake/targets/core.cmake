@@ -30,11 +30,11 @@ add_library(veyra STATIC
  src/render/display_batches.cpp
  src/render/scroll_shift.cpp
  src/render/retained_scroll.cpp
- src/render/software_command_validation.cpp
- src/render/software_path.cpp
+ src/render/cpu/software_command_validation.cpp
+ src/render/cpu/software_path.cpp
  src/render/glyph_atlas.cpp
- src/render/software_rounded_rect.cpp
- src/render/software_image.cpp
+ src/render/cpu/software_rounded_rect.cpp
+ src/render/cpu/software_image.cpp
  src/render/shadow.cpp
  src/render/e3_scenes.cpp
  src/render/display_command_hash.cpp
@@ -49,7 +49,7 @@ add_library(veyra STATIC
  src/text/text_edit_history.cpp
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
- src/render/software_renderer.cpp
+ src/render/cpu/software_renderer.cpp
  src/platform/null_window.cpp
  src/platform/fake_services.cpp
  src/platform/window_router.cpp
@@ -100,21 +100,3 @@ target_include_directories(veyra_widgets_basic PUBLIC
 target_link_libraries(veyra_widgets_basic PUBLIC veyra_behaviors veyra_style)
 target_compile_features(veyra_widgets_basic PUBLIC cxx_std_23)
 
-if(VEYRA_PARADIGM STREQUAL "all")
- target_sources(veyra PRIVATE
-  src/paradigms/arena.cpp
-  src/paradigms/reactive.cpp
-  src/paradigms/ecs.cpp
-  src/paradigms/registry.cpp
- )
- target_compile_definitions(veyra PUBLIC VEYRA_ARENA=1 VEYRA_REACTIVE=1 VEYRA_ECS=1)
-elseif(VEYRA_PARADIGM STREQUAL "arena")
- target_sources(veyra PRIVATE src/paradigms/arena.cpp)
- target_compile_definitions(veyra PUBLIC VEYRA_ARENA=1)
-elseif(VEYRA_PARADIGM STREQUAL "reactive")
- target_sources(veyra PRIVATE src/paradigms/reactive.cpp)
- target_compile_definitions(veyra PUBLIC VEYRA_REACTIVE=1)
-elseif(VEYRA_PARADIGM STREQUAL "ecs")
- target_sources(veyra PRIVATE src/paradigms/ecs.cpp)
- target_compile_definitions(veyra PUBLIC VEYRA_ECS=1)
-endif()

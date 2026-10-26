@@ -10,7 +10,7 @@
 
 namespace gallery {
 
-enum class Backend : std::uint8_t { cpu, noga, sdlgpu };
+enum class Backend : std::uint8_t { cpu, sdlgpu };
 
 bool parse_backend(std::string_view name, Backend& backend);
 

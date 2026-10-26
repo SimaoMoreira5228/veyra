@@ -1,9 +1,5 @@
 #include "veyra/render/software_renderer.hpp"
 
-#if defined(VEYRA_GALLERY_PARITY_HAS_NOGA)
-#include "veyra/render/noga_frame.hpp"
-#include "veyra/render/noga_rect.hpp"
-#endif
 #if defined(VEYRA_GALLERY_PARITY_HAS_SDLGPU)
 #include "veyra/platform/sdl3_gpu_present.hpp"
 #include "veyra/platform/sdl3_window.hpp"
@@ -175,51 +171,6 @@ build_strokes(std::array<veyra::DisplayCommand, 4>& storage) noexcept {
     return {storage.data(), storage.size()};
 }
 
-#if defined(VEYRA_GALLERY_PARITY_HAS_NOGA)
-
-bool check_noga(
-    std::span<const veyra::DisplayCommand> fills,
-    std::span<const veyra::DisplayCommand> rounded,
-    std::span<const veyra::DisplayCommand> strokes,
-    std::span<veyra::SoftwarePixel> expected,
-    std::span<veyra::SoftwarePixel> actual,
-    SoftwareRooms& rooms
-) {
-    auto context = veyra::NogaContext{};
-    if (veyra::create_noga_context(context, kWidth, kHeight) != veyra::NogaContextResult::ready) {
-        std::cout << "gallery noga device unavailable, skipping\n";
-        return false;
-    }
-    auto pipeline = veyra::NogaFramePipeline{};
-    if (veyra::create_noga_frame_pipeline(context, pipeline) != veyra::NogaRenderResult::complete) {
-        veyra::destroy_noga_context(context);
-        std::cout << "gallery noga pipeline unavailable, skipping\n";
-        return false;
-    }
-    auto stats = veyra::NogaFrameStats{};
-    const auto render = [&](std::span<const veyra::DisplayCommand> scene) {
-        require(
-            veyra::render_noga_frame(context, pipeline, scene, actual, stats) ==
-                veyra::NogaRenderResult::complete,
-            "noga gallery frame completes"
-        );
-    };
-    render_reference(fills, expected, rooms);
-    render(fills);
-    check_close(expected, actual, "noga-fills", 0);
-    render_reference(rounded, expected, rooms);
-    render(rounded);
-    check_close(expected, actual, "noga-rounded", 1);
-    render_reference(strokes, expected, rooms);
-    render(strokes);
-    check_close(expected, actual, "noga-strokes", 2);
-    veyra::destroy_noga_frame_pipeline(context, pipeline);
-    veyra::destroy_noga_context(context);
-    require(!veyra::noga_context_ready(context), "noga context tears down");
-    return true;
-}
-
-#endif
 
 #if defined(VEYRA_GALLERY_PARITY_HAS_SDLGPU)
 
@@ -303,9 +254,6 @@ int run() {
         "software replay stays byte-identical"
     );
     auto proven = 0;
-#if defined(VEYRA_GALLERY_PARITY_HAS_NOGA)
-    proven += check_noga(fills, rounded, strokes, expected, actual, rooms) ? 1 : 0;
-#endif
 #if defined(VEYRA_GALLERY_PARITY_HAS_SDLGPU)
     proven += check_sdlgpu(fills, rounded, strokes, expected, actual, rooms) ? 1 : 0;
 #endif

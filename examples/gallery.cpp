@@ -61,7 +61,7 @@ struct Options {
 };
 
 constexpr std::string_view kUsage =
-    "usage: veyra_gallery <output.ppm> [width height] [--scale S] [--backend cpu|noga|sdlgpu]";
+    "usage: veyra_gallery <output.ppm> [width height] [--scale S] [--backend cpu|sdlgpu]";
 
 std::size_t parse_size(const char* value) {
     const std::string_view text(value);

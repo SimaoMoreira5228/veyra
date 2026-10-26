@@ -32,7 +32,10 @@ if(VEYRA_WITH_FILESYSTEM)
 endif()
 
 if(VEYRA_WITH_SDL3)
- find_package(SDL3 3.2 CONFIG REQUIRED COMPONENTS SDL3)
+ find_package(SDL3 3.2 CONFIG QUIET COMPONENTS SDL3)
+ if(NOT SDL3_FOUND)
+  message(FATAL_ERROR "VEYRA_WITH_SDL3=ON but SDL3 3.2+ was not found. Install SDL3 or configure with -DVEYRA_PROFILE=minimal.")
+ endif()
  add_library(veyra_sdl3 STATIC src/platform/sdl3_window.cpp)
  target_include_directories(
   veyra_sdl3
@@ -51,9 +54,10 @@ if(VEYRA_WITH_SDL3)
  veyra_add_test(NAME sdl3_gpu_present_behavior TARGET veyra_sdl3_gpu_present_test SOURCES tests/sdl3_gpu_present_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
  veyra_add_test(NAME sdl3_gpu_present_windowed TARGET veyra_sdl3_gpu_present_test NO_BUILD ENVIRONMENT "VEYRA_GPU_WINDOWED=1;SDL_VIDEODRIVER=x11")
 
+ if(VEYRA_GPU_SDL)
  find_program(VEYRA_SDL_GLSLANG_VALIDATOR glslangValidator)
  if(NOT VEYRA_SDL_GLSLANG_VALIDATOR)
-  message(STATUS "Veyra: glslangValidator missing, skipping SDL GPU twin shaders")
+  message(STATUS "Veyra: glslangValidator missing; skipping the SDL_GPU consumer, software rendering remains available")
  else()
   set(veyra_sdl_gpu_gen "${CMAKE_CURRENT_BINARY_DIR}/sdl_gpu_gen")
   file(MAKE_DIRECTORY "${veyra_sdl_gpu_gen}")
@@ -64,7 +68,7 @@ if(VEYRA_WITH_SDL3)
    list(GET shader_parts 1 shader_prefix)
    foreach(stage Vert Frag)
     string(TOLOWER "${stage}" stage_lower)
-    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/vulkan/vulkan/shaders/${shader_name}.${stage_lower}")
+    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/shaders/sdl_gpu/${shader_name}.${stage_lower}")
     set(shader_spv "${veyra_sdl_gpu_gen}/${shader_name}.${stage_lower}.spv")
     set(shader_header "${veyra_sdl_gpu_gen}/${shader_name}_${stage_lower}_spv.hpp")
     add_custom_command(
@@ -84,13 +88,13 @@ if(VEYRA_WITH_SDL3)
    endforeach()
   endforeach()
   add_library(veyra_sdl_gpu STATIC
-   src/render/sdl_gpu_renderer.cpp
-   src/render/sdl_gpu_emit.cpp
-   src/render/sdl_gpu_stroke.cpp
-   src/render/sdl_gpu_path.cpp
-   src/render/sdl_gpu_frame.cpp
-   src/render/sdl_gpu_pipelines.cpp
-   src/render/sdl_gpu_textures.cpp
+   src/render/gpu/sdl/sdl_gpu_renderer.cpp
+   src/render/gpu/sdl/sdl_gpu_emit.cpp
+   src/render/gpu/sdl/sdl_gpu_stroke.cpp
+   src/render/gpu/sdl/sdl_gpu_path.cpp
+   src/render/gpu/sdl/sdl_gpu_frame.cpp
+   src/render/gpu/sdl/sdl_gpu_pipelines.cpp
+   src/render/gpu/sdl/sdl_gpu_textures.cpp
    ${veyra_sdl_gpu_spv_headers}
   )
   target_include_directories(veyra_sdl_gpu PUBLIC
@@ -99,6 +103,7 @@ if(VEYRA_WITH_SDL3)
   target_include_directories(veyra_sdl_gpu PRIVATE
    "${veyra_sdl_gpu_gen}"
    "${CMAKE_CURRENT_SOURCE_DIR}/src/render"
+   "${CMAKE_CURRENT_SOURCE_DIR}/src/render/cpu"
   )
   target_link_libraries(veyra_sdl_gpu PUBLIC veyra veyra_sdl3 SDL3::SDL3)
   target_compile_features(veyra_sdl_gpu PUBLIC cxx_std_23)
@@ -111,6 +116,7 @@ if(VEYRA_WITH_SDL3)
   veyra_add_test(NAME sdl_gpu_glyph_parity TARGET veyra_sdl_gpu_glyph_parity_test SOURCES tests/sdl_gpu_glyph_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
   veyra_add_test(NAME sdl_gpu_clip_parity TARGET veyra_sdl_gpu_clip_parity_test SOURCES tests/sdl_gpu_clip_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
   veyra_add_test(NAME sdl_gpu_path_parity TARGET veyra_sdl_gpu_path_parity_test SOURCES tests/sdl_gpu_path_parity_test.cpp LIBS veyra_sdl_gpu SKIP_RETURN_CODE 77)
+ endif()
  endif()
 endif()
 
