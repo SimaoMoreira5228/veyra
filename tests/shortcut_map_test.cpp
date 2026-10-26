@@ -1,4 +1,5 @@
 #include "veyra/core/shortcut_map.hpp"
+#include "veyra/core/shortcut_sequence.hpp"
 
 #include <array>
 #include <cstddef>
@@ -241,6 +242,282 @@ void check_clear() {
     );
 }
 
+void check_sequence_two_chord_completes() {
+    auto sequences = veyra::ShortcutSequence{};
+    require(sequences.empty() && sequences.count() == 0, "a fresh sequence table holds nothing");
+    require(!sequences.pending(), "nothing is pending before the first press");
+    require(sequences.timeout_ms() == 1000, "the default gap between chords is one second");
+
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    const veyra::ShortcutBind bound = sequences.bind_sequence(save, 100);
+    require(bound.result == veyra::ShortcutResult::bound, "a fresh two-chord sequence binds");
+    require(sequences.count() == 1, "the sequence table stores the binding");
+
+    const veyra::SequenceHit first = sequences.press({21, kCtrl}, 0);
+    require(!first.has && first.pending && !first.cancelled, "the prefix chord arms and swallows");
+    require(sequences.pending(), "the table reports the armed prefix");
+
+    const veyra::SequenceHit second = sequences.press({22, kCtrl}, 100);
+    require(second.has && second.command == 100, "the completing chord names the command");
+    require(!second.pending && !second.cancelled, "a completion is neither pending nor a cancel");
+    require(!sequences.pending(), "a completion disarms the table");
+
+    const veyra::SequenceHit idle = sequences.press({22, kCtrl}, 200);
+    require(
+        !idle.has && !idle.pending && !idle.cancelled,
+        "a lone chord with no prefix misses clean"
+    );
+}
+
+void check_sequence_prefix_pending_swallows_single() {
+    auto sequences = veyra::ShortcutSequence{};
+    auto singles = veyra::ShortcutMap{};
+    const std::array<veyra::ShortcutChord, 3> save{{{21, kCtrl}, {22, kCtrl}, {23, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+    require(
+        singles.bind({22, kCtrl}, 200).result == veyra::ShortcutResult::bound,
+        "mid chord singles"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the first chord of three arms");
+    const veyra::SequenceHit mid = sequences.press({22, kCtrl}, 100);
+    require(mid.pending && !mid.has, "the middle chord continues instead of dispatching single");
+    require(
+        singles.dispatch({22, kCtrl}).command == 200,
+        "the single table still owns the mid chord"
+    );
+
+    const veyra::SequenceHit last = sequences.press({23, kCtrl}, 200);
+    require(last.has && last.command == 100, "the third chord completes the sequence");
+}
+
+void check_sequence_wrong_chord_cancels_to_single() {
+    auto sequences = veyra::ShortcutSequence{};
+    auto singles = veyra::ShortcutMap{};
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+    require(
+        singles.bind({24, 0}, 300).result == veyra::ShortcutResult::bound,
+        "an outsider singles"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the prefix chord arms");
+    const veyra::SequenceHit wrong = sequences.press({24, 0}, 50);
+    require(!wrong.has && !wrong.pending && wrong.cancelled, "a wrong chord cancels back to idle");
+    require(!sequences.pending(), "the cancel disarms the table");
+    require(
+        singles.dispatch({24, 0}).command == 300,
+        "the cancelling chord still dispatches single"
+    );
+}
+
+void check_sequence_timeout_cancels_silently() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the prefix chord arms");
+    const veyra::SequenceHit stale = sequences.press({22, kCtrl}, 2000);
+    require(!stale.has && !stale.pending, "a late chord never completes the sequence");
+    require(!stale.cancelled, "an expiry is silent, not a cancel");
+    require(!sequences.pending(), "the stale press leaves nothing armed");
+
+    require(sequences.press({21, kCtrl}, 3000).pending, "the prefix chord rearms");
+    sequences.poll(4500);
+    require(!sequences.pending(), "polling past the deadline disarms without a press");
+    sequences.poll(4600);
+    require(!sequences.pending(), "polling while idle is a no-op");
+}
+
+void check_sequence_continuation_refreshes_deadline() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 3> save{{{21, kCtrl}, {22, kCtrl}, {23, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the first chord arms");
+    require(sequences.press({22, kCtrl}, 900).pending, "a chord inside the gap continues");
+    const veyra::SequenceHit last = sequences.press({23, kCtrl}, 1800);
+    require(last.has && last.command == 100, "the gap restarts at every continuation");
+}
+
+void check_sequence_cancel_rearms_on_prefix() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the prefix chord arms");
+    const veyra::SequenceHit restart = sequences.press({21, kCtrl}, 50);
+    require(restart.pending && restart.cancelled, "a fresh prefix cancels the old arm and rearms");
+    require(sequences.pending(), "the table stays armed on the new prefix");
+
+    const veyra::SequenceHit done = sequences.press({22, kCtrl}, 100);
+    require(done.has && done.command == 100, "the rearmed sequence still completes");
+}
+
+void check_sequence_shared_prefix_branching() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    const std::array<veyra::ShortcutChord, 2> quit{{{21, kCtrl}, {23, kCtrl}}};
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+    require(
+        sequences.bind_sequence(quit, 200).result == veyra::ShortcutResult::bound,
+        "quit binds"
+    );
+
+    require(sequences.press({21, kCtrl}, 0).pending, "the shared prefix arms");
+    require(sequences.press({23, kCtrl}, 10).command == 200, "the second chord picks the branch");
+
+    require(sequences.press({21, kCtrl}, 20).pending, "the shared prefix rearms");
+    require(sequences.press({22, kCtrl}, 30).command == 100, "the other branch completes too");
+
+    require(sequences.press({21, kCtrl}, 40).pending, "the shared prefix arms again");
+    const veyra::SequenceHit wrong = sequences.press({24, 0}, 50);
+    require(wrong.cancelled && !wrong.has, "a chord on no branch cancels");
+}
+
+void check_sequence_ambiguous_bind_rejected() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 2> save{{{21, kCtrl}, {22, kCtrl}}};
+    const std::array<veyra::ShortcutChord, 3> longer{{{21, kCtrl}, {22, kCtrl}, {23, kCtrl}}};
+    const std::array<veyra::ShortcutChord, 2> other{{{21, kCtrl}, {23, kCtrl}}};
+
+    require(
+        sequences.bind_sequence(save, 100).result == veyra::ShortcutResult::bound,
+        "save binds"
+    );
+
+    const veyra::ShortcutBind grown = sequences.bind_sequence(longer, 200);
+    require(grown.result == veyra::ShortcutResult::conflict, "growing a bound sequence conflicts");
+    require(grown.occupier == 100, "the ambiguity names the blocking command");
+
+    const veyra::ShortcutBind repeat = sequences.bind_sequence(save, 100);
+    require(repeat.result == veyra::ShortcutResult::handled, "rebinding the same pair is handled");
+
+    const veyra::ShortcutBind clash = sequences.bind_sequence(save, 200);
+    require(clash.result == veyra::ShortcutResult::conflict, "retaking a sequence conflicts");
+    require(clash.occupier == 100, "the retake names the blocking command");
+
+    require(
+        sequences.bind_sequence(other, 200).result == veyra::ShortcutResult::bound,
+        "a branch binds"
+    );
+    require(sequences.count() == 2, "only clean binds are stored");
+
+    auto narrow = veyra::ShortcutSequence{};
+    require(narrow.bind_sequence(longer, 100).result == veyra::ShortcutResult::bound, "long binds");
+    const veyra::ShortcutBind shrunk = narrow.bind_sequence(save, 200);
+    require(shrunk.result == veyra::ShortcutResult::conflict, "shrinking onto a prefix conflicts");
+    require(shrunk.occupier == 100, "the shrink names the blocking command");
+
+    const std::array<veyra::ShortcutChord, 1> single{{{21, kCtrl}}};
+    require(
+        sequences.bind_sequence(single, 300).result == veyra::ShortcutResult::ignored,
+        "a length-one bind is ignored"
+    );
+    require(
+        sequences.bind_sequence({}, 300).result == veyra::ShortcutResult::ignored,
+        "an empty bind is ignored"
+    );
+    require(
+        sequences.bind_sequence(save, 0).result == veyra::ShortcutResult::ignored,
+        "command zero is ignored"
+    );
+
+    const std::array<veyra::ShortcutChord, 2> no_key{{{0, kCtrl}, {22, kCtrl}}};
+    require(
+        sequences.bind_sequence(no_key, 300).result == veyra::ShortcutResult::ignored,
+        "a reserved key poisons the bind"
+    );
+
+    constexpr std::uint32_t kUnknown = 1U << 29U;
+    const std::array<veyra::ShortcutChord, 2> unknown{{{21, kUnknown}, {22, kCtrl}}};
+    require(
+        sequences.bind_sequence(unknown, 300).result == veyra::ShortcutResult::ignored,
+        "an unknown modifier bit poisons the bind"
+    );
+
+    const std::array<veyra::ShortcutChord, 5> too_long{
+        {{21, kCtrl}, {22, kCtrl}, {23, kCtrl}, {24, kCtrl}, {25, kCtrl}}
+    };
+    require(
+        sequences.bind_sequence(too_long, 300).result == veyra::ShortcutResult::ignored,
+        "a bind past the length cap is ignored"
+    );
+    require(sequences.count() == 2, "rejected binds store nothing");
+}
+
+void check_sequence_overflow_untouched() {
+    auto sequences = veyra::ShortcutSequence{};
+
+    for (std::uint32_t key = 1; key <= veyra::ShortcutSequence::kCapacity; ++key) {
+        const std::array<veyra::ShortcutChord, 2> chords{{{key, kCtrl}, {200, kCtrl}}};
+        const veyra::ShortcutBind bound = sequences.bind_sequence(chords, 1000 + key);
+        require(bound.result == veyra::ShortcutResult::bound, "filling to capacity binds");
+    }
+    require(sequences.count() == veyra::ShortcutSequence::kCapacity, "the table fills exactly");
+
+    const std::array<veyra::ShortcutChord, 2> spill{{{250, kCtrl}, {251, kCtrl}}};
+    const veyra::ShortcutBind overflowed = sequences.bind_sequence(spill, 9999);
+    require(
+        overflowed.result == veyra::ShortcutResult::overflow,
+        "one sequence past capacity overflows"
+    );
+    require(sequences.count() == veyra::ShortcutSequence::kCapacity, "overflow stores nothing");
+    require(!sequences.press({250, kCtrl}, 0).pending, "the spilled prefix never arms");
+}
+
+void check_sequence_unbind_and_clear() {
+    auto sequences = veyra::ShortcutSequence{};
+    const std::array<veyra::ShortcutChord, 2> first{{{21, kCtrl}, {22, kCtrl}}};
+    const std::array<veyra::ShortcutChord, 2> second{{{23, kCtrl}, {24, kCtrl}}};
+    const std::array<veyra::ShortcutChord, 2> third{{{25, kCtrl}, {26, kCtrl}}};
+    require(
+        sequences.bind_sequence(first, 100).result == veyra::ShortcutResult::bound,
+        "first binds"
+    );
+    require(
+        sequences.bind_sequence(second, 100).result == veyra::ShortcutResult::bound,
+        "second binds"
+    );
+    require(
+        sequences.bind_sequence(third, 200).result == veyra::ShortcutResult::bound,
+        "third binds"
+    );
+
+    require(sequences.unbind_sequence(first), "unbinding a held sequence reports true");
+    require(!sequences.unbind_sequence(first), "repeating the unbind reports false");
+    require(!sequences.press({21, kCtrl}, 0).pending, "the dropped prefix never arms");
+
+    const std::size_t dropped = sequences.unbind_command(100);
+    require(dropped == 1, "unbind_command reports how many sequences went away");
+    require(sequences.unbind_command(0) == 0, "unbind_command on the reserved id drops zero");
+    require(sequences.count() == 1, "only the unrelated sequence is left");
+
+    require(sequences.press({25, kCtrl}, 0).pending, "the surviving prefix arms");
+    sequences.clear();
+    require(sequences.empty() && sequences.count() == 0, "clear drops every sequence");
+    require(!sequences.pending(), "clear disarms a pending prefix");
+    require(!sequences.press({25, kCtrl}, 10).pending, "cleared prefixes miss");
+}
+
 }
 
 int main() {
@@ -255,6 +532,16 @@ int main() {
         check_overflow_untouched();
         check_reverse_lookup();
         check_clear();
+        check_sequence_two_chord_completes();
+        check_sequence_prefix_pending_swallows_single();
+        check_sequence_wrong_chord_cancels_to_single();
+        check_sequence_timeout_cancels_silently();
+        check_sequence_continuation_refreshes_deadline();
+        check_sequence_cancel_rearms_on_prefix();
+        check_sequence_shared_prefix_branching();
+        check_sequence_ambiguous_bind_rejected();
+        check_sequence_overflow_untouched();
+        check_sequence_unbind_and_clear();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

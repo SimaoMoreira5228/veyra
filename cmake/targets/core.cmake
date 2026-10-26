@@ -12,6 +12,7 @@ add_library(veyra STATIC
  src/core/node_tree.cpp
  src/core/semantics.cpp
  src/core/shortcut_map.cpp
+ src/core/shortcut_sequence.cpp
  src/layout/breakpoints.cpp
  src/layout/container_queries.cpp
  src/layout/dock.cpp
