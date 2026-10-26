@@ -121,6 +121,7 @@ veyra_add_test(NAME flex_layout_behavior TARGET veyra_flex_layout_test SOURCES t
 veyra_add_test(NAME grid_layout_behavior TARGET veyra_grid_layout_test SOURCES tests/grid_layout_test.cpp LIBS veyra)
 veyra_add_test(NAME stack_layout_behavior TARGET veyra_stack_layout_test SOURCES tests/stack_layout_test.cpp LIBS veyra)
 veyra_add_test(NAME dock_layout_behavior TARGET veyra_dock_layout_test SOURCES tests/dock_layout_test.cpp LIBS veyra veyra_behaviors)
+veyra_add_test(NAME dock_drag_behavior TARGET veyra_dock_drag_test SOURCES tests/dock_drag_test.cpp LIBS veyra veyra_behaviors)
 veyra_add_test(NAME virtual_list_behavior TARGET veyra_virtual_list_test SOURCES tests/virtual_list_test.cpp LIBS veyra)
 veyra_add_test(NAME scroll_axis_behavior TARGET veyra_scroll_axis_test SOURCES tests/scroll_axis_test.cpp LIBS veyra)
 veyra_add_test(NAME breakpoint_behavior TARGET veyra_breakpoint_test SOURCES tests/breakpoint_test.cpp LIBS veyra)

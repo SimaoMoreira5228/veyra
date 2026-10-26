@@ -360,6 +360,75 @@ void check_color_bitmap_conversion_and_rendering() {
     );
 }
 
+void check_color_bitmap_edge_cases() {
+    std::array<FT_Byte, 20> source{
+        5, 6, 7, 255, 99, 99, 99, 99, 99, 99, 8, 9, 10, 255, 99, 99, 99, 99, 99, 99,
+    };
+    const FT_Bitmap padded{
+        .rows = 2,
+        .width = 1,
+        .pitch = 10,
+        .buffer = source.data(),
+        .num_grays = 0,
+        .pixel_mode = FT_PIXEL_MODE_BGRA,
+    };
+    std::array<veyra::SoftwarePixel, 4> output{};
+    const auto pad = veyra::SoftwarePixel{.red = 9, .green = 8, .blue = 7, .alpha = 6};
+    output.fill(pad);
+    veyra::GlyphColorImage glyph;
+
+    require(
+        veyra::copy_freetype_color_bitmap(padded, 3, 9, output, 2, glyph) ==
+            veyra::GlyphRasterizeResult::complete,
+        "padded color rows copy without reading the gray count"
+    );
+    require(
+        output[0].red == 7 && output[0].green == 6 && output[0].blue == 5 && output[0].alpha == 255,
+        "first padded color row converts BGRA order"
+    );
+    require(
+        output[2].red == 10 && output[2].green == 9 && output[2].blue == 8 &&
+            output[2].alpha == 255,
+        "second padded color row skips source padding"
+    );
+    require(
+        output[1].red == pad.red && output[1].alpha == pad.alpha && output[3].blue == pad.blue &&
+            output[3].alpha == pad.alpha,
+        "output padding stays untouched"
+    );
+    require(glyph.bearing_x == 3 && glyph.bearing_y == 9, "padded color bearings are retained");
+
+    const auto accepted = glyph;
+    const auto sentinel = veyra::SoftwarePixel{.red = 1, .green = 2, .blue = 3, .alpha = 4};
+    std::array<veyra::SoftwarePixel, 4> guarded;
+    guarded.fill(sentinel);
+
+    auto null_buffer = padded;
+    null_buffer.buffer = nullptr;
+    require(
+        veyra::copy_freetype_color_bitmap(null_buffer, 0, 0, guarded, 2, glyph) ==
+            veyra::GlyphRasterizeResult::unsupported_bitmap,
+        "null color buffer with nonzero size is rejected"
+    );
+
+    auto short_rows = padded;
+    short_rows.pitch = 3;
+    require(
+        veyra::copy_freetype_color_bitmap(short_rows, 0, 0, guarded, 2, glyph) ==
+            veyra::GlyphRasterizeResult::unsupported_bitmap,
+        "color rows shorter than their pixel width are rejected"
+    );
+    require(
+        guarded[0].red == sentinel.red && guarded[1].alpha == sentinel.alpha &&
+            guarded[2].blue == sentinel.blue && guarded[3].green == sentinel.green,
+        "rejected color copies leave pixels unchanged"
+    );
+    require(
+        glyph.bearing_x == accepted.bearing_x && glyph.image.width == accepted.image.width,
+        "rejected color copies leave metadata unchanged"
+    );
+}
+
 void check_bitmap_cache_render_path() {
     std::array<FT_Byte, 4> source{0, 255, 128, 255};
     const FT_Bitmap bitmap{
@@ -456,6 +525,7 @@ int main() {
         check_monochrome_negative_pitch();
         check_rejections_leave_outputs_unchanged();
         check_color_bitmap_conversion_and_rendering();
+        check_color_bitmap_edge_cases();
         check_bitmap_cache_render_path();
         check_measure_rejects_null_face();
     } catch (const std::exception& error) {
