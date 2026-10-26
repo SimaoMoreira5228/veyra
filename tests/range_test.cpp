@@ -410,6 +410,124 @@ void check_slider_block_policy_at_shared_value() {
     );
 }
 
+void check_slider_crossing_blocks_from_every_entry() {
+    auto control = veyra::RangeSliderController{};
+    require(
+        control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "a two-thumb domain configures cleanly"
+    );
+
+    const auto low_jump = control.set_value(veyra::RangeThumb::low, 95.0);
+    require(
+        low_jump.result == veyra::RangeResult::changed && low_jump.low == 80.0 &&
+            low_jump.high == 80.0,
+        "set_value on low past high blocks at high through the generic path"
+    );
+
+    require(control.set_high(90.0).high == 90.0, "high reopens the band above the meeting point");
+
+    const auto high_jump = control.set_value(veyra::RangeThumb::high, 10.0);
+    require(
+        high_jump.result == veyra::RangeResult::changed && high_jump.low == 80.0 &&
+            high_jump.high == 80.0,
+        "set_value on high below low blocks at low through the generic path"
+    );
+
+    control.set_low(20.0);
+    control.set_high(80.0);
+
+    const auto low_drag = control.set_fraction(veyra::RangeThumb::low, 1.0);
+    require(
+        low_drag.result == veyra::RangeResult::changed && low_drag.low == 80.0 &&
+            low_drag.high == 80.0,
+        "a low drag fraction past high blocks at high"
+    );
+
+    control.set_low(20.0);
+
+    const auto high_drag = control.set_fraction(veyra::RangeThumb::high, 0.0);
+    require(
+        high_drag.result == veyra::RangeResult::changed && high_drag.low == 20.0 &&
+            high_drag.high == 20.0,
+        "a high drag fraction below low blocks at low"
+    );
+
+    require(
+        control.configure(
+            {.minimum = 0.0,
+             .maximum = 100.0,
+             .step = 1.0,
+             .low = 20.0,
+             .high = 28.0,
+             .page_step = 10.0}
+        ),
+        "a narrow band configures cleanly for page-step crossings"
+    );
+
+    const auto low_page = control.page_increment(veyra::RangeThumb::low);
+    require(
+        low_page.result == veyra::RangeResult::changed && low_page.low == 28.0 &&
+            low_page.high == 28.0,
+        "a page step past high blocks at high instead of crossing"
+    );
+    require(
+        control.page_increment(veyra::RangeThumb::low).result == veyra::RangeResult::handled &&
+            control.low() == 28.0,
+        "repeating the blocked page step reports no change"
+    );
+    require(
+        control.page_decrement(veyra::RangeThumb::high).result == veyra::RangeResult::handled &&
+            control.high() == 28.0,
+        "a page step past low blocks instead of crossing"
+    );
+
+    require(
+        control.configure(
+            {.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}
+        ),
+        "a wide band configures cleanly for domain-end clamps"
+    );
+
+    const auto low_floor = control.set_low(-50.0);
+    require(
+        low_floor.result == veyra::RangeResult::changed && low_floor.low == 0.0 &&
+            low_floor.high == 80.0,
+        "low below minimum clamps to the floor without touching high"
+    );
+
+    const auto high_ceiling = control.set_high(150.0);
+    require(
+        high_ceiling.result == veyra::RangeResult::changed && high_ceiling.low == 0.0 &&
+            high_ceiling.high == 100.0,
+        "high above maximum clamps to the ceiling without touching low"
+    );
+
+    control.set_low(20.0);
+    control.set_high(80.0);
+    require(control.set_low(95.0).low == 80.0, "low blocks at high");
+    require(control.high() == 80.0, "the blocked move leaves the other thumb untouched");
+
+    const auto away = control.increment(veyra::RangeThumb::high);
+    require(
+        away.result == veyra::RangeResult::changed && away.low == 80.0 && away.high == 81.0,
+        "high steps away while low holds the meeting point"
+    );
+
+    const auto back = control.decrement(veyra::RangeThumb::low);
+    require(
+        back.result == veyra::RangeResult::changed && back.low == 79.0 && back.high == 81.0,
+        "low steps back without dragging high along: no thumb handoff"
+    );
+
+    require(
+        control.low() <= control.high() &&
+            control.fraction(veyra::RangeThumb::low) <= control.fraction(veyra::RangeThumb::high),
+        "every crossing entry keeps the low thumb at or below the high thumb"
+    );
+}
+
 void check_slider_clamp_snap_and_fractions() {
     auto control = veyra::RangeSliderController{};
     require(
@@ -682,6 +800,7 @@ int main() {
         check_disabled_rejects_mutations();
         check_semantics_per_kind();
         check_slider_block_policy_at_shared_value();
+        check_slider_crossing_blocks_from_every_entry();
         check_slider_clamp_snap_and_fractions();
         check_slider_domain_rejection();
         check_slider_duplicates_steps_and_ends();

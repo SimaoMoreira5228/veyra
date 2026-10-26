@@ -212,6 +212,55 @@ void check_dual_emit_reuses_single_chrome() {
     );
 }
 
+void check_blocked_controller_output_emits_cleanly() {
+    auto band = veyra::RangeSliderController{};
+    require(
+        band.configure({.minimum = 0.0, .maximum = 100.0, .step = 1.0, .low = 20.0, .high = 80.0}),
+        "the dual slider domain configures cleanly"
+    );
+
+    const auto theme = veyra::Theme{};
+    constexpr veyra::LayoutRect bar{.x = 0.0F, .y = 0.0F, .width = 200.0F, .height = 8.0F};
+    constexpr float thickness = 12.0F;
+    std::array<veyra::DisplayCommand, 4> storage{};
+
+    require(band.set_low(95.0).low == 80.0, "driving low past high blocks at the shared value");
+    require(
+        band.fraction(veyra::RangeThumb::low) <= band.fraction(veyra::RangeThumb::high),
+        "the block keeps the low fraction at or below the high fraction"
+    );
+
+    const auto pinched = veyra::emit_slider(
+        theme,
+        {.fraction_0 = band.fraction(veyra::RangeThumb::low),
+         .fraction_1 = band.fraction(veyra::RangeThumb::high),
+         .has_second = true},
+        {.bar = bar, .thickness = thickness},
+        storage
+    );
+    require(
+        pinched.result == veyra::SliderEmitResult::complete && pinched.placed == 3 &&
+            pinched.required == 3,
+        "the blocked shared value emits as pinched thumbs with no band fill"
+    );
+
+    require(band.set_low(20.0).low == 20.0, "low returns to its band edge");
+    require(band.set_high(5.0).high == 20.0, "driving high below low blocks at the shared value");
+
+    const auto rejoined = veyra::emit_slider(
+        theme,
+        {.fraction_0 = band.fraction(veyra::RangeThumb::low),
+         .fraction_1 = band.fraction(veyra::RangeThumb::high),
+         .has_second = true},
+        {.bar = bar, .thickness = thickness},
+        storage
+    );
+    require(
+        rejoined.result == veyra::SliderEmitResult::complete && rejoined.placed == 3,
+        "the other crossing direction emits pinched thumbs too"
+    );
+}
+
 void check_disabled_emit_mutes_the_fill() {
     const auto theme = veyra::Theme{};
     constexpr veyra::LayoutRect bar{.x = 0.0F, .y = 0.0F, .width = 120.0F, .height = 8.0F};
@@ -478,6 +527,7 @@ int main() {
         check_presets_keep_chrome_legible();
         check_single_emit_geometry();
         check_dual_emit_reuses_single_chrome();
+        check_blocked_controller_output_emits_cleanly();
         check_disabled_emit_mutes_the_fill();
         check_keyboard_map_drives_the_controllers();
         check_invalid_input_rejects_loudly();
