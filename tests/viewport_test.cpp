@@ -1,5 +1,5 @@
-#include "veyra/layout/split_pane.hpp"
-#include "veyra/layout/viewport.hpp"
+#include "veyra/layout/panels/split_pane.hpp"
+#include "veyra/layout/scroll/viewport.hpp"
 
 #include <cmath>
 #include <iostream>

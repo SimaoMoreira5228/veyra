@@ -13,41 +13,41 @@ add_library(veyra STATIC
  src/core/semantics.cpp
  src/core/shortcut_map.cpp
  src/core/shortcut_sequence.cpp
- src/layout/breakpoints.cpp
- src/layout/container_queries.cpp
- src/layout/dock.cpp
- src/layout/flex.cpp
- src/layout/grid.cpp
- src/layout/grid_placement.cpp
- src/layout/image_fit.cpp
- src/layout/image.cpp
- src/layout/measure.cpp
- src/layout/scroll_axis.cpp
- src/layout/stack.cpp
- src/layout/viewport.cpp
- src/layout/virtual_list.cpp
- src/render/common/damage_tracker.cpp
- src/render/common/display_batches.cpp
- src/render/common/scroll_shift.cpp
- src/render/common/retained_scroll.cpp
+ src/layout/responsive/breakpoints.cpp
+ src/layout/responsive/container_queries.cpp
+ src/layout/panels/dock.cpp
+ src/layout/flex/flex.cpp
+ src/layout/grid/grid.cpp
+ src/layout/grid/grid_placement.cpp
+ src/layout/image/image_fit.cpp
+ src/layout/image/image.cpp
+ src/layout/core/measure.cpp
+ src/layout/scroll/scroll_axis.cpp
+ src/layout/flex/stack.cpp
+ src/layout/scroll/viewport.cpp
+ src/layout/scroll/virtual_list.cpp
+ src/render/damage/damage_tracker.cpp
+ src/render/display/display_batches.cpp
+ src/render/damage/scroll_shift.cpp
+ src/render/damage/retained_scroll.cpp
  src/render/cpu/software_command_validation.cpp
  src/render/cpu/software_path.cpp
- src/render/common/glyph_atlas.cpp
+ src/render/resource/glyph_atlas.cpp
  src/render/cpu/software_rounded_rect.cpp
  src/render/cpu/software_image.cpp
- src/render/common/shadow.cpp
- src/render/common/display_command_hash.cpp
- src/render/common/display_equivalence.cpp
- src/render/common/present_choice.cpp
- src/text/editor_viewport.cpp
- src/text/font_discovery.cpp
- src/text/glyph_mask_cache.cpp
- src/text/glyph_image_cache.cpp
- src/text/syntax_spans.cpp
- src/text/line_diff.cpp
- src/text/text_edit_history.cpp
- src/text/text_editor_composition.cpp
- src/text/text_editor_buffer.cpp
+ src/render/draw/shadow.cpp
+ src/render/display/display_command_hash.cpp
+ src/render/display/display_equivalence.cpp
+ src/render/present/present_choice.cpp
+ src/text/editing/editor_viewport.cpp
+ src/text/shaping/font_discovery.cpp
+ src/text/rendering/glyph_mask_cache.cpp
+ src/text/rendering/glyph_image_cache.cpp
+ src/text/annotation/syntax_spans.cpp
+ src/text/annotation/line_diff.cpp
+ src/text/editing/text_edit_history.cpp
+ src/text/editing/text_editor_composition.cpp
+ src/text/editing/text_editor_buffer.cpp
  src/render/cpu/software_renderer.cpp
  src/platform/headless/null_window.cpp
  src/platform/headless/fake_services.cpp

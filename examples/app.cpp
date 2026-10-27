@@ -1,5 +1,5 @@
 #include "app_render.hpp"
-#include "veyra/text/font_discovery.hpp"
+#include "veyra/text/shaping/font_discovery.hpp"
 
 #if defined(VEYRA_APP_HAS_SDL3)
 #include "veyra/platform/sdl3/sdl3_window.hpp"

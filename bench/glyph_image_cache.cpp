@@ -1,4 +1,4 @@
-#include "veyra/text/glyph_image_cache.hpp"
+#include "veyra/text/rendering/glyph_image_cache.hpp"
 
 #include <algorithm>
 #include <array>

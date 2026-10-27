@@ -1,4 +1,4 @@
-#include "veyra/layout/image.hpp"
+#include "veyra/layout/image/image.hpp"
 
 #include <cmath>
 #include <iostream>

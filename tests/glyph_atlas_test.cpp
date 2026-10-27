@@ -1,5 +1,5 @@
 #include "allocation_counter.hpp"
-#include "veyra/render/common/glyph_atlas.hpp"
+#include "veyra/render/resource/glyph_atlas.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>

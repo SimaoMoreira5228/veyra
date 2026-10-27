@@ -1,4 +1,4 @@
-#include "veyra/render/common/display_batches.hpp"
+#include "veyra/render/display/display_batches.hpp"
 
 #include "veyra/render/cpu/software_renderer.hpp"
 

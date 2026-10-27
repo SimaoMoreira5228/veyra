@@ -2,8 +2,8 @@
 #define VEYRA_CORE_SEMANTICS_HPP
 
 #include "veyra/core/node_tree.hpp"
-#include "veyra/layout/geometry.hpp"
-#include "veyra/layout/virtual_list.hpp"
+#include "veyra/layout/core/geometry.hpp"
+#include "veyra/layout/scroll/virtual_list.hpp"
 
 #include <cstddef>
 #include <cstdint>

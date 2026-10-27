@@ -1,4 +1,4 @@
-#include "veyra/layout/toolbar.hpp"
+#include "veyra/layout/panels/toolbar.hpp"
 
 #include <array>
 #include <cstdint>

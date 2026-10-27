@@ -1,4 +1,4 @@
-#include "veyra/layout/grid.hpp"
+#include "veyra/layout/grid/grid.hpp"
 
 #include <array>
 #include <cmath>

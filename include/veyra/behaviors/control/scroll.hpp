@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_SCROLL_HPP
 #define VEYRA_BEHAVIORS_SCROLL_HPP
 
-#include "veyra/layout/scroll_axis.hpp"
+#include "veyra/layout/scroll/scroll_axis.hpp"
 
 #include <cstdint>
 

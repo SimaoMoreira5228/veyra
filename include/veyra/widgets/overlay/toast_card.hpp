@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_OVERLAY_TOAST_CARD_HPP
 
 #include "veyra/behaviors/overlay/toast.hpp"
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 

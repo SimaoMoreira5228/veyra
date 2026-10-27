@@ -1,5 +1,5 @@
 #include "e3_scenes_fixtures.hpp"
-#include "veyra/render/common/display_batches.hpp"
+#include "veyra/render/display/display_batches.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <algorithm>

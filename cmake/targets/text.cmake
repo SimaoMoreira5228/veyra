@@ -1,9 +1,9 @@
 if(VEYRA_WITH_TEXT)
  find_package(harfbuzz CONFIG REQUIRED)
  add_library(veyra_text STATIC
-  src/text/glyph_run.cpp
-  src/text/shaped_run_cache.cpp
-  src/text/shaper.cpp
+  src/text/shaping/glyph_run.cpp
+  src/text/shaping/shaped_run_cache.cpp
+  src/text/shaping/shaper.cpp
  )
  target_include_directories(veyra_text PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_text PUBLIC veyra harfbuzz::harfbuzz)
@@ -23,10 +23,10 @@ endif()
 if(VEYRA_WITH_UNICODE)
  find_package(ICU 74 REQUIRED COMPONENTS i18n uc)
  add_library(veyra_unicode STATIC
-  src/text/bidi_resolver_icu.cpp
-  src/text/grapheme_icu.cpp
-  src/text/line_breaker_icu.cpp
-  src/text/utf8.cpp
+  src/text/shaping/bidi_resolver_icu.cpp
+  src/text/shaping/grapheme_icu.cpp
+  src/text/shaping/line_breaker_icu.cpp
+  src/text/encoding/utf8.cpp
  )
  target_include_directories(veyra_unicode PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_unicode PUBLIC veyra ICU::i18n ICU::uc)
@@ -37,7 +37,7 @@ if(VEYRA_WITH_UNICODE)
  veyra_add_test(NAME text_bidi_resolver_behavior TARGET veyra_bidi_resolver_test SOURCES tests/bidi_resolver_test.cpp LIBS veyra_unicode)
 
  if(VEYRA_WITH_TEXT)
-  add_library(veyra_font_fallback STATIC src/text/font_fallback_icu.cpp)
+  add_library(veyra_font_fallback STATIC src/text/shaping/font_fallback_icu.cpp)
   target_include_directories(
    veyra_font_fallback
    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -65,7 +65,7 @@ endif()
 
 if(VEYRA_WITH_FREETYPE)
  find_package(Freetype 2.14.3 REQUIRED)
- add_library(veyra_freetype STATIC src/text/freetype_rasterizer.cpp)
+ add_library(veyra_freetype STATIC src/text/rendering/freetype_rasterizer.cpp)
  target_include_directories(
   veyra_freetype
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

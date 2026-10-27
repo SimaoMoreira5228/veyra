@@ -1,6 +1,6 @@
 #include "allocation_counter.hpp"
-#include "veyra/render/common/display_batches.hpp"
-#include "veyra/render/common/display_command_hash.hpp"
+#include "veyra/render/display/display_batches.hpp"
+#include "veyra/render/display/display_command_hash.hpp"
 #include "e3_scenes_fixtures.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 

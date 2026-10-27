@@ -2,7 +2,7 @@
 #define VEYRA_CORE_HIT_TEST_HPP
 
 #include "veyra/core/node_tree.hpp"
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 
 #include <cstdint>
 #include <span>

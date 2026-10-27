@@ -1,4 +1,4 @@
-#include "veyra/render/common/shadow.hpp"
+#include "veyra/render/draw/shadow.hpp"
 
 #include <array>
 #include <cstddef>

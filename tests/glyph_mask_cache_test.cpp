@@ -1,4 +1,4 @@
-#include "veyra/text/glyph_mask_cache.hpp"
+#include "veyra/text/rendering/glyph_mask_cache.hpp"
 
 #include <array>
 #include <iostream>

@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_BASIC_TEXT_AREA_HPP
 #define VEYRA_WIDGETS_BASIC_TEXT_AREA_HPP
 
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 

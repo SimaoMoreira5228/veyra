@@ -1,5 +1,5 @@
-#include "veyra/text/glyph_run.hpp"
-#include "veyra/text/shaper.hpp"
+#include "veyra/text/shaping/glyph_run.hpp"
+#include "veyra/text/shaping/shaper.hpp"
 
 #include <hb-ot.h>
 

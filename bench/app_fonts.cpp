@@ -1,4 +1,4 @@
-#include "veyra/text/font_discovery.hpp"
+#include "veyra/text/shaping/font_discovery.hpp"
 
 #include <array>
 #include <charconv>

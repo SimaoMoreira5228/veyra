@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_DATA_VIRTUAL_LIST_HPP
 #define VEYRA_WIDGETS_DATA_VIRTUAL_LIST_HPP
 
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 

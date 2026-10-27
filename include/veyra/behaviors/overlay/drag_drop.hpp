@@ -2,7 +2,7 @@
 #define VEYRA_BEHAVIORS_DRAG_DROP_HPP
 
 #include "veyra/core/semantics.hpp"
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 
 #include <cstdint>
 

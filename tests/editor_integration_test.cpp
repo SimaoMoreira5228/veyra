@@ -1,6 +1,6 @@
 #include "veyra/platform/text_input.hpp"
-#include "veyra/text/editor_viewport.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/editor_viewport.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <array>
 #include <cstddef>

@@ -10,7 +10,7 @@
 #include "veyra/platform/window.hpp"
 #include "veyra/style/theme.hpp"
 #include "veyra/style/theme_file.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <array>
 #include <cstddef>

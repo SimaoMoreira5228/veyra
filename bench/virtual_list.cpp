@@ -1,5 +1,5 @@
 #include "veyra/core/semantics.hpp"
-#include "veyra/layout/scroll_axis.hpp"
+#include "veyra/layout/scroll/scroll_axis.hpp"
 
 #include <algorithm>
 #include <charconv>

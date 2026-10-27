@@ -1,9 +1,9 @@
 #ifndef VEYRA_PLATFORM_TEXT_INPUT_HPP
 #define VEYRA_PLATFORM_TEXT_INPUT_HPP
 
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/platform/window.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <algorithm>
 #include <cmath>

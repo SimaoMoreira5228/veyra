@@ -1,9 +1,9 @@
 #include "allocation_counter.hpp"
 #include "veyra/behaviors/input/editable_text.hpp"
-#include "veyra/text/glyph_mask_cache.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/rendering/glyph_mask_cache.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 #ifdef VEYRA_AUDIT_TEXT
-#include "veyra/text/shaped_run_cache.hpp"
+#include "veyra/text/shaping/shaped_run_cache.hpp"
 #endif
 
 #include <array>

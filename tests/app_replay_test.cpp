@@ -1,6 +1,6 @@
 #include "../examples/app_render.hpp"
 #include "allocation_counter.hpp"
-#include "veyra/text/font_discovery.hpp"
+#include "veyra/text/shaping/font_discovery.hpp"
 
 #include <array>
 #include <cstddef>

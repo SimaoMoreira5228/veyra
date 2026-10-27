@@ -1,4 +1,4 @@
-#include "veyra/text/freetype_rasterizer.hpp"
+#include "veyra/text/rendering/freetype_rasterizer.hpp"
 
 #include <array>
 #include <cstdint>

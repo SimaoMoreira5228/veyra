@@ -1,4 +1,4 @@
-#include "veyra/layout/image_fit.hpp"
+#include "veyra/layout/image/image_fit.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>

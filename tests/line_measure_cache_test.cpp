@@ -1,4 +1,4 @@
-#include "veyra/text/line_measure_cache.hpp"
+#include "veyra/text/rendering/line_measure_cache.hpp"
 
 #include <array>
 #include <cmath>

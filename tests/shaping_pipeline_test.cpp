@@ -1,7 +1,7 @@
 #include "veyra/text/bidi_resolver.hpp"
 #include "veyra/text/font_fallback.hpp"
 #include "veyra/text/line_breaker.hpp"
-#include "veyra/text/shaper.hpp"
+#include "veyra/text/shaping/shaper.hpp"
 
 #include <array>
 #include <cstdint>

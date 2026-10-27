@@ -8,7 +8,7 @@
 #include "veyra/behaviors/control/toggle.hpp"
 #include "veyra/behaviors/data/treegrid.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 #include "veyra/widgets/basic/button.hpp"
 #include "veyra/widgets/basic/radio.hpp"
 #include "veyra/widgets/basic/textfield.hpp"

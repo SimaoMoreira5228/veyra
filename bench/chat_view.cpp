@@ -1,7 +1,7 @@
 #include "veyra/behaviors/data/log_feed.hpp"
 #include "veyra/behaviors/control/scroll.hpp"
 #include "veyra/chat/row_height_cache.hpp"
-#include "veyra/layout/virtual_list.hpp"
+#include "veyra/layout/scroll/virtual_list.hpp"
 #include "veyra/widgets/data/log_feed.hpp"
 
 #include <array>

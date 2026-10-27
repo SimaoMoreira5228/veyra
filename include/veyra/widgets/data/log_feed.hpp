@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_LOG_FEED_HPP
 
 #include "veyra/behaviors/data/log_feed.hpp"
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 #include "veyra/widgets/data/virtual_list.hpp"

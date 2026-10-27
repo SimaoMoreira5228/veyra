@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_TREE_VIEW_HPP
 
 #include "veyra/behaviors/selection/tree_cursor.hpp"
-#include "veyra/layout/geometry.hpp"
+#include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 

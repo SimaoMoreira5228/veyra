@@ -1,4 +1,4 @@
-#include "veyra/text/shaped_run_cache.hpp"
+#include "veyra/text/shaping/shaped_run_cache.hpp"
 
 #include <algorithm>
 #include <array>

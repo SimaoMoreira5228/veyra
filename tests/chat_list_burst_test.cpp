@@ -1,6 +1,6 @@
 #include "veyra/chat/message_change_queue.hpp"
 #include "veyra/chat/row_height_cache.hpp"
-#include "veyra/layout/virtual_list.hpp"
+#include "veyra/layout/scroll/virtual_list.hpp"
 
 #include <array>
 #include <cmath>

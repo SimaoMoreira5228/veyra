@@ -1,7 +1,7 @@
 #ifndef VEYRA_TEXT_GRAPHEME_NAVIGATION_HPP
 #define VEYRA_TEXT_GRAPHEME_NAVIGATION_HPP
 
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 
 namespace veyra {
 

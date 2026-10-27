@@ -1,4 +1,4 @@
-#include "veyra/layout/dock.hpp"
+#include "veyra/layout/panels/dock.hpp"
 
 #include <array>
 #include <cmath>

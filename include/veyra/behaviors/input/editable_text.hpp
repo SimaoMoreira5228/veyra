@@ -2,7 +2,7 @@
 #define VEYRA_BEHAVIORS_EDITABLE_TEXT_HPP
 
 #include "veyra/core/semantics.hpp"
-#include "veyra/text/text_editor_buffer.hpp"
+#include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <cstddef>
 #include <cstdint>

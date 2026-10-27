@@ -1,4 +1,4 @@
-#include "veyra/text/line_diff.hpp"
+#include "veyra/text/annotation/line_diff.hpp"
 
 #include <array>
 #include <cstddef>

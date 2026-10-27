@@ -1,4 +1,4 @@
-#include "veyra/text/editor_viewport.hpp"
+#include "veyra/text/editing/editor_viewport.hpp"
 
 #include <cmath>
 #include <iostream>

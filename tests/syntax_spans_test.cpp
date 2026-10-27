@@ -1,4 +1,4 @@
-#include "veyra/text/syntax_spans.hpp"
+#include "veyra/text/annotation/syntax_spans.hpp"
 
 #include <array>
 #include <cstddef>

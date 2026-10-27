@@ -3,7 +3,7 @@
 #include "veyra/behaviors/control/scroll.hpp"
 #include "veyra/chat/message_change_queue.hpp"
 #include "veyra/chat/row_height_cache.hpp"
-#include "veyra/layout/virtual_list.hpp"
+#include "veyra/layout/scroll/virtual_list.hpp"
 #include "veyra/media/animation_frame_cache.hpp"
 #include "veyra/media/animation_timeline.hpp"
 #include "veyra/media/image_codecs.hpp"
@@ -584,7 +584,7 @@ void check_frame_budget_evicts_least_recently_used() {
     std::array<veyra::SoftwarePixel, 16> storage{};
     auto cache = veyra::AnimationFrameCache{slots, storage, 2, 2};
     require(cache.valid(), "four slots form one four-way bucket");
-    auto pixels = std::array<veyra::SoftwarePixel, 5>{};
+    auto pixels = std::array<veyra::SoftwarePixel, 16>{};
     for (std::size_t index = 0; index < pixels.size(); ++index) {
         pixels[index] = veyra::SoftwarePixel{.red = static_cast<std::uint8_t>(index + 1)};
     }

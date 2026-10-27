@@ -1,4 +1,4 @@
-#include "veyra/text/glyph_bounds_cache.hpp"
+#include "veyra/text/rendering/glyph_bounds_cache.hpp"
 
 #include <array>
 #include <iostream>
