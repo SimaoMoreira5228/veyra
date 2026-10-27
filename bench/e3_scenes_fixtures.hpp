@@ -1,5 +1,5 @@
-#ifndef VEYRA_RENDER_E3_SCENES_HPP
-#define VEYRA_RENDER_E3_SCENES_HPP
+#ifndef VEYRA_BENCH_E3_SCENES_FIXTURES_HPP
+#define VEYRA_BENCH_E3_SCENES_FIXTURES_HPP
 
 #include "veyra/render/software_renderer.hpp"
 

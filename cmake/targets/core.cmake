@@ -26,20 +26,19 @@ add_library(veyra STATIC
  src/layout/stack.cpp
  src/layout/viewport.cpp
  src/layout/virtual_list.cpp
- src/render/damage_tracker.cpp
- src/render/display_batches.cpp
- src/render/scroll_shift.cpp
- src/render/retained_scroll.cpp
+ src/render/common/damage_tracker.cpp
+ src/render/common/display_batches.cpp
+ src/render/common/scroll_shift.cpp
+ src/render/common/retained_scroll.cpp
  src/render/cpu/software_command_validation.cpp
  src/render/cpu/software_path.cpp
- src/render/glyph_atlas.cpp
+ src/render/common/glyph_atlas.cpp
  src/render/cpu/software_rounded_rect.cpp
  src/render/cpu/software_image.cpp
- src/render/shadow.cpp
- src/render/e3_scenes.cpp
- src/render/display_command_hash.cpp
- src/render/display_equivalence.cpp
- src/render/present_choice.cpp
+ src/render/common/shadow.cpp
+ src/render/common/display_command_hash.cpp
+ src/render/common/display_equivalence.cpp
+ src/render/common/present_choice.cpp
  src/text/editor_viewport.cpp
  src/text/font_discovery.cpp
  src/text/glyph_mask_cache.cpp
@@ -50,8 +49,8 @@ add_library(veyra STATIC
  src/text/text_editor_composition.cpp
  src/text/text_editor_buffer.cpp
  src/render/cpu/software_renderer.cpp
- src/platform/null_window.cpp
- src/platform/fake_services.cpp
+ src/platform/headless/null_window.cpp
+ src/platform/headless/fake_services.cpp
  src/platform/window_router.cpp
 )
 target_include_directories(veyra PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)

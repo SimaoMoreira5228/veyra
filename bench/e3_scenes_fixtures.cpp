@@ -1,4 +1,4 @@
-#include "veyra/render/e3_scenes.hpp"
+#include "e3_scenes_fixtures.hpp"
 #include "veyra/render/display_command_hash.hpp"
 
 #include <cstddef>

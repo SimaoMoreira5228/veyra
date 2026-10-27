@@ -36,7 +36,7 @@ if(VEYRA_WITH_SDL3)
  if(NOT SDL3_FOUND)
   message(FATAL_ERROR "VEYRA_WITH_SDL3=ON but SDL3 3.2+ was not found. Install SDL3 or configure with -DVEYRA_PROFILE=minimal.")
  endif()
- add_library(veyra_sdl3 STATIC src/platform/sdl3_window.cpp)
+ add_library(veyra_sdl3 STATIC src/platform/sdl3/sdl3_window.cpp)
  target_include_directories(
   veyra_sdl3
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -46,8 +46,8 @@ if(VEYRA_WITH_SDL3)
 
  veyra_add_test(NAME sdl3_window_behavior TARGET veyra_sdl3_window_test SOURCES tests/sdl3_window_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 
- target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_translate.cpp)
- target_sources(veyra_sdl3 PRIVATE src/platform/sdl3_gpu_present.cpp)
+ target_sources(veyra_sdl3 PRIVATE src/platform/sdl3/sdl3_translate.cpp)
+ target_sources(veyra_sdl3 PRIVATE src/platform/sdl3/sdl3_gpu_present.cpp)
 
  veyra_add_test(NAME sdl3_translate_behavior TARGET veyra_sdl3_translate_test SOURCES tests/sdl3_translate_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
  veyra_add_test(NAME sdl3_gamepad_behavior TARGET veyra_sdl3_gamepad_test SOURCES tests/sdl3_gamepad_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
@@ -68,7 +68,7 @@ if(VEYRA_WITH_SDL3)
    list(GET shader_parts 1 shader_prefix)
    foreach(stage Vert Frag)
     string(TOLOWER "${stage}" stage_lower)
-    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/shaders/sdl_gpu/${shader_name}.${stage_lower}")
+    set(shader_source "${CMAKE_CURRENT_SOURCE_DIR}/src/render/gpu/sdl/shaders/${shader_name}.${stage_lower}")
     set(shader_spv "${veyra_sdl_gpu_gen}/${shader_name}.${stage_lower}.spv")
     set(shader_header "${veyra_sdl_gpu_gen}/${shader_name}_${stage_lower}_spv.hpp")
     add_custom_command(
@@ -129,7 +129,7 @@ if(VEYRA_WITH_GLFW)
  else()
   message(FATAL_ERROR "glfw3 was found but did not define a supported CMake target")
  endif()
- add_library(veyra_glfw STATIC src/platform/glfw_window.cpp)
+ add_library(veyra_glfw STATIC src/platform/glfw/glfw_window.cpp)
  target_include_directories(veyra_glfw PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_glfw PUBLIC veyra PRIVATE ${veyra_glfw_target})
  target_compile_features(veyra_glfw PUBLIC cxx_std_23)
