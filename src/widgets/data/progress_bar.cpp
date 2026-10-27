@@ -1,6 +1,6 @@
 #include "veyra/widgets/data/progress_bar.hpp"
 
-#include "veyra/behaviors/range.hpp"
+#include "veyra/behaviors/input/range.hpp"
 
 #include <cmath>
 

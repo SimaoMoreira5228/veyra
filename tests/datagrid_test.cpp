@@ -1,5 +1,5 @@
-#include "veyra/behaviors/datagrid.hpp"
-#include "veyra/behaviors/drag_drop.hpp"
+#include "veyra/behaviors/data/datagrid.hpp"
+#include "veyra/behaviors/overlay/drag_drop.hpp"
 #include "veyra/layout/geometry.hpp"
 
 #include <array>

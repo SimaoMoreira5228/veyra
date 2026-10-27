@@ -3,7 +3,7 @@
 
 #include "veyra/layout/geometry.hpp"
 #include "veyra/layout/image_fit.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 
 #include <cstddef>

@@ -1,4 +1,4 @@
-#include "veyra/behaviors/icon_view.hpp"
+#include "veyra/behaviors/data/icon_view.hpp"
 #include "veyra/widgets/data/icon_view.hpp"
 
 #include <array>

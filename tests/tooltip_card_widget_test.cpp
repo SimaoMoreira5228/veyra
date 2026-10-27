@@ -1,4 +1,4 @@
-#include "veyra/behaviors/tooltip.hpp"
+#include "veyra/behaviors/overlay/tooltip.hpp"
 #include "veyra/widgets/overlay/tooltip_card.hpp"
 
 #include <array>

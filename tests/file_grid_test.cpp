@@ -1,8 +1,8 @@
 #include "veyra/services/shell.hpp"
 
-#include "veyra/behaviors/icon_view.hpp"
-#include "veyra/behaviors/selection.hpp"
-#include "veyra/behaviors/selection_typeahead.hpp"
+#include "veyra/behaviors/data/icon_view.hpp"
+#include "veyra/behaviors/selection/selection.hpp"
+#include "veyra/behaviors/selection/selection_typeahead.hpp"
 #include "veyra/data/list_pipeline.hpp"
 #include "veyra/data/server_rows.hpp"
 #include "veyra/files/file_list.hpp"

@@ -1,9 +1,9 @@
 #include "gallery_backends.hpp"
 
 #if defined(VEYRA_GALLERY_HAS_SDLGPU)
-#include "veyra/platform/sdl3_gpu_present.hpp"
-#include "veyra/platform/sdl3_window.hpp"
-#include "veyra/render/sdl_gpu_renderer.hpp"
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
+#include "veyra/platform/sdl3/sdl3_window.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
 #endif
 
 #include <array>

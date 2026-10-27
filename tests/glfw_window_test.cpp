@@ -1,7 +1,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include "veyra/platform/glfw_window.hpp"
+#include "veyra/platform/glfw/glfw_window.hpp"
 
 #include <iostream>
 #include <stdexcept>

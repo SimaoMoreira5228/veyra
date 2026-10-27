@@ -1,7 +1,7 @@
 #ifndef VEYRA_TEXT_GLYPH_RUN_HPP
 #define VEYRA_TEXT_GLYPH_RUN_HPP
 
-#include "veyra/render/glyph_atlas.hpp"
+#include "veyra/render/common/glyph_atlas.hpp"
 #include "veyra/text/glyph_image_cache.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 #include "veyra/text/shaper.hpp"

@@ -1,6 +1,6 @@
-#include "veyra/render/damage_tracker.hpp"
+#include "veyra/render/common/damage_tracker.hpp"
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <iostream>

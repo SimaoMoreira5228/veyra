@@ -1,6 +1,6 @@
 #include "allocation_counter.hpp"
-#include "veyra/behaviors/log_feed.hpp"
-#include "veyra/behaviors/scroll.hpp"
+#include "veyra/behaviors/data/log_feed.hpp"
+#include "veyra/behaviors/control/scroll.hpp"
 #include "veyra/chat/message_change_queue.hpp"
 #include "veyra/chat/row_height_cache.hpp"
 #include "veyra/layout/virtual_list.hpp"

@@ -1,4 +1,4 @@
-#include "veyra/platform/sdl3_translate.hpp"
+#include "veyra/platform/sdl3/sdl3_translate.hpp"
 
 #include <algorithm>
 #include <span>

@@ -1,4 +1,4 @@
-#include "veyra/render/scroll_shift.hpp"
+#include "veyra/render/common/scroll_shift.hpp"
 
 #include <cstring>
 #include <limits>

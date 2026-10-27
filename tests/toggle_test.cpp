@@ -1,4 +1,4 @@
-#include "veyra/behaviors/toggle.hpp"
+#include "veyra/behaviors/control/toggle.hpp"
 
 #include <iostream>
 #include <stdexcept>

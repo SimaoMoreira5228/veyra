@@ -1,4 +1,4 @@
-#include "veyra/behaviors/selection_typeahead.hpp"
+#include "veyra/behaviors/selection/selection_typeahead.hpp"
 
 #include <array>
 #include <cstdint>

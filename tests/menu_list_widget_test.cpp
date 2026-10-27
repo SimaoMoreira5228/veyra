@@ -1,4 +1,4 @@
-#include "veyra/behaviors/menu.hpp"
+#include "veyra/behaviors/navigation/menu.hpp"
 #include "veyra/widgets/data/menu_list.hpp"
 
 #include <array>

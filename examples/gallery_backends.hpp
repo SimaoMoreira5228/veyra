@@ -1,7 +1,7 @@
 #ifndef VEYRA_EXAMPLES_GALLERY_BACKENDS_HPP
 #define VEYRA_EXAMPLES_GALLERY_BACKENDS_HPP
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <cstddef>
 #include <cstdint>

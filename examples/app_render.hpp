@@ -2,11 +2,11 @@
 #define VEYRA_EXAMPLES_APP_RENDER_HPP
 
 #include "app_model.hpp"
-#include "veyra/behaviors/pressable.hpp"
+#include "veyra/behaviors/control/pressable.hpp"
 #include "veyra/core/frame_scheduler.hpp"
-#include "veyra/platform/null_window.hpp"
+#include "veyra/platform/headless/null_window.hpp"
 #include "veyra/platform/run_loop.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/widgets/basic/button.hpp"
 #include "veyra/widgets/basic/textfield.hpp"
 #include "veyra/widgets/data/virtual_list.hpp"

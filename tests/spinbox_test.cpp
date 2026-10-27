@@ -1,7 +1,7 @@
-#include "veyra/behaviors/spinbox.hpp"
+#include "veyra/behaviors/input/spinbox.hpp"
 
-#include "veyra/behaviors/editable_text.hpp"
-#include "veyra/behaviors/range.hpp"
+#include "veyra/behaviors/input/editable_text.hpp"
+#include "veyra/behaviors/input/range.hpp"
 
 #include <array>
 #include <iostream>

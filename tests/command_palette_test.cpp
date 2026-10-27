@@ -1,4 +1,4 @@
-#include "veyra/behaviors/command_palette.hpp"
+#include "veyra/behaviors/navigation/command_palette.hpp"
 
 #include <array>
 #include <cstddef>

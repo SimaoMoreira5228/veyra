@@ -1,5 +1,5 @@
-#include "veyra/behaviors/selection.hpp"
-#include "veyra/behaviors/tree_cursor.hpp"
+#include "veyra/behaviors/selection/selection.hpp"
+#include "veyra/behaviors/selection/tree_cursor.hpp"
 #include "veyra/widgets/data/tree_view.hpp"
 
 #include <array>

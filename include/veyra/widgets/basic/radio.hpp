@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_BASIC_RADIO_HPP
 #define VEYRA_WIDGETS_BASIC_RADIO_HPP
 
-#include "veyra/behaviors/radiogroup.hpp"
+#include "veyra/behaviors/input/radiogroup.hpp"
 #include "veyra/style/theme.hpp"
 
 namespace veyra {

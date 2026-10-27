@@ -1,10 +1,10 @@
 #ifndef VEYRA_EXAMPLES_APP_MODEL_HPP
 #define VEYRA_EXAMPLES_APP_MODEL_HPP
 
-#include "veyra/behaviors/command_palette.hpp"
-#include "veyra/behaviors/editable_text.hpp"
-#include "veyra/behaviors/focus_chain.hpp"
-#include "veyra/behaviors/overlay.hpp"
+#include "veyra/behaviors/navigation/command_palette.hpp"
+#include "veyra/behaviors/input/editable_text.hpp"
+#include "veyra/behaviors/navigation/focus_chain.hpp"
+#include "veyra/behaviors/overlay/overlay.hpp"
 #include "veyra/core/shortcut_map.hpp"
 #include "veyra/platform/text_input.hpp"
 #include "veyra/platform/window.hpp"

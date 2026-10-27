@@ -1,4 +1,4 @@
-#include "veyra/behaviors/range.hpp"
+#include "veyra/behaviors/input/range.hpp"
 
 #include <iostream>
 #include <limits>

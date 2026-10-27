@@ -1,4 +1,4 @@
-#include "veyra/behaviors/log_feed.hpp"
+#include "veyra/behaviors/data/log_feed.hpp"
 
 #include <cstdint>
 #include <iostream>

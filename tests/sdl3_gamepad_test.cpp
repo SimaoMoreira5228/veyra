@@ -1,6 +1,6 @@
-#include "veyra/platform/null_window.hpp"
-#include "veyra/platform/sdl3_translate.hpp"
-#include "veyra/platform/sdl3_window.hpp"
+#include "veyra/platform/headless/null_window.hpp"
+#include "veyra/platform/sdl3/sdl3_translate.hpp"
+#include "veyra/platform/sdl3/sdl3_window.hpp"
 
 #include <SDL3/SDL.h>
 

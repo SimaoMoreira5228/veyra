@@ -1,8 +1,8 @@
 #ifndef VEYRA_SRC_RENDER_SDL_GPU_INTERNAL_HPP
 #define VEYRA_SRC_RENDER_SDL_GPU_INTERNAL_HPP
 
-#include "veyra/platform/sdl3_gpu_present.hpp"
-#include "veyra/render/sdl_gpu_renderer.hpp"
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
 
 #include <SDL3/SDL_gpu.h>
 

@@ -1,7 +1,7 @@
 #ifndef VEYRA_TESTS_SCROLL_SURFACE_HELPERS_HPP
 #define VEYRA_TESTS_SCROLL_SURFACE_HELPERS_HPP
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <cstddef>
 #include <span>

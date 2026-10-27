@@ -1,4 +1,4 @@
-#include "veyra/render/display_command_hash.hpp"
+#include "veyra/render/common/display_command_hash.hpp"
 
 #include <bit>
 #include <cstddef>

@@ -1,5 +1,5 @@
-#include "veyra/platform/null_window.hpp"
-#include "veyra/render/present_choice.hpp"
+#include "veyra/platform/headless/null_window.hpp"
+#include "veyra/render/common/present_choice.hpp"
 
 #include <cstdint>
 #include <iostream>

@@ -1,4 +1,4 @@
-#include "veyra/behaviors/editable_text.hpp"
+#include "veyra/behaviors/input/editable_text.hpp"
 
 #include <array>
 #include <iostream>

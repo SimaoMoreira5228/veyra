@@ -1,7 +1,7 @@
 #ifndef VEYRA_TESTS_E0_FIXED_SCENE_HPP
 #define VEYRA_TESTS_E0_FIXED_SCENE_HPP
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <bit>

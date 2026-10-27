@@ -1,4 +1,4 @@
-#include "veyra/behaviors/tooltip.hpp"
+#include "veyra/behaviors/overlay/tooltip.hpp"
 
 #include <cstdint>
 #include <iostream>

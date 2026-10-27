@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_VIRTUAL_LIST_HPP
 
 #include "veyra/layout/geometry.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 
 #include <cstddef>

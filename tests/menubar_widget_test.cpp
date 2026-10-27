@@ -1,5 +1,5 @@
-#include "veyra/behaviors/menu.hpp"
-#include "veyra/behaviors/menubar.hpp"
+#include "veyra/behaviors/navigation/menu.hpp"
+#include "veyra/behaviors/navigation/menubar.hpp"
 #include "veyra/widgets/data/menu_list.hpp"
 #include "veyra/widgets/data/menubar.hpp"
 

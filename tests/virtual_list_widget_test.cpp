@@ -1,4 +1,4 @@
-#include "veyra/behaviors/selection.hpp"
+#include "veyra/behaviors/selection/selection.hpp"
 #include "veyra/widgets/data/virtual_list.hpp"
 
 #include <array>

@@ -1,4 +1,4 @@
-#include "veyra/behaviors/keybinding.hpp"
+#include "veyra/behaviors/navigation/keybinding.hpp"
 
 #include <array>
 #include <cstddef>

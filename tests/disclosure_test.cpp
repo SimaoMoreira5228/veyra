@@ -1,6 +1,6 @@
-#include "veyra/behaviors/disclosure.hpp"
+#include "veyra/behaviors/navigation/disclosure.hpp"
 
-#include "veyra/behaviors/selection.hpp"
+#include "veyra/behaviors/selection/selection.hpp"
 
 #include <array>
 #include <cstdint>

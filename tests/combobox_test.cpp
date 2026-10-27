@@ -1,4 +1,4 @@
-#include "veyra/behaviors/combobox.hpp"
+#include "veyra/behaviors/navigation/combobox.hpp"
 
 #include <array>
 #include <cstdint>

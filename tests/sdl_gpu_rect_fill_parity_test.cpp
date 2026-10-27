@@ -1,6 +1,6 @@
 #include "allocation_counter.hpp"
-#include "veyra/render/sdl_gpu_renderer.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include "sdl_gpu_parity_helpers.hpp"
 

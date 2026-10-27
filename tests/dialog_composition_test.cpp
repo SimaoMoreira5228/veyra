@@ -1,5 +1,5 @@
-#include "veyra/behaviors/overlay.hpp"
-#include "veyra/behaviors/pressable.hpp"
+#include "veyra/behaviors/overlay/overlay.hpp"
+#include "veyra/behaviors/control/pressable.hpp"
 #include "veyra/core/focus_navigation.hpp"
 #include "veyra/widgets/overlay/popover.hpp"
 

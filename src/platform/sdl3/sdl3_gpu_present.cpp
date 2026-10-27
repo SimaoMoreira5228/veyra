@@ -1,4 +1,4 @@
-#include "veyra/platform/sdl3_gpu_present.hpp"
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>

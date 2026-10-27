@@ -1,6 +1,6 @@
 #include "allocation_counter.hpp"
-#include "veyra/render/glyph_atlas.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/common/glyph_atlas.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <atomic>

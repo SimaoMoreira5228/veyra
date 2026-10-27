@@ -1,4 +1,4 @@
-#include "veyra/behaviors/scroll.hpp"
+#include "veyra/behaviors/control/scroll.hpp"
 #include "veyra/layout/virtual_list.hpp"
 
 #include <array>

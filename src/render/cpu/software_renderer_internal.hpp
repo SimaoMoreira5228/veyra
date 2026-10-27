@@ -1,7 +1,7 @@
 #ifndef VEYRA_SRC_RENDER_SOFTWARE_RENDERER_INTERNAL_HPP
 #define VEYRA_SRC_RENDER_SOFTWARE_RENDERER_INTERNAL_HPP
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <algorithm>
 #include <cmath>

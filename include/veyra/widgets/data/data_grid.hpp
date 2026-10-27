@@ -1,9 +1,9 @@
 #ifndef VEYRA_WIDGETS_DATA_DATA_GRID_HPP
 #define VEYRA_WIDGETS_DATA_DATA_GRID_HPP
 
-#include "veyra/behaviors/datagrid.hpp"
+#include "veyra/behaviors/data/datagrid.hpp"
 #include "veyra/layout/geometry.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 
 #include <cstddef>

@@ -1,5 +1,5 @@
 #include "allocation_counter.hpp"
-#include "veyra/behaviors/editable_text.hpp"
+#include "veyra/behaviors/input/editable_text.hpp"
 #include "veyra/text/glyph_mask_cache.hpp"
 #include "veyra/text/text_editor_buffer.hpp"
 #ifdef VEYRA_AUDIT_TEXT

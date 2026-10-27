@@ -1,7 +1,7 @@
 #include "sdl_gpu_internal.hpp"
 
 #include "software_renderer_internal.hpp"
-#include "veyra/render/glyph_atlas.hpp"
+#include "veyra/render/common/glyph_atlas.hpp"
 
 #include <algorithm>
 #include <cmath>

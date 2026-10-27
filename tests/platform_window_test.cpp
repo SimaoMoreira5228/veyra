@@ -1,4 +1,4 @@
-#include "veyra/platform/null_window.hpp"
+#include "veyra/platform/headless/null_window.hpp"
 
 #include <array>
 #include <cstdint>

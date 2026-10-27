@@ -1,7 +1,7 @@
 #ifndef VEYRA_TEXT_GLYPH_IMAGE_CACHE_HPP
 #define VEYRA_TEXT_GLYPH_IMAGE_CACHE_HPP
 
-#include "veyra/render/bounded_image_cache.hpp"
+#include "veyra/render/common/bounded_image_cache.hpp"
 
 #include <cstddef>
 #include <cstdint>

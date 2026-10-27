@@ -1,4 +1,4 @@
-#include "veyra/behaviors/menu.hpp"
+#include "veyra/behaviors/navigation/menu.hpp"
 
 #include <array>
 #include <cstdint>

@@ -1,4 +1,4 @@
-#include "veyra/behaviors/breadcrumb.hpp"
+#include "veyra/behaviors/navigation/breadcrumb.hpp"
 
 #include <array>
 #include <cstdint>

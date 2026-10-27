@@ -1,4 +1,4 @@
-#include "veyra/behaviors/overlay.hpp"
+#include "veyra/behaviors/overlay/overlay.hpp"
 
 #include <array>
 #include <iostream>

@@ -1,4 +1,4 @@
-#include "veyra/render/retained_scroll.hpp"
+#include "veyra/render/common/retained_scroll.hpp"
 
 #include <array>
 

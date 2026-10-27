@@ -1,4 +1,4 @@
-#include "veyra/behaviors/treegrid.hpp"
+#include "veyra/behaviors/data/treegrid.hpp"
 
 #include <array>
 #include <cstddef>

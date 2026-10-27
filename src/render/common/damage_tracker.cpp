@@ -1,4 +1,4 @@
-#include "veyra/render/damage_tracker.hpp"
+#include "veyra/render/common/damage_tracker.hpp"
 
 #include <algorithm>
 #include <cmath>

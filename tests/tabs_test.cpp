@@ -1,4 +1,4 @@
-#include "veyra/behaviors/tabs.hpp"
+#include "veyra/behaviors/selection/tabs.hpp"
 
 #include <array>
 #include <cstdint>

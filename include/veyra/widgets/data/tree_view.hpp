@@ -1,9 +1,9 @@
 #ifndef VEYRA_WIDGETS_DATA_TREE_VIEW_HPP
 #define VEYRA_WIDGETS_DATA_TREE_VIEW_HPP
 
-#include "veyra/behaviors/tree_cursor.hpp"
+#include "veyra/behaviors/selection/tree_cursor.hpp"
 #include "veyra/layout/geometry.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 
 #include <cstddef>

@@ -2,7 +2,7 @@
 #define VEYRA_FILES_FILE_THUMBNAIL_CACHE_HPP
 
 #include "veyra/files/file_id.hpp"
-#include "veyra/render/bounded_image_cache.hpp"
+#include "veyra/render/common/bounded_image_cache.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -1,4 +1,4 @@
-#include "veyra/behaviors/focus_chain.hpp"
+#include "veyra/behaviors/navigation/focus_chain.hpp"
 
 #include <cstddef>
 #include <cstdint>

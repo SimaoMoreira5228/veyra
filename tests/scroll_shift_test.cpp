@@ -1,8 +1,8 @@
 #include "scroll_surface_helpers.hpp"
-#include "veyra/render/scroll_shift.hpp"
+#include "veyra/render/common/scroll_shift.hpp"
 
-#include "veyra/render/damage_tracker.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/common/damage_tracker.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <cstdint>

@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_DOCK_HPP
 #define VEYRA_LAYOUT_DOCK_HPP
 
-#include "veyra/behaviors/tabs.hpp"
+#include "veyra/behaviors/selection/tabs.hpp"
 #include "veyra/layout/geometry.hpp"
 
 #include <array>

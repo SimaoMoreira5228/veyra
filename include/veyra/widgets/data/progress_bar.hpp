@@ -1,9 +1,9 @@
 #ifndef VEYRA_WIDGETS_DATA_PROGRESS_BAR_HPP
 #define VEYRA_WIDGETS_DATA_PROGRESS_BAR_HPP
 
-#include "veyra/behaviors/progress.hpp"
+#include "veyra/behaviors/control/progress.hpp"
 #include "veyra/layout/geometry.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme.hpp"
 
 #include <cstddef>

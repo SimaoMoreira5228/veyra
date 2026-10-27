@@ -1,7 +1,7 @@
 #ifndef VEYRA_BENCH_E3_SCENES_FIXTURES_HPP
 #define VEYRA_BENCH_E3_SCENES_FIXTURES_HPP
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <cstddef>

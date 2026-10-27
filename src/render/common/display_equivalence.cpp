@@ -1,6 +1,6 @@
-#include "veyra/render/display_equivalence.hpp"
+#include "veyra/render/common/display_equivalence.hpp"
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <bit>
 #include <cstddef>

@@ -1,6 +1,6 @@
-#include "veyra/render/display_batches.hpp"
+#include "veyra/render/common/display_batches.hpp"
 
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <cstddef>

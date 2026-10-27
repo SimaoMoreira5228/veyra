@@ -1,5 +1,5 @@
-#include "veyra/behaviors/editable_text.hpp"
-#include "veyra/platform/null_window.hpp"
+#include "veyra/behaviors/input/editable_text.hpp"
+#include "veyra/platform/headless/null_window.hpp"
 
 #include <array>
 #include <iostream>

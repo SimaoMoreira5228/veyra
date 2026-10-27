@@ -1,10 +1,10 @@
 #ifndef VEYRA_TESTS_SDL_GPU_PARITY_HELPERS_HPP
 #define VEYRA_TESTS_SDL_GPU_PARITY_HELPERS_HPP
 
-#include "veyra/platform/sdl3_gpu_present.hpp"
-#include "veyra/platform/sdl3_window.hpp"
-#include "veyra/render/sdl_gpu_renderer.hpp"
-#include "veyra/render/software_renderer.hpp"
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
+#include "veyra/platform/sdl3/sdl3_window.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>
 #include <chrono>

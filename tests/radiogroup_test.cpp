@@ -1,4 +1,4 @@
-#include "veyra/behaviors/radiogroup.hpp"
+#include "veyra/behaviors/input/radiogroup.hpp"
 
 #include <array>
 #include <iostream>

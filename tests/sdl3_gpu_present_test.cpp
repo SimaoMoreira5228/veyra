@@ -1,6 +1,6 @@
-#include "veyra/platform/sdl3_gpu_present.hpp"
-#include "veyra/platform/sdl3_window.hpp"
-#include "veyra/render/present_choice.hpp"
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
+#include "veyra/platform/sdl3/sdl3_window.hpp"
+#include "veyra/render/common/present_choice.hpp"
 
 #include <SDL3/SDL.h>
 

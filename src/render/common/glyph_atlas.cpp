@@ -1,4 +1,4 @@
-#include "veyra/render/glyph_atlas.hpp"
+#include "veyra/render/common/glyph_atlas.hpp"
 
 #include <algorithm>
 #include <cassert>
