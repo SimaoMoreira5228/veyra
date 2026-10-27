@@ -1,5 +1,5 @@
 #include "veyra/platform/headless/null_window.hpp"
-#include "veyra/platform/run_loop.hpp"
+#include "veyra/platform/core/run_loop.hpp"
 
 #include <array>
 #include <chrono>

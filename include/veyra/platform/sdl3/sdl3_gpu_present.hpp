@@ -2,7 +2,7 @@
 #define VEYRA_PLATFORM_SDL3_GPU_PRESENT_HPP
 
 #include "veyra/platform/sdl3/sdl3_window.hpp"
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 
 #include <cstddef>
 #include <cstdint>

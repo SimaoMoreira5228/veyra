@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_GLFW_WINDOW_HPP
 #define VEYRA_PLATFORM_GLFW_WINDOW_HPP
 
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 
 #include <array>
 #include <cstddef>

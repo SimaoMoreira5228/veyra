@@ -2,7 +2,7 @@
 #define VEYRA_PLATFORM_NULL_WINDOW_HPP
 
 #include "veyra/platform/headless/fake_services.hpp"
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 
 #include <array>
 #include <cstddef>

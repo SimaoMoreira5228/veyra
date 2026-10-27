@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_FAKE_SERVICES_HPP
 #define VEYRA_PLATFORM_FAKE_SERVICES_HPP
 
-#include "veyra/platform/notice.hpp"
+#include "veyra/platform/core/notice.hpp"
 
 #include <array>
 #include <concepts>

@@ -2,7 +2,7 @@
 #define VEYRA_PLATFORM_WINDOW_ROUTER_HPP
 
 #include "veyra/core/tree/node_id_pool.hpp"
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_SDL3_TRANSLATE_HPP
 #define VEYRA_PLATFORM_SDL3_TRANSLATE_HPP
 
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 
 #include <SDL3/SDL.h>
 

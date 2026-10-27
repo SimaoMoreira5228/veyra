@@ -1,7 +1,7 @@
 #ifndef VEYRA_RENDER_SDL_GPU_RENDERER_HPP
 #define VEYRA_RENDER_SDL_GPU_RENDERER_HPP
 
-#include "veyra/platform/window.hpp"
+#include "veyra/platform/core/window.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <cstddef>

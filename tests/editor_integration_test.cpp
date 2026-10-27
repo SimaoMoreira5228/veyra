@@ -1,4 +1,4 @@
-#include "veyra/platform/text_input.hpp"
+#include "veyra/platform/core/text_input.hpp"
 #include "veyra/text/editing/editor_viewport.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"
 

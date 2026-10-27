@@ -1,12 +1,12 @@
 if(VEYRA_WITH_FILESYSTEM)
  find_package(Threads REQUIRED)
  add_library(veyra_filesystem STATIC
-  src/files/directory_enumerator.cpp
-  src/files/directory_history.cpp
-  src/files/directory_watcher.cpp
-  src/files/file_shell.cpp
-  src/files/file_metadata.cpp
-  src/files/file_thumbnail_queue.cpp
+  src/files/enumeration/directory_enumerator.cpp
+  src/files/listing/directory_history.cpp
+  src/files/enumeration/directory_watcher.cpp
+  src/files/shell/file_shell.cpp
+  src/files/listing/file_metadata.cpp
+  src/files/thumbnails/file_thumbnail_queue.cpp
  )
  target_include_directories(veyra_filesystem PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
  target_link_libraries(veyra_filesystem PUBLIC veyra Threads::Threads)
