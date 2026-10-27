@@ -1,4 +1,4 @@
-#include "veyra/media/animation_frame_cache.hpp"
+#include "veyra/media/animation/animation_frame_cache.hpp"
 
 #include <array>
 #include <iostream>

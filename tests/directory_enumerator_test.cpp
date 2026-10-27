@@ -1,4 +1,4 @@
-#include "veyra/files/directory_enumerator.hpp"
+#include "veyra/files/enumeration/directory_enumerator.hpp"
 
 #include <algorithm>
 #include <atomic>

@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_EDITABLE_TEXT_HPP
 #define VEYRA_BEHAVIORS_EDITABLE_TEXT_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <cstddef>

@@ -1,5 +1,5 @@
-#include "veyra/files/directory_enumerator.hpp"
-#include "veyra/files/file_thumbnail_queue.hpp"
+#include "veyra/files/enumeration/directory_enumerator.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_queue.hpp"
 
 #include <algorithm>
 #include <array>

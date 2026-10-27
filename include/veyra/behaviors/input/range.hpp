@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_RANGE_HPP
 #define VEYRA_BEHAVIORS_RANGE_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <cstdint>
 #include <string_view>

@@ -1,4 +1,4 @@
-#include "veyra/media/animation_timeline.hpp"
+#include "veyra/media/animation/animation_timeline.hpp"
 
 #include <array>
 #include <cstdint>

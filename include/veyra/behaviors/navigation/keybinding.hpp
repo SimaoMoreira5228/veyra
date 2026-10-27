@@ -2,7 +2,7 @@
 #define VEYRA_BEHAVIORS_KEYBINDING_HPP
 
 #include "veyra/behaviors/navigation/combobox.hpp"
-#include "veyra/core/shortcut_map.hpp"
+#include "veyra/core/input/shortcut_map.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -1,7 +1,7 @@
 #include "scroll_surface_helpers.hpp"
 #include "veyra/render/display/display_equivalence.hpp"
 
-#include "veyra/inspector/trace_recorder.hpp"
+#include "veyra/inspector/trace/trace_recorder.hpp"
 #include "veyra/render/damage/scroll_shift.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 

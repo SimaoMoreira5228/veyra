@@ -2,7 +2,7 @@
 #define VEYRA_RENDER_SOFTWARE_RENDERER_HPP
 
 #include "veyra/layout/core/geometry.hpp"
-#include "veyra/style/color.hpp"
+#include "veyra/style/theme/color.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -5,11 +5,11 @@
 #include "veyra/behaviors/input/editable_text.hpp"
 #include "veyra/behaviors/navigation/focus_chain.hpp"
 #include "veyra/behaviors/overlay/overlay.hpp"
-#include "veyra/core/shortcut_map.hpp"
+#include "veyra/core/input/shortcut_map.hpp"
 #include "veyra/platform/text_input.hpp"
 #include "veyra/platform/window.hpp"
-#include "veyra/style/theme.hpp"
-#include "veyra/style/theme_file.hpp"
+#include "veyra/style/theme/theme.hpp"
+#include "veyra/style/theme/theme_file.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"
 
 #include <array>

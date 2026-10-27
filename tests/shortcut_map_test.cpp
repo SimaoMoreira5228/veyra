@@ -1,5 +1,5 @@
-#include "veyra/core/shortcut_map.hpp"
-#include "veyra/core/shortcut_sequence.hpp"
+#include "veyra/core/input/shortcut_map.hpp"
+#include "veyra/core/input/shortcut_sequence.hpp"
 
 #include <array>
 #include <cstddef>

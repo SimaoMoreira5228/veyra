@@ -4,7 +4,7 @@
 #include "veyra/layout/core/geometry.hpp"
 #include "veyra/layout/image/image_fit.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
-#include "veyra/style/theme.hpp"
+#include "veyra/style/theme/theme.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -8,7 +8,7 @@
 #include <string_view>
 
 #ifdef VEYRA_EDITABLE_TEXT_HAS_UNICODE
-#include "veyra/text/grapheme.hpp"
+#include "veyra/text/shaping/grapheme.hpp"
 #endif
 
 namespace {

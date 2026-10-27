@@ -1,4 +1,4 @@
-#include "veyra/media/animation_interpolation.hpp"
+#include "veyra/media/animation/animation_interpolation.hpp"
 
 #include <cmath>
 #include <cstdint>

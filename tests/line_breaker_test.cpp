@@ -1,4 +1,4 @@
-#include "veyra/text/line_breaker.hpp"
+#include "veyra/text/shaping/line_breaker.hpp"
 
 #include <array>
 #include <iostream>

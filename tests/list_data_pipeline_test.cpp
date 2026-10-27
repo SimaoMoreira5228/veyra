@@ -1,4 +1,4 @@
-#include "veyra/data/list_pipeline.hpp"
+#include "veyra/data/pipeline/list_pipeline.hpp"
 
 #include <array>
 #include <cstddef>

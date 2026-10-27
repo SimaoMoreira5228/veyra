@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_ICON_VIEW_HPP
 #define VEYRA_BEHAVIORS_ICON_VIEW_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <array>

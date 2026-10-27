@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_BASIC_BUTTON_HPP
 
 #include "veyra/behaviors/control/pressable.hpp"
-#include "veyra/style/theme.hpp"
+#include "veyra/style/theme/theme.hpp"
 
 namespace veyra {
 

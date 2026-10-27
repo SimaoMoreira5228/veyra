@@ -1,4 +1,4 @@
-#include "veyra/text/font_fallback.hpp"
+#include "veyra/text/shaping/font_fallback.hpp"
 
 #include <array>
 #include <cstdint>

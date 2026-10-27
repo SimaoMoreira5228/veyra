@@ -1,5 +1,5 @@
-#include "veyra/files/file_list.hpp"
-#include "veyra/files/file_thumbnail_cache.hpp"
+#include "veyra/files/listing/file_list.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_cache.hpp"
 
 #include <algorithm>
 #include <array>

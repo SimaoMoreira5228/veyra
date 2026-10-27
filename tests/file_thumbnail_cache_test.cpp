@@ -1,4 +1,4 @@
-#include "veyra/files/file_thumbnail_cache.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_cache.hpp"
 
 #include <array>
 #include <iostream>

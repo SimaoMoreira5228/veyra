@@ -1,4 +1,4 @@
-#include "veyra/text/bidi_resolver.hpp"
+#include "veyra/text/shaping/bidi_resolver.hpp"
 
 #include <array>
 #include <iostream>

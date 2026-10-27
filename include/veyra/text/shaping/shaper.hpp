@@ -1,7 +1,7 @@
 #ifndef VEYRA_TEXT_SHAPER_HPP
 #define VEYRA_TEXT_SHAPER_HPP
 
-#include "veyra/text/direction.hpp"
+#include "veyra/text/shaping/direction.hpp"
 
 #include <hb.h>
 

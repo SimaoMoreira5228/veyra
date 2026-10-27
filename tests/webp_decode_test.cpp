@@ -1,4 +1,4 @@
-#include "veyra/media/image_codecs.hpp"
+#include "veyra/media/codec/image_codecs.hpp"
 
 #include <webp/encode.h>
 #include <webp/mux.h>

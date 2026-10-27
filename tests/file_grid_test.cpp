@@ -1,12 +1,12 @@
-#include "veyra/services/shell.hpp"
+#include "veyra/services/shell/shell.hpp"
 
 #include "veyra/behaviors/data/icon_view.hpp"
 #include "veyra/behaviors/selection/selection.hpp"
 #include "veyra/behaviors/selection/selection_typeahead.hpp"
-#include "veyra/data/list_pipeline.hpp"
-#include "veyra/data/server_rows.hpp"
-#include "veyra/files/file_list.hpp"
-#include "veyra/files/file_thumbnail_cache.hpp"
+#include "veyra/data/pipeline/list_pipeline.hpp"
+#include "veyra/data/source/server_rows.hpp"
+#include "veyra/files/listing/file_list.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_cache.hpp"
 #include "veyra/widgets/data/icon_view.hpp"
 
 #include <array>

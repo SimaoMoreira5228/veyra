@@ -1,4 +1,4 @@
-#include "veyra/style/theme.hpp"
+#include "veyra/style/theme/theme.hpp"
 
 #include <cstddef>
 #include <iostream>

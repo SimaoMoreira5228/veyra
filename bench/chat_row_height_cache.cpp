@@ -1,4 +1,4 @@
-#include "veyra/chat/row_height_cache.hpp"
+#include "veyra/chat/rows/row_height_cache.hpp"
 
 #include <algorithm>
 #include <array>

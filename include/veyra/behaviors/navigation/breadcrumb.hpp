@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_BREADCRUMB_HPP
 #define VEYRA_BEHAVIORS_BREADCRUMB_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <cstddef>
 #include <cstdint>

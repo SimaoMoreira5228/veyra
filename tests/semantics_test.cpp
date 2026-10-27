@@ -1,4 +1,4 @@
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <array>
 #include <iostream>

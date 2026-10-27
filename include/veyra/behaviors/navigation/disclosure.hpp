@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_DISCLOSURE_HPP
 #define VEYRA_BEHAVIORS_DISCLOSURE_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <array>
 #include <cstddef>

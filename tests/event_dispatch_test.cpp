@@ -1,4 +1,4 @@
-#include "veyra/core/event_dispatch.hpp"
+#include "veyra/core/event/event_dispatch.hpp"
 
 #include <array>
 #include <cstdint>

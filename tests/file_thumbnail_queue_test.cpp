@@ -1,4 +1,4 @@
-#include "veyra/files/file_thumbnail_queue.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_queue.hpp"
 
 #include <array>
 #include <iostream>

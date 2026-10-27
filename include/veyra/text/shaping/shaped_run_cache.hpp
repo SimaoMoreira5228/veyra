@@ -1,7 +1,7 @@
 #ifndef VEYRA_TEXT_SHAPED_RUN_CACHE_HPP
 #define VEYRA_TEXT_SHAPED_RUN_CACHE_HPP
 
-#include "veyra/text/direction.hpp"
+#include "veyra/text/shaping/direction.hpp"
 #include "veyra/text/shaping/shaper.hpp"
 
 #include <cstddef>

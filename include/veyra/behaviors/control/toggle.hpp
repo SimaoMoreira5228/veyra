@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_TOGGLE_HPP
 #define VEYRA_BEHAVIORS_TOGGLE_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <cstdint>
 #include <string_view>

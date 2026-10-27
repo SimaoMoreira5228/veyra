@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_BASIC_TEXTFIELD_HPP
 
 #include "veyra/behaviors/input/editable_text.hpp"
-#include "veyra/style/theme.hpp"
+#include "veyra/style/theme/theme.hpp"
 
 namespace veyra {
 

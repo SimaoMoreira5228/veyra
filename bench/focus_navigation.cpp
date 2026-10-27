@@ -1,4 +1,4 @@
-#include "veyra/core/focus_navigation.hpp"
+#include "veyra/core/event/focus_navigation.hpp"
 
 #include <algorithm>
 #include <charconv>

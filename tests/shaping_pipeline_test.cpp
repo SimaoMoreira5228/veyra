@@ -1,6 +1,6 @@
-#include "veyra/text/bidi_resolver.hpp"
-#include "veyra/text/font_fallback.hpp"
-#include "veyra/text/line_breaker.hpp"
+#include "veyra/text/shaping/bidi_resolver.hpp"
+#include "veyra/text/shaping/font_fallback.hpp"
+#include "veyra/text/shaping/line_breaker.hpp"
 #include "veyra/text/shaping/shaper.hpp"
 
 #include <array>

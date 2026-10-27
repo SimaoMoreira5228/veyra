@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_BASIC_TOGGLE_HPP
 
 #include "veyra/behaviors/control/toggle.hpp"
-#include "veyra/style/theme.hpp"
+#include "veyra/style/theme/theme.hpp"
 
 namespace veyra {
 

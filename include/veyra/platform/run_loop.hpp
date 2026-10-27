@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_RUN_LOOP_HPP
 #define VEYRA_PLATFORM_RUN_LOOP_HPP
 
-#include "veyra/core/frame_scheduler.hpp"
+#include "veyra/core/schedule/frame_scheduler.hpp"
 #include "veyra/platform/window.hpp"
 
 #include <chrono>

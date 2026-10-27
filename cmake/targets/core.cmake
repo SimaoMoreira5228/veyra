@@ -1,18 +1,18 @@
 add_library(veyra STATIC
- src/chat/message_change_queue.cpp
- src/chat/row_height_cache.cpp
- src/files/file_list.cpp
- src/inspector/trace_recorder.cpp
- src/media/animation_frame_cache.cpp
- src/media/animation_timeline.cpp
- src/core/focus_navigation.cpp
- src/core/frame_scheduler.cpp
- src/core/hit_test.cpp
- src/core/node_id_pool.cpp
- src/core/node_tree.cpp
- src/core/semantics.cpp
- src/core/shortcut_map.cpp
- src/core/shortcut_sequence.cpp
+ src/chat/message/message_change_queue.cpp
+ src/chat/rows/row_height_cache.cpp
+ src/files/listing/file_list.cpp
+ src/inspector/trace/trace_recorder.cpp
+ src/media/animation/animation_frame_cache.cpp
+ src/media/animation/animation_timeline.cpp
+ src/core/event/focus_navigation.cpp
+ src/core/schedule/frame_scheduler.cpp
+ src/core/event/hit_test.cpp
+ src/core/tree/node_id_pool.cpp
+ src/core/tree/node_tree.cpp
+ src/core/semantics/semantics.cpp
+ src/core/input/shortcut_map.cpp
+ src/core/input/shortcut_sequence.cpp
  src/layout/responsive/breakpoints.cpp
  src/layout/responsive/container_queries.cpp
  src/layout/panels/dock.cpp
@@ -62,11 +62,11 @@ target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_link_libraries(veyra_behaviors PUBLIC veyra)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
 
-add_library(veyra_data STATIC src/data/list_pipeline.cpp src/data/server_rows.cpp src/services/shell.cpp)
+add_library(veyra_data STATIC src/data/pipeline/list_pipeline.cpp src/data/source/server_rows.cpp src/services/shell/shell.cpp)
 target_include_directories(veyra_data PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra_data PUBLIC cxx_std_23)
 
-add_library(veyra_style STATIC src/style/theme.cpp src/style/theme_file.cpp)
+add_library(veyra_style STATIC src/style/theme/theme.cpp src/style/theme/theme_file.cpp)
 target_include_directories(veyra_style PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )

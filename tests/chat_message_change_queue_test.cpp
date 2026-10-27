@@ -1,4 +1,4 @@
-#include "veyra/chat/message_change_queue.hpp"
+#include "veyra/chat/message/message_change_queue.hpp"
 
 #include <array>
 #include <atomic>

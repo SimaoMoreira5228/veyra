@@ -1,7 +1,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#include "veyra/media/image_codecs.hpp"
+#include "veyra/media/codec/image_codecs.hpp"
 
 #include <array>
 #include <cstddef>

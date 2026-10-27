@@ -1,5 +1,5 @@
-#include "veyra/core/frame_scheduler.hpp"
-#include "veyra/media/animation_timeline.hpp"
+#include "veyra/core/schedule/frame_scheduler.hpp"
+#include "veyra/media/animation/animation_timeline.hpp"
 
 #include <array>
 #include <chrono>

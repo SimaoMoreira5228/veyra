@@ -1,4 +1,4 @@
-#include "veyra/inspector/trace_recorder.hpp"
+#include "veyra/inspector/trace/trace_recorder.hpp"
 
 #include <array>
 #include <iostream>

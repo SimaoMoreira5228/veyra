@@ -1,4 +1,4 @@
-#include "veyra/core/node_tree.hpp"
+#include "veyra/core/tree/node_tree.hpp"
 
 #include <array>
 #include <cstdint>

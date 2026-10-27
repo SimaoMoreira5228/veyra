@@ -3,7 +3,7 @@
 
 #include "app_model.hpp"
 #include "veyra/behaviors/control/pressable.hpp"
-#include "veyra/core/frame_scheduler.hpp"
+#include "veyra/core/schedule/frame_scheduler.hpp"
 #include "veyra/platform/headless/null_window.hpp"
 #include "veyra/platform/run_loop.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"

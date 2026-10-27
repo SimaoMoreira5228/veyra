@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_WINDOW_HPP
 #define VEYRA_PLATFORM_WINDOW_HPP
 
-#include "veyra/core/shortcut_map.hpp"
+#include "veyra/core/input/shortcut_map.hpp"
 #include "veyra/layout/core/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 

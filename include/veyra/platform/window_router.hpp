@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_WINDOW_ROUTER_HPP
 #define VEYRA_PLATFORM_WINDOW_ROUTER_HPP
 
-#include "veyra/core/node_id_pool.hpp"
+#include "veyra/core/tree/node_id_pool.hpp"
 #include "veyra/platform/window.hpp"
 
 #include <cstddef>

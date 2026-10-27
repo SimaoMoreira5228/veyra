@@ -1,7 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_COMMAND_PALETTE_HPP
 #define VEYRA_BEHAVIORS_COMMAND_PALETTE_HPP
 
-#include "veyra/core/semantics.hpp"
+#include "veyra/core/semantics/semantics.hpp"
 
 #include <array>
 #include <cstddef>

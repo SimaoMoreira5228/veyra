@@ -1,10 +1,10 @@
 #include "allocation_counter.hpp"
-#include "veyra/chat/message_change_queue.hpp"
-#include "veyra/chat/row_height_cache.hpp"
-#include "veyra/files/file_list.hpp"
+#include "veyra/chat/message/message_change_queue.hpp"
+#include "veyra/chat/rows/row_height_cache.hpp"
+#include "veyra/files/listing/file_list.hpp"
 #include "veyra/layout/scroll/virtual_list.hpp"
 #ifdef VEYRA_AUDIT_FILESYSTEM
-#include "veyra/files/file_thumbnail_queue.hpp"
+#include "veyra/files/thumbnails/file_thumbnail_queue.hpp"
 #endif
 
 #include <array>

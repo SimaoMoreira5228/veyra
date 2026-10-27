@@ -1,12 +1,12 @@
 #include "allocation_counter.hpp"
 #include "veyra/behaviors/data/log_feed.hpp"
 #include "veyra/behaviors/control/scroll.hpp"
-#include "veyra/chat/message_change_queue.hpp"
-#include "veyra/chat/row_height_cache.hpp"
+#include "veyra/chat/message/message_change_queue.hpp"
+#include "veyra/chat/rows/row_height_cache.hpp"
 #include "veyra/layout/scroll/virtual_list.hpp"
-#include "veyra/media/animation_frame_cache.hpp"
-#include "veyra/media/animation_timeline.hpp"
-#include "veyra/media/image_codecs.hpp"
+#include "veyra/media/animation/animation_frame_cache.hpp"
+#include "veyra/media/animation/animation_timeline.hpp"
+#include "veyra/media/codec/image_codecs.hpp"
 #include "veyra/widgets/data/log_feed.hpp"
 
 #include <array>

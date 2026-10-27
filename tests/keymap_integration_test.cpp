@@ -1,6 +1,6 @@
 #include "veyra/behaviors/navigation/command_palette.hpp"
 #include "veyra/behaviors/navigation/focus_chain.hpp"
-#include "veyra/core/shortcut_map.hpp"
+#include "veyra/core/input/shortcut_map.hpp"
 
 #include <array>
 #include <cstddef>

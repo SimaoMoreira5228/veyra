@@ -1,4 +1,4 @@
-#include "veyra/text/grapheme.hpp"
+#include "veyra/text/shaping/grapheme.hpp"
 
 #include <algorithm>
 #include <chrono>
