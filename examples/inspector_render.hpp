@@ -1,9 +1,11 @@
 #ifndef VEYRA_EXAMPLES_INSPECTOR_RENDER_HPP
 #define VEYRA_EXAMPLES_INSPECTOR_RENDER_HPP
 
+#include "veyra/core/semantics/semantics.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -12,8 +14,9 @@
 namespace veyra {
 
 struct InspectorView {
-    std::size_t selected{};
-    bool focused{};
+    std::span<const SemanticNode> nodes;
+    NodeId focused{};
+    bool window_focused{};
 };
 
 inline SoftwareRenderResult render_inspector(
@@ -27,13 +30,34 @@ inline SoftwareRenderResult render_inspector(
         return SoftwareRenderResult::invalid_surface;
     }
 
-    auto commands = std::array<DisplayCommand, 32>{};
+    constexpr auto header_height = 24.0F;
+    auto commands = std::array<DisplayCommand, 96>{};
     auto placed = std::size_t{};
     auto push = [&](DisplayCommand command) noexcept {
         if (placed < commands.size()) {
             commands[placed] = command;
             ++placed;
         }
+    };
+
+    auto clips = std::array<SoftwareClipRect, 1>{};
+    auto translations = std::array<LayoutPoint, 1>{};
+    auto flush = [&]() noexcept {
+        const SoftwareSurface surface{
+            .width = width,
+            .height = height,
+            .stride = width,
+            .pixels = pixels,
+        };
+        const SoftwareRenderWorkspace workspace{
+            .clips = clips,
+            .translations = translations,
+        };
+        return render_software(
+            std::span<const DisplayCommand>(commands.data(), placed),
+            surface,
+            workspace
+        );
     };
 
     push(
@@ -44,7 +68,7 @@ inline SoftwareRenderResult render_inspector(
     );
     push(
         FillRect{
-            .bounds = {.width = static_cast<float>(width), .height = 24.0F},
+            .bounds = {.width = static_cast<float>(width), .height = header_height},
             .color = theme.color(tokens::color_action_primary),
         }
     );
@@ -56,68 +80,66 @@ inline SoftwareRenderResult render_inspector(
                  .width = static_cast<float>(width) - 1.0F,
                  .height = static_cast<float>(height) - 1.0F},
             .thickness = 1.0F,
-            .color = view.focused ? theme.color(tokens::color_action_hovered)
-                                  : theme.color(tokens::color_action_disabled),
+            .color = view.window_focused ? theme.color(tokens::color_action_hovered)
+                                         : theme.color(tokens::color_action_disabled),
         }
     );
 
-    const auto row_height = 18.0F;
-    const auto row_top = 34.0F;
-    for (auto index = std::size_t{}; index < 6; ++index) {
-        const auto top = row_top + static_cast<float>(index) * row_height;
-        const auto selected = index == view.selected;
-        push(
-            FillRect{
-                .bounds =
-                    {.x = 8.0F,
-                     .y = top,
-                     .width = static_cast<float>(width) - 16.0F,
-                     .height = row_height - 3.0F},
-                .color = selected ? theme.color(tokens::color_action_primary)
-                                  : theme.color(tokens::color_surface),
-            }
-        );
-        push(
-            FillRect{
-                .bounds =
-                    {.x = 14.0F,
-                     .y = top + 6.0F,
-                     .width = 34.0F + static_cast<float>((index * 17U) % 96U),
-                     .height = 4.0F},
-                .color = selected ? theme.color(tokens::color_action_on_primary)
-                                  : theme.color(tokens::color_text_disabled),
-            }
-        );
-        push(
-            FillRect{
-                .bounds =
-                    {.x = 64.0F,
-                     .y = top + 11.0F,
-                     .width = 24.0F + static_cast<float>((index * 29U) % 118U),
-                     .height = 2.0F},
-                .color = selected ? theme.color(tokens::color_action_on_primary)
-                                  : theme.color(tokens::color_text_primary),
-            }
-        );
+    if (view.nodes.empty()) {
+        return flush();
     }
 
-    auto clips = std::array<SoftwareClipRect, 1>{};
-    auto translations = std::array<LayoutPoint, 1>{};
-    const SoftwareSurface surface{
-        .width = width,
-        .height = height,
-        .stride = width,
-        .pixels = pixels,
-    };
-    const SoftwareRenderWorkspace workspace{
-        .clips = clips,
-        .translations = translations,
-    };
-    return render_software(
-        std::span<const DisplayCommand>(commands.data(), placed),
-        surface,
-        workspace
+    const auto& root = view.nodes.front();
+    if (root.bounds.width <= 0.0F || root.bounds.height <= 0.0F) {
+        return flush();
+    }
+
+    const auto content_height = static_cast<float>(height) - header_height;
+    const auto scale = std::min(
+        static_cast<float>(width) / root.bounds.width,
+        content_height / root.bounds.height
     );
+
+    for (const auto& node : view.nodes) {
+        if (node.bounds.width <= 0.0F || node.bounds.height <= 0.0F) {
+            continue;
+        }
+
+        const auto x = (node.bounds.x - root.bounds.x) * scale;
+        const auto y = header_height + (node.bounds.y - root.bounds.y) * scale;
+        const auto node_width = std::min(node.bounds.width * scale, static_cast<float>(width) - x);
+        const auto node_height =
+            std::min(node.bounds.height * scale, static_cast<float>(height) - y);
+        if (node_width <= 0.0F || node_height <= 0.0F) {
+            continue;
+        }
+
+        const auto focused = node.id == view.focused;
+        push(
+            StrokeRect{
+                .bounds = {.x = x, .y = y, .width = node_width, .height = node_height},
+                .thickness = 1.0F,
+                .color = focused ? theme.color(tokens::color_action_hovered)
+                                 : theme.color(tokens::color_action_disabled),
+            }
+        );
+        if (node.id != root.id) {
+            constexpr auto inset = 2.0F;
+            push(
+                FillRect{
+                    .bounds =
+                        {.x = x + inset,
+                         .y = y + inset,
+                         .width = std::max(0.0F, node_width - inset * 2.0F),
+                         .height = std::max(0.0F, node_height - inset * 2.0F)},
+                    .color = focused ? theme.color(tokens::color_action_primary)
+                                     : theme.color(tokens::color_text_disabled),
+                }
+            );
+        }
+    }
+
+    return flush();
 }
 
 }

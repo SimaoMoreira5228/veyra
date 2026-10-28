@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
@@ -14,6 +15,21 @@ void require(bool condition, std::string_view message) {
     }
 }
 
+std::uint64_t checksum(std::span<const veyra::SoftwarePixel> pixels) noexcept {
+    auto hash = std::uint64_t{1469598103934665603U};
+    for (const auto& pixel : pixels) {
+        hash ^= pixel.red;
+        hash *= 1099511628211U;
+        hash ^= pixel.green;
+        hash *= 1099511628211U;
+        hash ^= pixel.blue;
+        hash *= 1099511628211U;
+        hash ^= pixel.alpha;
+        hash *= 1099511628211U;
+    }
+    return hash;
+}
+
 }
 
 int main() {
@@ -21,25 +37,68 @@ int main() {
         constexpr auto width = std::size_t{240};
         constexpr auto height = std::size_t{160};
         auto pixels = std::array<veyra::SoftwarePixel, width * height>{};
-        const auto result = veyra::render_inspector(
-            veyra::Theme::dark(),
-            {.selected = 2, .focused = true},
-            pixels,
-            width,
-            height
-        );
-        require(result == veyra::SoftwareRenderResult::complete, "inspector renders");
-        require(pixels[0].blue != 0, "inspector has a header surface");
-        require(pixels[100].blue != 0, "inspector body has content");
 
-        auto distinct = std::size_t{};
-        const auto first = pixels[0];
-        for (const auto& pixel : pixels) {
-            if (pixel.red != first.red || pixel.green != first.green || pixel.blue != first.blue) {
-                ++distinct;
-            }
-        }
-        require(distinct > width, "inspector is more than a flat fill");
+        const auto root = veyra::NodeId{.index = 0, .generation = 1};
+        const auto list = veyra::NodeId{.index = 1, .generation = 1};
+        const auto field = veyra::NodeId{.index = 2, .generation = 1};
+        const std::array nodes{
+            veyra::SemanticNode{
+                .id = root,
+                .role = veyra::SemanticRole::window,
+                .bounds = {.width = 480.0F, .height = 320.0F},
+            },
+            veyra::SemanticNode{
+                .id = list,
+                .parent = root,
+                .role = veyra::SemanticRole::list,
+                .bounds = {.x = 8.0F, .y = 48.0F, .width = 280.0F, .height = 264.0F},
+            },
+            veyra::SemanticNode{
+                .id = field,
+                .parent = root,
+                .role = veyra::SemanticRole::text_input,
+                .bounds = {.x = 296.0F, .y = 8.0F, .width = 176.0F, .height = 24.0F},
+            },
+        };
+
+        auto view = veyra::InspectorView{.nodes = nodes, .focused = list, .window_focused = true};
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders"
+        );
+        const auto list_focused = checksum(pixels);
+
+        view.focused = field;
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders a different focus"
+        );
+        require(checksum(pixels) != list_focused, "focus changes the inspector frame");
+
+        require(
+            veyra::render_inspector(
+                veyra::Theme::dark(),
+                {.nodes = {}, .window_focused = false},
+                std::span<veyra::SoftwarePixel>(pixels.data(), 8),
+                width,
+                height
+            ) == veyra::SoftwareRenderResult::invalid_surface,
+            "a short surface is rejected"
+        );
+
+        auto narrow = std::array<veyra::SoftwarePixel, width * height>{};
+        require(
+            veyra::render_inspector(
+                veyra::Theme::dark(),
+                {.nodes = {}, .window_focused = false},
+                narrow,
+                width,
+                height
+            ) == veyra::SoftwareRenderResult::complete,
+            "an empty snapshot still renders the frame"
+        );
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

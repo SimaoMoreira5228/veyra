@@ -1,5 +1,6 @@
 veyra_add_test(NAME inspector_render_behavior TARGET veyra_inspector_render_test SOURCES tests/inspector_render_test.cpp LIBS veyra_render veyra_style INCLUDES examples)
 veyra_add_test(NAME window_set_behavior TARGET veyra_window_set_test SOURCES tests/window_set_test.cpp LIBS veyra_app)
+veyra_add_test(NAME window_semantics_behavior TARGET veyra_window_semantics_test SOURCES tests/window_semantics_test.cpp LIBS veyra_app)
 veyra_add_test(NAME module_facade_behavior TARGET veyra_module_facade_test SOURCES tests/module_facade_test.cpp LIBS veyra)
 if(VEYRA_WITH_CODECS)
 veyra_add_test(NAME chat_view_behavior TARGET veyra_chat_view_test SOURCES tests/chat_view_test.cpp LIBS veyra veyra_behaviors veyra_widgets_basic veyra_data veyra_codecs)

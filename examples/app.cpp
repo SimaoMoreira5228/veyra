@@ -1,4 +1,5 @@
 #include "app_render.hpp"
+#include "app_semantics.hpp"
 #include "inspector_render.hpp"
 #include "veyra/text/shaping/font_discovery.hpp"
 
@@ -211,10 +212,9 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         return 1;
     }
 
-    const auto main_root = veyra::NodeId{.index = 1, .generation = 1};
-    const auto inspector_root = veyra::NodeId{.index = 100, .generation = 1};
-    app.set_accessibility_root(main_window, main_root);
-    app.set_accessibility_root(inspector, inspector_root);
+    auto semantics = veyra::AppSemantics{};
+    app.set_accessibility_root(main_window, semantics.root);
+    app.set_accessibility_root(inspector, semantics.inspector_root);
 
     auto model = veyra::AppModel{};
     model.open(
@@ -222,14 +222,12 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         fonts.source,
         theme_text
     );
-    app.set_focused_node(
-        main_window,
-        veyra::NodeId{.index = static_cast<std::uint32_t>(model.focused()), .generation = 1}
-    );
-    app.set_focused_node(inspector, inspector_root);
+    app.set_focused_node(main_window, semantics.focus_node(model.focused()));
+    app.set_focused_node(inspector, semantics.inspector_root);
 
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight> backing{};
-    static std::array<veyra::SoftwarePixel, 480 * 320> inspector_backing{};
+    static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight>
+        inspector_backing{};
 
     auto on_event = [&](veyra::WindowId window, veyra::WindowEvent& event) noexcept {
         if (event.kind == veyra::WindowEventKind::close_request) {
@@ -238,13 +236,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         }
         if (window == main_window) {
             const bool quit = model.handle_event(event);
-            app.set_focused_node(
-                main_window,
-                veyra::NodeId{
-                    .index = static_cast<std::uint32_t>(model.focused()),
-                    .generation = 1,
-                }
-            );
+            app.set_focused_node(main_window, semantics.focus_node(model.focused()));
             app.scheduler().request_immediate();
             return quit;
         }
@@ -262,9 +254,18 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                 veyra::WindowResult::ready) {
                 return {.failed = true};
             }
+
+            auto nodes = std::array<veyra::SemanticNode, 32>{};
+            auto node_count = std::size_t{};
+            if (semantics.snapshot(app.windows(), main_window, nodes, node_count) !=
+                veyra::SemanticSnapshotResult::complete) {
+                return {.failed = true};
+            }
+
             const auto view = veyra::InspectorView{
-                .selected = model.selected_row(),
-                .focused = app.windows().focused_node(inspector) == inspector_root,
+                .nodes = std::span<const veyra::SemanticNode>(nodes.data(), node_count),
+                .focused = app.windows().focused_node(main_window),
+                .window_focused = app.windows().focused_node(inspector) == semantics.inspector_root,
             };
             if (render_inspector(
                     model.theme(),

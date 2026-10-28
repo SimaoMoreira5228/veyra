@@ -36,7 +36,7 @@ enum class WindowResult : std::uint8_t {
     unsupported,
 };
 
-enum class WindowTextureFormat : std::uint32_t {
+enum class WindowTextureFormat : std::uint8_t {
     rgba8_unorm = 1U << 0U,
     rgba8_srgb = 1U << 1U,
     alpha8_coverage = 1U << 2U,
@@ -57,7 +57,7 @@ enum class WindowClipSupport : std::uint8_t {
     mask,
 };
 
-enum class WindowPresentMode : std::uint32_t {
+enum class WindowPresentMode : std::uint8_t {
     fifo = 1U << 0U,
     mailbox = 1U << 1U,
     immediate = 1U << 2U,
@@ -71,7 +71,7 @@ constexpr bool has_present_mode(std::uint32_t mask, WindowPresentMode mode) noex
     return (mask & static_cast<std::uint32_t>(mode)) != 0;
 }
 
-enum class WindowColorSpace : std::uint32_t {
+enum class WindowColorSpace : std::uint8_t {
     srgb = 1U << 0U,
 };
 
@@ -285,8 +285,20 @@ concept SoftwareSurfacePresenter =
 }
 
 namespace veyra::platform {
+using ::veyra::button_flag;
+using ::veyra::color_space_flag;
+using ::veyra::has_button;
+using ::veyra::has_color_space;
+using ::veyra::has_present_mode;
+using ::veyra::has_texture_format;
+using ::veyra::kInvalidWindowId;
+using ::veyra::kMousePointerId;
+using ::veyra::kWindowTextCommitCapacity;
+using ::veyra::kWindowTextPreeditCapacity;
 using ::veyra::PointerButton;
+using ::veyra::present_mode_flag;
 using ::veyra::TextInputArea;
+using ::veyra::texture_format_flag;
 using ::veyra::WindowCapabilities;
 using ::veyra::WindowClipSupport;
 using ::veyra::WindowColorSpace;
@@ -307,23 +319,23 @@ using ::veyra::WindowTextCommit;
 using ::veyra::WindowTextEditing;
 using ::veyra::WindowTextureFormat;
 using ::veyra::WindowWheel;
-using ::veyra::button_flag;
-using ::veyra::color_space_flag;
-using ::veyra::has_button;
-using ::veyra::has_color_space;
-using ::veyra::has_present_mode;
-using ::veyra::has_texture_format;
-using ::veyra::kInvalidWindowId;
-using ::veyra::kMousePointerId;
-using ::veyra::kWindowTextCommitCapacity;
-using ::veyra::kWindowTextPreeditCapacity;
-using ::veyra::present_mode_flag;
-using ::veyra::texture_format_flag;
 }
 
 namespace veyra::platform::core {
+using ::veyra::button_flag;
+using ::veyra::color_space_flag;
+using ::veyra::has_button;
+using ::veyra::has_color_space;
+using ::veyra::has_present_mode;
+using ::veyra::has_texture_format;
+using ::veyra::kInvalidWindowId;
+using ::veyra::kMousePointerId;
+using ::veyra::kWindowTextCommitCapacity;
+using ::veyra::kWindowTextPreeditCapacity;
 using ::veyra::PointerButton;
+using ::veyra::present_mode_flag;
 using ::veyra::TextInputArea;
+using ::veyra::texture_format_flag;
 using ::veyra::WindowCapabilities;
 using ::veyra::WindowClipSupport;
 using ::veyra::WindowColorSpace;
@@ -344,18 +356,6 @@ using ::veyra::WindowTextCommit;
 using ::veyra::WindowTextEditing;
 using ::veyra::WindowTextureFormat;
 using ::veyra::WindowWheel;
-using ::veyra::button_flag;
-using ::veyra::color_space_flag;
-using ::veyra::has_button;
-using ::veyra::has_color_space;
-using ::veyra::has_present_mode;
-using ::veyra::has_texture_format;
-using ::veyra::kInvalidWindowId;
-using ::veyra::kMousePointerId;
-using ::veyra::kWindowTextCommitCapacity;
-using ::veyra::kWindowTextPreeditCapacity;
-using ::veyra::present_mode_flag;
-using ::veyra::texture_format_flag;
 }
 
 #endif

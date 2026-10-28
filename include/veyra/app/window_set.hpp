@@ -1,5 +1,5 @@
-#ifndef VEYRA_PLATFORM_TOP_LEVEL_WINDOW_SET_HPP
-#define VEYRA_PLATFORM_TOP_LEVEL_WINDOW_SET_HPP
+#ifndef VEYRA_APP_WINDOW_SET_HPP
+#define VEYRA_APP_WINDOW_SET_HPP
 
 #include "veyra/core/tree/node_id_pool.hpp"
 #include "veyra/platform/core/window.hpp"

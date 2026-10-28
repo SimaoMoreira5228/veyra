@@ -106,7 +106,9 @@ constexpr Srgba8 mix_srgba8(Srgba8 from, Srgba8 to, float progress) noexcept {
 
     const auto mix_channel = [clamped](std::uint8_t first, std::uint8_t second) noexcept {
         const auto value = static_cast<float>(first) + static_cast<float>(second - first) * clamped;
-        return static_cast<std::uint8_t>(value + 0.5F);
+        const auto rounded = static_cast<std::uint8_t>(value);
+        const auto fraction = value - static_cast<float>(rounded);
+        return static_cast<std::uint8_t>(rounded + (fraction >= 0.5F ? 1U : 0U));
     };
 
     return {
@@ -120,7 +122,6 @@ constexpr Srgba8 mix_srgba8(Srgba8 from, Srgba8 to, float progress) noexcept {
 constexpr AnimationInvalidation invalidation_for(AnimatedProperty property) noexcept {
     switch (property) {
     case AnimatedProperty::opacity:
-        return AnimationInvalidation::none;
     case AnimatedProperty::transform:
         return AnimationInvalidation::none;
     case AnimatedProperty::color:
@@ -280,30 +281,30 @@ class ScalarAnimator {
 
 namespace veyra::media {
 using ::veyra::AnimatedProperty;
+using ::veyra::animation_clamp01;
 using ::veyra::AnimationEasing;
 using ::veyra::AnimationInvalidation;
-using ::veyra::ScalarAnimator;
-using ::veyra::animation_clamp01;
 using ::veyra::approach;
 using ::veyra::easing_position;
 using ::veyra::interpolate;
 using ::veyra::invalidation_for;
 using ::veyra::mark_animation_dirty;
 using ::veyra::mix_srgba8;
+using ::veyra::ScalarAnimator;
 }
 
 namespace veyra::media::animation {
 using ::veyra::AnimatedProperty;
+using ::veyra::animation_clamp01;
 using ::veyra::AnimationEasing;
 using ::veyra::AnimationInvalidation;
-using ::veyra::ScalarAnimator;
-using ::veyra::animation_clamp01;
 using ::veyra::approach;
 using ::veyra::easing_position;
 using ::veyra::interpolate;
 using ::veyra::invalidation_for;
 using ::veyra::mark_animation_dirty;
 using ::veyra::mix_srgba8;
+using ::veyra::ScalarAnimator;
 }
 
 #endif

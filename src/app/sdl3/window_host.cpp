@@ -57,7 +57,8 @@ WindowSetResult Sdl3WindowHost::show(WindowId window) noexcept {
         return result;
     }
 
-    if (backends_[index]->show() != WindowResult::ready) {
+    auto& backend = backends_[index];
+    if (!backend.has_value() || backend->show() != WindowResult::ready) {
         windows_.destroy(window);
         sync_backends();
         return WindowSetResult::invalid_state;
@@ -108,10 +109,11 @@ WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
 }
 
 bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) noexcept {
-    for (auto& backend : backends_) {
-        if (!backend.has_value()) {
+    for (auto& optional : backends_) {
+        if (!optional.has_value()) {
             continue;
         }
+        auto* backend = &*optional;
 
         while (backend->poll_event(event)) {
             const auto logical = logical_for_sdl(event.window);
@@ -135,7 +137,12 @@ Sdl3Window* Sdl3WindowHost::backend(WindowId window) noexcept {
         return nullptr;
     }
 
-    return backends_[index].has_value() ? &*backends_[index] : nullptr;
+    auto& backend = backends_[index];
+    if (!backend.has_value()) {
+        return nullptr;
+    }
+
+    return &*backend;
 }
 
 const Sdl3Window* Sdl3WindowHost::backend(WindowId window) const noexcept {
@@ -144,7 +151,12 @@ const Sdl3Window* Sdl3WindowHost::backend(WindowId window) const noexcept {
         return nullptr;
     }
 
-    return backends_[index].has_value() ? &*backends_[index] : nullptr;
+    const auto& backend = backends_[index];
+    if (!backend.has_value()) {
+        return nullptr;
+    }
+
+    return &*backend;
 }
 
 WindowSet& Sdl3WindowHost::windows() noexcept {
