@@ -174,6 +174,14 @@ WindowId Sdl3Window::window_id() const noexcept {
     return window_id_;
 }
 
+WindowResult Sdl3Window::show() noexcept {
+    if (!window_) {
+        return WindowResult::invalid_state;
+    }
+
+    return SDL_ShowWindow(window_.get()) ? WindowResult::ready : WindowResult::presentation_failed;
+}
+
 float Sdl3Window::logical_width() const noexcept {
     return logical_width_;
 }

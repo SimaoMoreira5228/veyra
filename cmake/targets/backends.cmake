@@ -43,6 +43,13 @@ if(VEYRA_WITH_SDL3)
  target_link_libraries(veyra_sdl3 PUBLIC veyra_platform veyra_render SDL3::SDL3)
  target_compile_features(veyra_sdl3 PUBLIC cxx_std_23)
 
+ add_library(veyra_app_sdl3 STATIC src/app/sdl3/window_host.cpp)
+ target_include_directories(veyra_app_sdl3 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ target_link_libraries(veyra_app_sdl3 PUBLIC veyra_app veyra_sdl3)
+ target_compile_features(veyra_app_sdl3 PUBLIC cxx_std_23)
+ veyra_add_test(NAME sdl3_window_host_behavior TARGET veyra_sdl3_window_host_test SOURCES tests/sdl3_window_host_test.cpp LIBS veyra_app_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+ veyra_add_test(NAME sdl3_application_behavior TARGET veyra_sdl3_application_test SOURCES tests/sdl3_application_test.cpp LIBS veyra_app_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+
  veyra_add_test(NAME sdl3_window_behavior TARGET veyra_sdl3_window_test SOURCES tests/sdl3_window_test.cpp LIBS veyra_sdl3 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 
  target_sources(veyra_sdl3 PRIVATE src/platform/sdl3/sdl3_translate.cpp)

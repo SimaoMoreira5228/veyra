@@ -143,6 +143,7 @@ bool WindowSet::info(WindowId window, WindowInfo& out) const noexcept {
         .shown = slot->shown,
         .child_count = child_count(window),
         .focused_node = slot->focused_node,
+        .accessibility_root = slot->accessibility_root,
     };
     return true;
 }
@@ -155,6 +156,25 @@ bool WindowSet::set_focused_node(WindowId window, NodeId node) noexcept {
 
     slot->focused_node = node;
     return true;
+}
+
+bool WindowSet::set_accessibility_root(WindowId window, NodeId node) noexcept {
+    auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open) {
+        return false;
+    }
+
+    slot->accessibility_root = node;
+    return true;
+}
+
+NodeId WindowSet::accessibility_root(WindowId window) const noexcept {
+    const auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open) {
+        return {};
+    }
+
+    return slot->accessibility_root;
 }
 
 NodeId WindowSet::focused_node(WindowId window) const noexcept {
@@ -231,6 +251,22 @@ std::size_t WindowSet::open_count() const noexcept {
         if (slot.state == WindowSlotState::open) {
             ++count;
         }
+    }
+
+    return count;
+}
+
+std::size_t WindowSet::open_windows(std::span<WindowId> output) const noexcept {
+    auto count = std::size_t{0};
+
+    for (const auto& slot : storage_) {
+        if (slot.state != WindowSlotState::open) {
+            continue;
+        }
+        if (count < output.size()) {
+            output[count] = slot.id;
+        }
+        ++count;
     }
 
     return count;

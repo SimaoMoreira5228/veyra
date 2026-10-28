@@ -36,6 +36,7 @@ enum class WindowSetResult : std::uint8_t {
     owner_not_visible,
     already_shown,
     capacity,
+    creation_failed,
     cancelled,
     not_dialog,
     invalid_state,
@@ -64,6 +65,7 @@ struct WindowSlot {
     bool dialog_ready{};
     std::uint64_t dialog_value{};
     NodeId focused_node{};
+    NodeId accessibility_root{};
     Theme theme{};
 };
 
@@ -75,6 +77,7 @@ struct WindowInfo {
     bool shown{};
     std::size_t child_count{};
     NodeId focused_node{};
+    NodeId accessibility_root{};
 };
 
 struct DialogOutcome {
@@ -107,6 +110,8 @@ class WindowSet {
     WindowSetResult take_dialog_outcome(WindowId window, DialogOutcome& out) noexcept;
     bool set_focused_node(WindowId window, NodeId node) noexcept;
     NodeId focused_node(WindowId window) const noexcept;
+    bool set_accessibility_root(WindowId window, NodeId node) noexcept;
+    NodeId accessibility_root(WindowId window) const noexcept;
     Theme* theme(WindowId window) noexcept;
     const Theme* theme(WindowId window) const noexcept;
 
@@ -118,6 +123,7 @@ class WindowSet {
     WindowId main_window() const noexcept;
     ShutdownMode shutdown_mode() const noexcept;
     std::size_t open_count() const noexcept;
+    std::size_t open_windows(std::span<WindowId> output) const noexcept;
     std::size_t capacity() const noexcept;
 
   private:

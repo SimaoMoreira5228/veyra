@@ -244,6 +244,15 @@ void check_window_contexts() {
     require(windows.focused_node(first) == first_node, "first window keeps its focus");
     require(windows.focused_node(second) == second_node, "second window keeps its focus");
     require(windows.focused_node(veyra::kInvalidWindowId).is_null(), "unknown focus is null");
+
+    const auto root = veyra::NodeId{.index = 3, .generation = 1};
+    require(windows.set_accessibility_root(first, root), "accessibility root is accepted");
+    require(windows.accessibility_root(first) == root, "accessibility root is stored");
+    require(windows.accessibility_root(second).is_null(), "other windows keep their own root");
+    require(
+        windows.accessibility_root(veyra::kInvalidWindowId).is_null(),
+        "unknown accessibility root is null"
+    );
 }
 
 }

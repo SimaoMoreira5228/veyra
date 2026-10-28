@@ -1,8 +1,9 @@
 #include "app_render.hpp"
+#include "inspector_render.hpp"
 #include "veyra/text/shaping/font_discovery.hpp"
 
 #if defined(VEYRA_APP_HAS_SDL3)
-#include "veyra/platform/sdl3/sdl3_window.hpp"
+#include "veyra/app/sdl3/application.hpp"
 #endif
 
 #include <array>
@@ -190,21 +191,119 @@ int run_null(const Options& options, const std::string& theme_text, const AppFon
 
 #if defined(VEYRA_APP_HAS_SDL3)
 int run_sdl(const Options& options, const std::string& theme_text, const AppFonts& fonts) {
-    auto window = veyra::Sdl3Window("veyra app", 480, 320);
-    if (window.creation_result() != veyra::WindowResult::ready) {
+    auto app = veyra::app::sdl3::Sdl3Application{};
+    auto main_window = veyra::WindowId{};
+    auto inspector = veyra::WindowId{};
+
+    if (app.create("veyra app", veyra::kAppWidth, veyra::kAppHeight, {}, main_window) !=
+        veyra::WindowSetResult::ok) {
         std::cerr << "sdl window failed to open\n";
         return 1;
     }
+    if (app.create("veyra inspector", 240, 160, {.owner = main_window}, inspector) !=
+        veyra::WindowSetResult::ok) {
+        std::cerr << "sdl inspector failed to open\n";
+        return 1;
+    }
+    if (app.show(main_window) != veyra::WindowSetResult::ok ||
+        app.show(inspector) != veyra::WindowSetResult::ok) {
+        std::cerr << "sdl window failed to show\n";
+        return 1;
+    }
+
+    const auto main_root = veyra::NodeId{.index = 1, .generation = 1};
+    const auto inspector_root = veyra::NodeId{.index = 100, .generation = 1};
+    app.set_accessibility_root(main_window, main_root);
+    app.set_accessibility_root(inspector, inspector_root);
+
     auto model = veyra::AppModel{};
     model.open(
         std::span<const std::filesystem::path>(fonts.storage.data(), fonts.count),
         fonts.source,
         theme_text
     );
-    auto scheduler = veyra::FrameScheduler{};
+    app.set_focused_node(
+        main_window,
+        veyra::NodeId{.index = static_cast<std::uint32_t>(model.focused()), .generation = 1}
+    );
+    app.set_focused_node(inspector, inspector_root);
+
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight> backing{};
+    static std::array<veyra::SoftwarePixel, 480 * 320> inspector_backing{};
+
+    auto on_event = [&](veyra::WindowId window, veyra::WindowEvent& event) noexcept {
+        if (event.kind == veyra::WindowEventKind::close_request) {
+            app.request_close(window, veyra::CloseReason::user);
+            return window == main_window;
+        }
+        if (window == main_window) {
+            const bool quit = model.handle_event(event);
+            app.set_focused_node(
+                main_window,
+                veyra::NodeId{
+                    .index = static_cast<std::uint32_t>(model.focused()),
+                    .generation = 1,
+                }
+            );
+            app.scheduler().request_immediate();
+            return quit;
+        }
+        return false;
+    };
+    auto on_frame = [&](veyra::WindowId window, bool) noexcept -> veyra::FrameAction {
+        auto* backend = app.host().backend(window);
+        if (backend == nullptr) {
+            return {.failed = true};
+        }
+
+        if (window == inspector) {
+            auto surface = veyra::SoftwareSurface{};
+            if (backend->acquire_surface(surface, inspector_backing) !=
+                veyra::WindowResult::ready) {
+                return {.failed = true};
+            }
+            const auto view = veyra::InspectorView{
+                .selected = model.selected_row(),
+                .focused = app.windows().focused_node(inspector) == inspector_root,
+            };
+            if (render_inspector(
+                    model.theme(),
+                    view,
+                    surface.pixels,
+                    surface.width,
+                    surface.height
+                ) != veyra::SoftwareRenderResult::complete) {
+                return {.failed = true};
+            }
+            if (backend->present() != veyra::WindowResult::ready) {
+                return {.failed = true};
+            }
+            return {.rendered = true};
+        }
+
+        if (window != main_window) {
+            return {};
+        }
+
+        auto surface = veyra::SoftwareSurface{};
+        if (backend->acquire_surface(surface, backing) != veyra::WindowResult::ready) {
+            return {.failed = true};
+        }
+        if (render_app(model, surface.pixels, surface.width, surface.height) !=
+            veyra::SoftwareRenderResult::complete) {
+            return {.failed = true};
+        }
+        if (backend->present() != veyra::WindowResult::ready) {
+            return {.failed = true};
+        }
+        return {.rendered = true, .quit = model.quit_requested()};
+    };
+
     const std::uint64_t cap = options.has_frames ? options.frames : 0;
-    const auto outcome = veyra::run_app(window, model, scheduler, backing, &app_sleep, cap);
+    const auto outcome = app.run(on_event, on_frame, &app_sleep, cap);
+    if (app.windows().open_count() > 0) {
+        app.request_close(main_window, veyra::CloseReason::application);
+    }
     if (!options.shot_path.empty()) {
         write_ppm(std::string(options.shot_path).c_str(), backing);
     }
@@ -214,6 +313,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     }
     return 0;
 }
+
 #endif
 
 int run(int argc, char** argv) {

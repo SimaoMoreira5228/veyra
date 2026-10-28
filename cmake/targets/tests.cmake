@@ -1,3 +1,4 @@
+veyra_add_test(NAME inspector_render_behavior TARGET veyra_inspector_render_test SOURCES tests/inspector_render_test.cpp LIBS veyra_render veyra_style INCLUDES examples)
 veyra_add_test(NAME window_set_behavior TARGET veyra_window_set_test SOURCES tests/window_set_test.cpp LIBS veyra_app)
 veyra_add_test(NAME module_facade_behavior TARGET veyra_module_facade_test SOURCES tests/module_facade_test.cpp LIBS veyra)
 if(VEYRA_WITH_CODECS)
@@ -71,7 +72,7 @@ veyra_add_test(NAME gallery_cpu_replay TARGET veyra_gallery NO_BUILD ARGS "${CMA
 veyra_add_test(NAME gallery_sdlgpu_replay TARGET veyra_gallery NO_BUILD ARGS "${CMAKE_CURRENT_BINARY_DIR}/gallery_sdlgpu.ppm" --backend sdlgpu SKIP_RETURN_CODE 77 ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 veyra_add_test(TARGET veyra_example_app SOURCES examples/app.cpp LIBS veyra_widgets_basic veyra_behaviors veyra NO_TEST DEFINES "VEYRA_APP_THEME_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/examples/app.theme\"" "VEYRA_TESTDATA_FONTS_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/testdata/fonts\"")
 if(VEYRA_WITH_SDL3)
- target_link_libraries(veyra_example_app PRIVATE veyra_sdl3)
+ target_link_libraries(veyra_example_app PRIVATE veyra_app_sdl3)
  target_compile_definitions(veyra_example_app PRIVATE VEYRA_APP_HAS_SDL3=1)
 endif()
 veyra_add_test(NAME app_replay_behavior TARGET veyra_app_replay_test SOURCES tests/app_replay_test.cpp LIBS veyra_widgets_basic veyra_behaviors veyra DEFINES "VEYRA_TESTDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/testdata\"" "VEYRA_APP_EXAMPLE_THEME=\"${CMAKE_CURRENT_SOURCE_DIR}/examples/app.theme\"")

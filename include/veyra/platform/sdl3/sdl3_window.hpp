@@ -29,6 +29,7 @@ class Sdl3Window {
     Sdl3Window& operator=(Sdl3Window&&) = delete;
 
     WindowResult creation_result() const noexcept;
+    WindowResult show() noexcept;
     WindowId window_id() const noexcept;
     float logical_width() const noexcept;
     float logical_height() const noexcept;
