@@ -83,8 +83,11 @@ target_link_libraries(veyra_chat PUBLIC veyra_foundation)
 add_library(veyra_inspector STATIC src/inspector/trace/trace_recorder.cpp)
 target_link_libraries(veyra_inspector PUBLIC veyra_foundation)
 
+add_library(veyra_app STATIC src/app/window_set.cpp)
+target_compile_features(veyra_app PUBLIC cxx_std_23)
+
 add_library(veyra INTERFACE)
-target_link_libraries(veyra INTERFACE veyra_foundation veyra_layout veyra_render veyra_text veyra_platform veyra_files veyra_media veyra_chat veyra_inspector)
+target_link_libraries(veyra INTERFACE veyra_foundation veyra_layout veyra_render veyra_text veyra_platform veyra_app veyra_files veyra_media veyra_chat veyra_inspector)
 target_include_directories(veyra INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(veyra INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra INTERFACE cxx_std_23)
@@ -111,6 +114,7 @@ target_compile_features(veyra_services PUBLIC cxx_std_23)
 
 add_library(veyra_style STATIC src/style/theme/theme.cpp src/style/theme/theme_file.cpp)
 target_link_libraries(veyra_style PUBLIC veyra_foundation)
+target_link_libraries(veyra_app PUBLIC veyra_platform veyra_style)
 target_include_directories(veyra_style PUBLIC
  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
