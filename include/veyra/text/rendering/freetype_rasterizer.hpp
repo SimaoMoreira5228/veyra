@@ -70,4 +70,24 @@ GlyphRasterizeResult rasterize_freetype_color_glyph(
 
 }
 
+namespace veyra::text {
+using ::veyra::GlyphColorImage;
+using ::veyra::GlyphRasterizeResult;
+using ::veyra::copy_freetype_bitmap;
+using ::veyra::copy_freetype_color_bitmap;
+using ::veyra::measure_freetype_glyph_bounds;
+using ::veyra::rasterize_freetype_color_glyph;
+using ::veyra::rasterize_freetype_glyph;
+}
+
+namespace veyra::text::rendering {
+using ::veyra::GlyphColorImage;
+using ::veyra::GlyphRasterizeResult;
+using ::veyra::copy_freetype_bitmap;
+using ::veyra::copy_freetype_color_bitmap;
+using ::veyra::measure_freetype_glyph_bounds;
+using ::veyra::rasterize_freetype_color_glyph;
+using ::veyra::rasterize_freetype_glyph;
+}
+
 #endif

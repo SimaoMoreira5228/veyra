@@ -75,4 +75,18 @@ class TextBidiResolver {
 
 }
 
+namespace veyra::text {
+using ::veyra::TextBidiParagraphDirection;
+using ::veyra::TextBidiResolver;
+using ::veyra::TextBidiResult;
+using ::veyra::TextBidiRun;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::TextBidiParagraphDirection;
+using ::veyra::TextBidiResolver;
+using ::veyra::TextBidiResult;
+using ::veyra::TextBidiRun;
+}
+
 #endif

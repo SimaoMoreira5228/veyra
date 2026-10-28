@@ -107,4 +107,29 @@ class ToggleController {
 };
 
 }
+
+namespace veyra::behaviors {
+using ::veyra::ToggleConfig;
+using ::veyra::ToggleController;
+using ::veyra::ToggleKey;
+using ::veyra::ToggleKind;
+using ::veyra::ToggleMode;
+using ::veyra::ToggleResult;
+using ::veyra::ToggleState;
+using ::veyra::ToggleTransition;
+using ::veyra::ToggleValue;
+}
+
+namespace veyra::behaviors::control {
+using ::veyra::ToggleConfig;
+using ::veyra::ToggleController;
+using ::veyra::ToggleKey;
+using ::veyra::ToggleKind;
+using ::veyra::ToggleMode;
+using ::veyra::ToggleResult;
+using ::veyra::ToggleState;
+using ::veyra::ToggleTransition;
+using ::veyra::ToggleValue;
+}
+
 #endif

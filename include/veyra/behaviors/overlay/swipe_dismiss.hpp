@@ -101,4 +101,16 @@ class SwipeDismiss {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::SwipeDirection;
+using ::veyra::SwipeDismiss;
+using ::veyra::SwipeDismissal;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::SwipeDirection;
+using ::veyra::SwipeDismiss;
+using ::veyra::SwipeDismissal;
+}
+
 #endif

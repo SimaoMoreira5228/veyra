@@ -46,4 +46,14 @@ class BreakpointController {
 
 }
 
+namespace veyra::layout {
+using ::veyra::BreakpointController;
+using ::veyra::BreakpointUpdate;
+}
+
+namespace veyra::layout::responsive {
+using ::veyra::BreakpointController;
+using ::veyra::BreakpointUpdate;
+}
+
 #endif

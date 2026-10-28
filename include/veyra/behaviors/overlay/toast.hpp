@@ -90,4 +90,24 @@ class ToastQueue {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::ToastAnnouncement;
+using ::veyra::ToastDismiss;
+using ::veyra::ToastKind;
+using ::veyra::ToastPush;
+using ::veyra::ToastQueue;
+using ::veyra::ToastReset;
+using ::veyra::ToastResult;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::ToastAnnouncement;
+using ::veyra::ToastDismiss;
+using ::veyra::ToastKind;
+using ::veyra::ToastPush;
+using ::veyra::ToastQueue;
+using ::veyra::ToastReset;
+using ::veyra::ToastResult;
+}
+
 #endif

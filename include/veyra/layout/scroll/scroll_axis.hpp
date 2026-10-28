@@ -32,4 +32,14 @@ class ScrollAxis {
 
 }
 
+namespace veyra::layout {
+using ::veyra::ScrollAxis;
+using ::veyra::same_scroll_generation;
+}
+
+namespace veyra::layout::scroll {
+using ::veyra::ScrollAxis;
+using ::veyra::same_scroll_generation;
+}
+
 #endif

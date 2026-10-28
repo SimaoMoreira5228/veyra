@@ -14,4 +14,12 @@ enum class TextDirection : std::uint8_t {
 
 }
 
+namespace veyra::text {
+using ::veyra::TextDirection;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::TextDirection;
+}
+
 #endif

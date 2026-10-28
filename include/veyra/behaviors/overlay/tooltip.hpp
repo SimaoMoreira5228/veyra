@@ -50,4 +50,16 @@ class TooltipController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::TooltipController;
+using ::veyra::TooltipResult;
+using ::veyra::TooltipVisibility;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::TooltipController;
+using ::veyra::TooltipResult;
+using ::veyra::TooltipVisibility;
+}
+
 #endif

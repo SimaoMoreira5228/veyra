@@ -64,4 +64,16 @@ class DisclosureController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::DisclosureController;
+using ::veyra::DisclosureResult;
+using ::veyra::DisclosureState;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::DisclosureController;
+using ::veyra::DisclosureResult;
+using ::veyra::DisclosureState;
+}
+
 #endif

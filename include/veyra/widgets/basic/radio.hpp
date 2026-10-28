@@ -17,4 +17,14 @@ RadioAppearance radio_appearance(const Theme& theme, RadioGroupState state, bool
 
 }
 
+namespace veyra::widgets {
+using ::veyra::RadioAppearance;
+using ::veyra::radio_appearance;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::RadioAppearance;
+using ::veyra::radio_appearance;
+}
+
 #endif

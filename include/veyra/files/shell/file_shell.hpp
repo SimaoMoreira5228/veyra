@@ -18,4 +18,14 @@ perform_file_shell_action(FileShellAction action, const std::filesystem::path& p
 
 }
 
+namespace veyra::files {
+using ::veyra::FileShellAction;
+using ::veyra::perform_file_shell_action;
+}
+
+namespace veyra::files::shell {
+using ::veyra::FileShellAction;
+using ::veyra::perform_file_shell_action;
+}
+
 #endif

@@ -61,4 +61,20 @@ class LogFeed {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::LogFeed;
+using ::veyra::LogFeedKind;
+using ::veyra::LogFeedPush;
+using ::veyra::LogFeedRecord;
+using ::veyra::LogFeedResult;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::LogFeed;
+using ::veyra::LogFeedKind;
+using ::veyra::LogFeedPush;
+using ::veyra::LogFeedRecord;
+using ::veyra::LogFeedResult;
+}
+
 #endif

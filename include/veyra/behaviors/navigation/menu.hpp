@@ -137,4 +137,28 @@ class MenuController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::MenuAction;
+using ::veyra::MenuActive;
+using ::veyra::MenuClose;
+using ::veyra::MenuController;
+using ::veyra::MenuItem;
+using ::veyra::MenuItemKind;
+using ::veyra::MenuMove;
+using ::veyra::MenuReset;
+using ::veyra::MenuResult;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::MenuAction;
+using ::veyra::MenuActive;
+using ::veyra::MenuClose;
+using ::veyra::MenuController;
+using ::veyra::MenuItem;
+using ::veyra::MenuItemKind;
+using ::veyra::MenuMove;
+using ::veyra::MenuReset;
+using ::veyra::MenuResult;
+}
+
 #endif

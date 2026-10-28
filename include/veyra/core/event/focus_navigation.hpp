@@ -2,7 +2,7 @@
 #define VEYRA_CORE_FOCUS_NAVIGATION_HPP
 
 #include "veyra/core/tree/node_tree.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstdint>
 #include <span>
@@ -49,6 +49,24 @@ FocusMove move_focus_spatially(
     std::span<const LayoutRect> bounds_by_node_index
 ) noexcept;
 
+}
+
+namespace veyra::core {
+using ::veyra::FocusDirection;
+using ::veyra::FocusMove;
+using ::veyra::FocusMoveResult;
+using ::veyra::SpatialFocusDirection;
+using ::veyra::move_focus;
+using ::veyra::move_focus_spatially;
+}
+
+namespace veyra::core::event {
+using ::veyra::FocusDirection;
+using ::veyra::FocusMove;
+using ::veyra::FocusMoveResult;
+using ::veyra::SpatialFocusDirection;
+using ::veyra::move_focus;
+using ::veyra::move_focus_spatially;
 }
 
 #endif

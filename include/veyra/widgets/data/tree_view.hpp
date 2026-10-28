@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_TREE_VIEW_HPP
 
 #include "veyra/behaviors/selection/tree_cursor.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -65,6 +65,28 @@ TreeViewRowsOutput emit_tree_view_rows(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::TreeViewEmitResult;
+using ::veyra::TreeViewRowAppearance;
+using ::veyra::TreeViewRowState;
+using ::veyra::TreeViewRowsGeometry;
+using ::veyra::TreeViewRowsOutput;
+using ::veyra::emit_tree_view_rows;
+using ::veyra::tree_view_required_commands;
+using ::veyra::tree_view_row_appearance;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::TreeViewEmitResult;
+using ::veyra::TreeViewRowAppearance;
+using ::veyra::TreeViewRowState;
+using ::veyra::TreeViewRowsGeometry;
+using ::veyra::TreeViewRowsOutput;
+using ::veyra::emit_tree_view_rows;
+using ::veyra::tree_view_required_commands;
+using ::veyra::tree_view_row_appearance;
 }
 
 #endif

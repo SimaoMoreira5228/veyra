@@ -2,7 +2,7 @@
 #define VEYRA_BEHAVIORS_DRAG_DROP_HPP
 
 #include "veyra/core/semantics/semantics.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstdint>
 
@@ -116,6 +116,28 @@ class DragDropController {
     DragAction accepted_{DragAction::none};
 };
 
+}
+
+namespace veyra::behaviors {
+using ::veyra::DragAction;
+using ::veyra::DragDrop;
+using ::veyra::DragDropController;
+using ::veyra::DragFeedback;
+using ::veyra::DragPhase;
+using ::veyra::DragResult;
+using ::veyra::DragState;
+using ::veyra::has_drag_action;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::DragAction;
+using ::veyra::DragDrop;
+using ::veyra::DragDropController;
+using ::veyra::DragFeedback;
+using ::veyra::DragPhase;
+using ::veyra::DragResult;
+using ::veyra::DragState;
+using ::veyra::has_drag_action;
 }
 
 #endif

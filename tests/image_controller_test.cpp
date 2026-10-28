@@ -248,35 +248,6 @@ void check_fit_composition() {
     );
 }
 
-void check_image_semantics() {
-    auto image = veyra::ImageController{};
-    auto output = veyra::SemanticNodeData{};
-
-    require(!image.write_image_semantics("avatar", output), "empty image exposes no semantics");
-
-    const auto request = image.load(31, veyra::ImageSourceKind::local, false);
-    require(!image.write_image_semantics("", output), "empty label exposes no semantics");
-    require(image.write_image_semantics("avatar", output), "loading image exposes semantics");
-    require(output.role == veyra::SemanticRole::image, "image role is reported");
-    require(output.label == "avatar", "borrowed label is reported");
-    require(
-        veyra::has_state(output.states, veyra::SemanticState::busy),
-        "loading image reports busy"
-    );
-
-    image.set_intrinsic_size(request.generation, 4.0F, 2.0F);
-    image.complete(request.generation);
-    require(image.write_image_semantics("avatar", output), "ready image exposes semantics");
-    require(output.states == 0, "ready image carries no state flags");
-
-    const auto broken = image.load(32, veyra::ImageSourceKind::local, false);
-    image.fail(broken.generation, veyra::ImageBrokenReason::decode_failed);
-    require(image.write_image_semantics("avatar", output), "broken image exposes semantics");
-    require(
-        veyra::has_state(output.states, veyra::SemanticState::invalid),
-        "broken image reports invalid"
-    );
-}
 
 }
 
@@ -290,7 +261,6 @@ int main() {
         check_source_rejection();
         check_clear_fences_completions();
         check_fit_composition();
-        check_image_semantics();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

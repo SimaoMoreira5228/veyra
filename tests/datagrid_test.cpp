@@ -1,6 +1,6 @@
 #include "veyra/behaviors/data/datagrid.hpp"
 #include "veyra/behaviors/overlay/drag_drop.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <array>
 #include <cstdint>

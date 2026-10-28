@@ -74,4 +74,16 @@ class WindowRouter {
 
 }
 
+namespace veyra::platform {
+using ::veyra::WindowRouteResult;
+using ::veyra::WindowRouteState;
+using ::veyra::WindowRouter;
+}
+
+namespace veyra::platform::core {
+using ::veyra::WindowRouteResult;
+using ::veyra::WindowRouteState;
+using ::veyra::WindowRouter;
+}
+
 #endif

@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_FLEX_HPP
 #define VEYRA_LAYOUT_FLEX_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/layout/core/measure.hpp"
 
 #include <cstdint>
@@ -107,6 +107,36 @@ FlexLayoutResult layout_flex_measured(
     std::span<LayoutRect> output
 ) noexcept;
 
+}
+
+namespace veyra::layout {
+using ::veyra::FlexAlign;
+using ::veyra::FlexAlignContent;
+using ::veyra::FlexContainer;
+using ::veyra::FlexDirection;
+using ::veyra::FlexItem;
+using ::veyra::FlexItemStyle;
+using ::veyra::FlexJustify;
+using ::veyra::FlexLayoutResult;
+using ::veyra::FlexWrap;
+using ::veyra::flex_item_constraints;
+using ::veyra::layout_flex;
+using ::veyra::layout_flex_measured;
+}
+
+namespace veyra::layout::flex {
+using ::veyra::FlexAlign;
+using ::veyra::FlexAlignContent;
+using ::veyra::FlexContainer;
+using ::veyra::FlexDirection;
+using ::veyra::FlexItem;
+using ::veyra::FlexItemStyle;
+using ::veyra::FlexJustify;
+using ::veyra::FlexLayoutResult;
+using ::veyra::FlexWrap;
+using ::veyra::flex_item_constraints;
+using ::veyra::layout_flex;
+using ::veyra::layout_flex_measured;
 }
 
 #endif

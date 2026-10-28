@@ -1,7 +1,7 @@
 #ifndef VEYRA_STYLE_THEME_HPP
 #define VEYRA_STYLE_THEME_HPP
 
-#include "veyra/style/theme/color.hpp"
+#include "veyra/foundation/color.hpp"
 
 #include <array>
 #include <cstddef>
@@ -136,6 +136,28 @@ class Theme {
     std::uint64_t version_{1};
 };
 
+}
+
+namespace veyra::style {
+using ::veyra::ColorToken;
+using ::veyra::LogicalPx;
+using ::veyra::Milliseconds;
+using ::veyra::MotionToken;
+using ::veyra::RadiusToken;
+using ::veyra::SpaceToken;
+using ::veyra::Theme;
+using ::veyra::ThemeUpdateResult;
+}
+
+namespace veyra::style::theme {
+using ::veyra::ColorToken;
+using ::veyra::LogicalPx;
+using ::veyra::Milliseconds;
+using ::veyra::MotionToken;
+using ::veyra::RadiusToken;
+using ::veyra::SpaceToken;
+using ::veyra::Theme;
+using ::veyra::ThemeUpdateResult;
 }
 
 #endif

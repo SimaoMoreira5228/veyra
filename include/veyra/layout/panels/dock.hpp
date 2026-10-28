@@ -2,7 +2,7 @@
 #define VEYRA_LAYOUT_DOCK_HPP
 
 #include "veyra/behaviors/selection/tabs.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <array>
 #include <cstddef>
@@ -147,6 +147,30 @@ class DockController {
     float bound_height_{};
 };
 
+}
+
+namespace veyra::layout {
+using ::veyra::DockController;
+using ::veyra::DockLayoutResult;
+using ::veyra::DockLeafRect;
+using ::veyra::DockRecord;
+using ::veyra::DockResult;
+using ::veyra::DockSplit;
+using ::veyra::kDockCapacity;
+using ::veyra::kDockMaxTabs;
+using ::veyra::kDockStripHeight;
+}
+
+namespace veyra::layout::panels {
+using ::veyra::DockController;
+using ::veyra::DockLayoutResult;
+using ::veyra::DockLeafRect;
+using ::veyra::DockRecord;
+using ::veyra::DockResult;
+using ::veyra::DockSplit;
+using ::veyra::kDockCapacity;
+using ::veyra::kDockMaxTabs;
+using ::veyra::kDockStripHeight;
 }
 
 #endif

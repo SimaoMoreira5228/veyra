@@ -49,4 +49,18 @@ class ProgressController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::ProgressController;
+using ::veyra::ProgressResult;
+using ::veyra::ProgressState;
+using ::veyra::ProgressTransition;
+}
+
+namespace veyra::behaviors::control {
+using ::veyra::ProgressController;
+using ::veyra::ProgressResult;
+using ::veyra::ProgressState;
+using ::veyra::ProgressTransition;
+}
+
 #endif

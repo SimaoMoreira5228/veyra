@@ -70,4 +70,26 @@ RetainedVerifyResult render_retained_scrolled_verified(
 
 }
 
+namespace veyra::render {
+using ::veyra::RetainedScrollRequest;
+using ::veyra::RetainedScrollResult;
+using ::veyra::RetainedScrollStats;
+using ::veyra::RetainedScrollSurface;
+using ::veyra::RetainedScrollVerifyStats;
+using ::veyra::RetainedVerifyResult;
+using ::veyra::render_retained_scrolled;
+using ::veyra::render_retained_scrolled_verified;
+}
+
+namespace veyra::render::damage {
+using ::veyra::RetainedScrollRequest;
+using ::veyra::RetainedScrollResult;
+using ::veyra::RetainedScrollStats;
+using ::veyra::RetainedScrollSurface;
+using ::veyra::RetainedScrollVerifyStats;
+using ::veyra::RetainedVerifyResult;
+using ::veyra::render_retained_scrolled;
+using ::veyra::render_retained_scrolled_verified;
+}
+
 #endif

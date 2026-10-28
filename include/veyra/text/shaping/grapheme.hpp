@@ -15,4 +15,14 @@ TextEditResult erase_grapheme(TextEditorBuffer& buffer, TextCursorDirection dire
 
 }
 
+namespace veyra::text {
+using ::veyra::erase_grapheme;
+using ::veyra::move_cursor_by_grapheme;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::erase_grapheme;
+using ::veyra::move_cursor_by_grapheme;
+}
+
 #endif

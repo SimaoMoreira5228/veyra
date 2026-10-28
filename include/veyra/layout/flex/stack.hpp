@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_STACK_HPP
 #define VEYRA_LAYOUT_STACK_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -47,6 +47,22 @@ StackLayoutResult layout_stack(
     std::span<LayoutRect> output
 ) noexcept;
 
+}
+
+namespace veyra::layout {
+using ::veyra::StackAlignment;
+using ::veyra::StackContainer;
+using ::veyra::StackItem;
+using ::veyra::StackLayoutResult;
+using ::veyra::layout_stack;
+}
+
+namespace veyra::layout::flex {
+using ::veyra::StackAlignment;
+using ::veyra::StackContainer;
+using ::veyra::StackItem;
+using ::veyra::StackLayoutResult;
+using ::veyra::layout_stack;
 }
 
 #endif

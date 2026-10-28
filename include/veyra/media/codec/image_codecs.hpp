@@ -65,4 +65,24 @@ ImageDecodeResult decode_image(
 
 }
 
+namespace veyra::media {
+using ::veyra::ImageDecodeBudget;
+using ::veyra::ImageDecodeInfo;
+using ::veyra::ImageDecodeResult;
+using ::veyra::ImageFormat;
+using ::veyra::ImageFrameTarget;
+using ::veyra::decode_image;
+using ::veyra::probe_image;
+}
+
+namespace veyra::media::codec {
+using ::veyra::ImageDecodeBudget;
+using ::veyra::ImageDecodeInfo;
+using ::veyra::ImageDecodeResult;
+using ::veyra::ImageFormat;
+using ::veyra::ImageFrameTarget;
+using ::veyra::decode_image;
+using ::veyra::probe_image;
+}
+
 #endif

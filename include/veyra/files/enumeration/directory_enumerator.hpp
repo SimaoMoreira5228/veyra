@@ -90,4 +90,18 @@ class DirectoryEnumerator {
 
 }
 
+namespace veyra::files {
+using ::veyra::DirectoryEntry;
+using ::veyra::DirectoryEnumerationBatch;
+using ::veyra::DirectoryEnumerationEvent;
+using ::veyra::DirectoryEnumerator;
+}
+
+namespace veyra::files::enumeration {
+using ::veyra::DirectoryEntry;
+using ::veyra::DirectoryEnumerationBatch;
+using ::veyra::DirectoryEnumerationEvent;
+using ::veyra::DirectoryEnumerator;
+}
+
 #endif

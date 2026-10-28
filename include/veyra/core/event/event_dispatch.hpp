@@ -69,4 +69,16 @@ EventDispatchResult dispatch_event(
 
 }
 
+namespace veyra::core {
+using ::veyra::EventDispatchResult;
+using ::veyra::EventPhase;
+using ::veyra::dispatch_event;
+}
+
+namespace veyra::core::event {
+using ::veyra::EventDispatchResult;
+using ::veyra::EventPhase;
+using ::veyra::dispatch_event;
+}
+
 #endif

@@ -81,4 +81,22 @@ GlyphRunResult build_mixed_glyph_draw_commands(
 
 }
 
+namespace veyra::text {
+using ::veyra::GlyphDrawKind;
+using ::veyra::GlyphRunResult;
+using ::veyra::build_color_glyph_draw_commands;
+using ::veyra::build_glyph_atlas_draws;
+using ::veyra::build_glyph_draw_commands;
+using ::veyra::build_mixed_glyph_draw_commands;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::GlyphDrawKind;
+using ::veyra::GlyphRunResult;
+using ::veyra::build_color_glyph_draw_commands;
+using ::veyra::build_glyph_atlas_draws;
+using ::veyra::build_glyph_draw_commands;
+using ::veyra::build_mixed_glyph_draw_commands;
+}
+
 #endif

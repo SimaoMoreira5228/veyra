@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_OVERLAY_TOAST_CARD_HPP
 
 #include "veyra/behaviors/overlay/toast.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -51,6 +51,28 @@ ToastCardOutput emit_toast_card(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::ToastCardAppearance;
+using ::veyra::ToastCardEmitResult;
+using ::veyra::ToastCardGeometry;
+using ::veyra::ToastCardOutput;
+using ::veyra::ToastCardState;
+using ::veyra::emit_toast_card;
+using ::veyra::kToastCardRequiredCommands;
+using ::veyra::toast_card_appearance;
+}
+
+namespace veyra::widgets::overlay {
+using ::veyra::ToastCardAppearance;
+using ::veyra::ToastCardEmitResult;
+using ::veyra::ToastCardGeometry;
+using ::veyra::ToastCardOutput;
+using ::veyra::ToastCardState;
+using ::veyra::emit_toast_card;
+using ::veyra::kToastCardRequiredCommands;
+using ::veyra::toast_card_appearance;
 }
 
 #endif

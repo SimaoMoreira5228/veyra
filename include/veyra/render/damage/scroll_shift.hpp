@@ -59,4 +59,22 @@ bool shift_surface_pixels(
 
 }
 
+namespace veyra::render {
+using ::veyra::ScrollShiftPlan;
+using ::veyra::ScrollShiftRect;
+using ::veyra::ScrollShiftRequest;
+using ::veyra::ScrollShiftResult;
+using ::veyra::resolve_scroll_shift;
+using ::veyra::shift_surface_pixels;
+}
+
+namespace veyra::render::damage {
+using ::veyra::ScrollShiftPlan;
+using ::veyra::ScrollShiftRect;
+using ::veyra::ScrollShiftRequest;
+using ::veyra::ScrollShiftResult;
+using ::veyra::resolve_scroll_shift;
+using ::veyra::shift_surface_pixels;
+}
+
 #endif

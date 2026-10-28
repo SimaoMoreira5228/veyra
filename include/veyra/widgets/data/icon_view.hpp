@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_DATA_ICON_VIEW_HPP
 #define VEYRA_WIDGETS_DATA_ICON_VIEW_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/layout/image/image_fit.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
@@ -66,6 +66,36 @@ IconOutput emit_icon(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::IconAppearance;
+using ::veyra::IconContent;
+using ::veyra::IconEmitResult;
+using ::veyra::IconGeometry;
+using ::veyra::IconOutput;
+using ::veyra::IconStyle;
+using ::veyra::emit_icon;
+using ::veyra::icon_appearance;
+using ::veyra::icon_badge_rect;
+using ::veyra::icon_badge_text;
+using ::veyra::kIconBadgeCap;
+using ::veyra::kIconBadgeTextMax;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::IconAppearance;
+using ::veyra::IconContent;
+using ::veyra::IconEmitResult;
+using ::veyra::IconGeometry;
+using ::veyra::IconOutput;
+using ::veyra::IconStyle;
+using ::veyra::emit_icon;
+using ::veyra::icon_appearance;
+using ::veyra::icon_badge_rect;
+using ::veyra::icon_badge_text;
+using ::veyra::kIconBadgeCap;
+using ::veyra::kIconBadgeTextMax;
 }
 
 #endif

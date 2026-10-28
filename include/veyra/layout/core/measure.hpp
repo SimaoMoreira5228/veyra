@@ -49,4 +49,24 @@ MeasureResult constrain_measurement(
 
 }
 
+namespace veyra::layout {
+using ::veyra::AxisConstraints;
+using ::veyra::IntrinsicSize;
+using ::veyra::LayoutConstraints;
+using ::veyra::MeasureResult;
+using ::veyra::MeasuredAxis;
+using ::veyra::MeasuredSize;
+using ::veyra::constrain_measurement;
+}
+
+namespace veyra::layout::core {
+using ::veyra::AxisConstraints;
+using ::veyra::IntrinsicSize;
+using ::veyra::LayoutConstraints;
+using ::veyra::MeasureResult;
+using ::veyra::MeasuredAxis;
+using ::veyra::MeasuredSize;
+using ::veyra::constrain_measurement;
+}
+
 #endif

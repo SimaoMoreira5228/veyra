@@ -305,4 +305,20 @@ inline ToolbarResult resolve_toolbar_overflow(
 
 }
 
+namespace veyra::layout {
+using ::veyra::ToolbarItem;
+using ::veyra::ToolbarLayout;
+using ::veyra::ToolbarRequest;
+using ::veyra::ToolbarResult;
+using ::veyra::resolve_toolbar_overflow;
+}
+
+namespace veyra::layout::panels {
+using ::veyra::ToolbarItem;
+using ::veyra::ToolbarLayout;
+using ::veyra::ToolbarRequest;
+using ::veyra::ToolbarResult;
+using ::veyra::resolve_toolbar_overflow;
+}
+
 #endif

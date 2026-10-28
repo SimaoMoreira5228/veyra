@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_DATA_VIRTUAL_LIST_HPP
 #define VEYRA_WIDGETS_DATA_VIRTUAL_LIST_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -51,6 +51,26 @@ VirtualListRowsOutput emit_virtual_list_rows(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::VirtualListEmitResult;
+using ::veyra::VirtualListRowAppearance;
+using ::veyra::VirtualListRowState;
+using ::veyra::VirtualListRowsGeometry;
+using ::veyra::VirtualListRowsOutput;
+using ::veyra::emit_virtual_list_rows;
+using ::veyra::virtual_list_row_appearance;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::VirtualListEmitResult;
+using ::veyra::VirtualListRowAppearance;
+using ::veyra::VirtualListRowState;
+using ::veyra::VirtualListRowsGeometry;
+using ::veyra::VirtualListRowsOutput;
+using ::veyra::emit_virtual_list_rows;
+using ::veyra::virtual_list_row_appearance;
 }
 
 #endif

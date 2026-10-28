@@ -165,4 +165,22 @@ class CommandPalette {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::CommandPalette;
+using ::veyra::PaletteActive;
+using ::veyra::PaletteItem;
+using ::veyra::PaletteMove;
+using ::veyra::PaletteResult;
+using ::veyra::PaletteState;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::CommandPalette;
+using ::veyra::PaletteActive;
+using ::veyra::PaletteItem;
+using ::veyra::PaletteMove;
+using ::veyra::PaletteResult;
+using ::veyra::PaletteState;
+}
+
 #endif

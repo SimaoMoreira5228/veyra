@@ -24,4 +24,10 @@ struct LayoutRect {
 
 }
 
+namespace veyra::foundation {
+using ::veyra::LayoutInsets;
+using ::veyra::LayoutPoint;
+using ::veyra::LayoutRect;
+}
+
 #endif

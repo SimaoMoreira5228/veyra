@@ -109,4 +109,32 @@ class FileListSelection {
 
 }
 
+namespace veyra::files {
+using ::veyra::FileListEntry;
+using ::veyra::FileListResult;
+using ::veyra::FileListRowIdResult;
+using ::veyra::FileListSelection;
+using ::veyra::FileListSelectionModifiers;
+using ::veyra::FileListSelectionResult;
+using ::veyra::FileListSort;
+using ::veyra::FileListSortDirection;
+using ::veyra::FileListSortKey;
+using ::veyra::build_file_list_order;
+using ::veyra::reconcile_file_list_row_ids;
+}
+
+namespace veyra::files::listing {
+using ::veyra::FileListEntry;
+using ::veyra::FileListResult;
+using ::veyra::FileListRowIdResult;
+using ::veyra::FileListSelection;
+using ::veyra::FileListSelectionModifiers;
+using ::veyra::FileListSelectionResult;
+using ::veyra::FileListSort;
+using ::veyra::FileListSortDirection;
+using ::veyra::FileListSortKey;
+using ::veyra::build_file_list_order;
+using ::veyra::reconcile_file_list_row_ids;
+}
+
 #endif

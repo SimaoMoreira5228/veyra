@@ -77,4 +77,20 @@ class KeybindingEditor {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::KeybindingClear;
+using ::veyra::KeybindingEditor;
+using ::veyra::KeybindingFeed;
+using ::veyra::KeybindingFeedResult;
+using ::veyra::KeybindingResult;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::KeybindingClear;
+using ::veyra::KeybindingEditor;
+using ::veyra::KeybindingFeed;
+using ::veyra::KeybindingFeedResult;
+using ::veyra::KeybindingResult;
+}
+
 #endif

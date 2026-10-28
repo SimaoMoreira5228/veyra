@@ -218,4 +218,39 @@ class DataGridController {
 };
 
 }
+
+namespace veyra::behaviors {
+using ::veyra::CellCursor;
+using ::veyra::CellEdit;
+using ::veyra::CellMove;
+using ::veyra::ColumnCustomization;
+using ::veyra::ColumnEdge;
+using ::veyra::DataGridColumn;
+using ::veyra::DataGridController;
+using ::veyra::DataGridDensity;
+using ::veyra::DataGridMove;
+using ::veyra::DataGridPin;
+using ::veyra::DataGridResult;
+using ::veyra::DataGridValueKind;
+using ::veyra::SortDirection;
+using ::veyra::SortSpec;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::CellCursor;
+using ::veyra::CellEdit;
+using ::veyra::CellMove;
+using ::veyra::ColumnCustomization;
+using ::veyra::ColumnEdge;
+using ::veyra::DataGridColumn;
+using ::veyra::DataGridController;
+using ::veyra::DataGridDensity;
+using ::veyra::DataGridMove;
+using ::veyra::DataGridPin;
+using ::veyra::DataGridResult;
+using ::veyra::DataGridValueKind;
+using ::veyra::SortDirection;
+using ::veyra::SortSpec;
+}
+
 #endif

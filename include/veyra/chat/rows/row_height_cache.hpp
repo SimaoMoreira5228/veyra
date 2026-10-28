@@ -59,4 +59,18 @@ class ChatRowHeightCache {
 
 }
 
+namespace veyra::chat {
+using ::veyra::ChatRowHeightCache;
+using ::veyra::ChatRowHeightCacheResult;
+using ::veyra::ChatRowHeightCacheSlot;
+using ::veyra::ChatRowHeightKey;
+}
+
+namespace veyra::chat::rows {
+using ::veyra::ChatRowHeightCache;
+using ::veyra::ChatRowHeightCacheResult;
+using ::veyra::ChatRowHeightCacheSlot;
+using ::veyra::ChatRowHeightKey;
+}
+
 #endif

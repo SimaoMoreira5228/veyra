@@ -2,7 +2,7 @@
 #define VEYRA_MEDIA_ANIMATION_INTERPOLATION_HPP
 
 #include "veyra/core/tree/node_tree.hpp"
-#include "veyra/style/theme/color.hpp"
+#include "veyra/foundation/color.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -276,6 +276,34 @@ class ScalarAnimator {
     bool reduced_motion_{};
 };
 
+}
+
+namespace veyra::media {
+using ::veyra::AnimatedProperty;
+using ::veyra::AnimationEasing;
+using ::veyra::AnimationInvalidation;
+using ::veyra::ScalarAnimator;
+using ::veyra::animation_clamp01;
+using ::veyra::approach;
+using ::veyra::easing_position;
+using ::veyra::interpolate;
+using ::veyra::invalidation_for;
+using ::veyra::mark_animation_dirty;
+using ::veyra::mix_srgba8;
+}
+
+namespace veyra::media::animation {
+using ::veyra::AnimatedProperty;
+using ::veyra::AnimationEasing;
+using ::veyra::AnimationInvalidation;
+using ::veyra::ScalarAnimator;
+using ::veyra::animation_clamp01;
+using ::veyra::approach;
+using ::veyra::easing_position;
+using ::veyra::interpolate;
+using ::veyra::invalidation_for;
+using ::veyra::mark_animation_dirty;
+using ::veyra::mix_srgba8;
 }
 
 #endif

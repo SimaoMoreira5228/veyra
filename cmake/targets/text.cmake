@@ -1,27 +1,27 @@
 if(VEYRA_WITH_TEXT)
- find_package(harfbuzz CONFIG REQUIRED)
- add_library(veyra_text STATIC
+ veyra_dependency_harfbuzz()
+ add_library(veyra_shaping STATIC
   src/text/shaping/glyph_run.cpp
   src/text/shaping/shaped_run_cache.cpp
   src/text/shaping/shaper.cpp
  )
- target_include_directories(veyra_text PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
- target_link_libraries(veyra_text PUBLIC veyra harfbuzz::harfbuzz)
- target_compile_features(veyra_text PUBLIC cxx_std_23)
+ target_include_directories(veyra_shaping PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ target_link_libraries(veyra_shaping PUBLIC veyra_text harfbuzz::harfbuzz)
+ target_compile_features(veyra_shaping PUBLIC cxx_std_23)
 
- veyra_add_test(NAME text_shaper_behavior TARGET veyra_text_shaper_test SOURCES tests/text_shaper_test.cpp LIBS veyra_text)
- veyra_add_test(NAME shaped_run_cache_behavior TARGET veyra_shaped_run_cache_test SOURCES tests/shaped_run_cache_test.cpp LIBS veyra_text)
+ veyra_add_test(NAME text_shaper_behavior TARGET veyra_text_shaper_test SOURCES tests/text_shaper_test.cpp LIBS veyra_shaping)
+ veyra_add_test(NAME shaped_run_cache_behavior TARGET veyra_shaped_run_cache_test SOURCES tests/shaped_run_cache_test.cpp LIBS veyra_shaping)
  veyra_add_test(NAME line_measure_cache_behavior TARGET veyra_line_measure_cache_test SOURCES tests/line_measure_cache_test.cpp LIBS veyra_text)
 
  if(VEYRA_BUILD_BENCH)
-  veyra_add_test(TARGET veyra_text_shaper_bench SOURCES bench/text_shaper.cpp LIBS veyra_text BENCH_DEFINES NO_TEST)
-  veyra_add_test(TARGET veyra_shaped_run_cache_bench SOURCES bench/shaped_run_cache.cpp LIBS veyra_text BENCH_DEFINES NO_TEST)
+  veyra_add_test(TARGET veyra_text_shaper_bench SOURCES bench/text_shaper.cpp LIBS veyra_shaping BENCH_DEFINES NO_TEST)
+  veyra_add_test(TARGET veyra_shaped_run_cache_bench SOURCES bench/shaped_run_cache.cpp LIBS veyra_shaping BENCH_DEFINES NO_TEST)
   veyra_add_test(NAME shaped_run_cache_benchmark_smoke TARGET veyra_shaped_run_cache_bench NO_BUILD)
  endif()
 endif()
 
 if(VEYRA_WITH_UNICODE)
- find_package(ICU 74 REQUIRED COMPONENTS i18n uc)
+ veyra_dependency_icu()
  add_library(veyra_unicode STATIC
   src/text/shaping/bidi_resolver_icu.cpp
   src/text/shaping/grapheme_icu.cpp
@@ -29,8 +29,11 @@ if(VEYRA_WITH_UNICODE)
   src/text/encoding/utf8.cpp
  )
  target_include_directories(veyra_unicode PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
- target_link_libraries(veyra_unicode PUBLIC veyra ICU::i18n ICU::uc)
+ target_link_libraries(veyra_unicode PUBLIC veyra_text ICU::i18n ICU::uc)
  target_compile_features(veyra_unicode PUBLIC cxx_std_23)
+ if(TARGET veyra_icu_build)
+  add_dependencies(veyra_unicode veyra_icu_build)
+ endif()
 
  veyra_add_test(NAME grapheme_navigation_behavior TARGET veyra_grapheme_navigation_test SOURCES tests/grapheme_navigation_test.cpp LIBS veyra_unicode)
  veyra_add_test(NAME text_line_breaker_behavior TARGET veyra_line_breaker_test SOURCES tests/line_breaker_test.cpp LIBS veyra_unicode)
@@ -42,7 +45,7 @@ if(VEYRA_WITH_UNICODE)
    veyra_font_fallback
    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   )
-  target_link_libraries(veyra_font_fallback PUBLIC veyra_text veyra_unicode)
+  target_link_libraries(veyra_font_fallback PUBLIC veyra_shaping veyra_text veyra_unicode)
   target_compile_features(veyra_font_fallback PUBLIC cxx_std_23)
 
   veyra_add_test(NAME text_font_fallback_behavior TARGET veyra_font_fallback_test SOURCES tests/font_fallback_test.cpp LIBS veyra_font_fallback)
@@ -64,13 +67,13 @@ if(VEYRA_WITH_UNICODE)
 endif()
 
 if(VEYRA_WITH_FREETYPE)
- find_package(Freetype 2.14.3 REQUIRED)
+ veyra_dependency_freetype()
  add_library(veyra_freetype STATIC src/text/rendering/freetype_rasterizer.cpp)
  target_include_directories(
   veyra_freetype
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
  )
- target_link_libraries(veyra_freetype PUBLIC veyra Freetype::Freetype)
+ target_link_libraries(veyra_freetype PUBLIC veyra_text Freetype::Freetype)
  target_compile_features(veyra_freetype PUBLIC cxx_std_23)
 
  veyra_add_test(NAME freetype_rasterizer_behavior TARGET veyra_freetype_rasterizer_test SOURCES tests/freetype_rasterizer_test.cpp LIBS veyra_freetype)

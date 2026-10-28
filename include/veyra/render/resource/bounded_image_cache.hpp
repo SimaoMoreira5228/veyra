@@ -276,4 +276,18 @@ template <typename Key, typename Hash, typename KeyValidator> class BoundedImage
 
 }
 
+namespace veyra::render {
+using ::veyra::BoundedImageCache;
+using ::veyra::BoundedImageCacheResult;
+using ::veyra::BoundedImageCacheSlot;
+using ::veyra::CachedImage;
+}
+
+namespace veyra::render::resource {
+using ::veyra::BoundedImageCache;
+using ::veyra::BoundedImageCacheResult;
+using ::veyra::BoundedImageCacheSlot;
+using ::veyra::CachedImage;
+}
+
 #endif

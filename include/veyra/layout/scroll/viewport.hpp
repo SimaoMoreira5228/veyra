@@ -55,4 +55,16 @@ class Viewport {
 
 }
 
+namespace veyra::layout {
+using ::veyra::Viewport;
+using ::veyra::ViewportInvalidation;
+using ::veyra::ViewportUpdate;
+}
+
+namespace veyra::layout::scroll {
+using ::veyra::Viewport;
+using ::veyra::ViewportInvalidation;
+using ::veyra::ViewportUpdate;
+}
+
 #endif

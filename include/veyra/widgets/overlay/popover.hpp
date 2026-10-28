@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_OVERLAY_POPOVER_HPP
 #define VEYRA_WIDGETS_OVERLAY_POPOVER_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -44,6 +44,24 @@ PopoverOutput emit_popover(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::PopoverAppearance;
+using ::veyra::PopoverEmitResult;
+using ::veyra::PopoverGeometry;
+using ::veyra::PopoverOutput;
+using ::veyra::emit_popover;
+using ::veyra::popover_appearance;
+}
+
+namespace veyra::widgets::overlay {
+using ::veyra::PopoverAppearance;
+using ::veyra::PopoverEmitResult;
+using ::veyra::PopoverGeometry;
+using ::veyra::PopoverOutput;
+using ::veyra::emit_popover;
+using ::veyra::popover_appearance;
 }
 
 #endif

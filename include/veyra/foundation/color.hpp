@@ -16,4 +16,8 @@ struct Srgba8 {
 
 }
 
+namespace veyra::foundation {
+using ::veyra::Srgba8;
+}
+
 #endif

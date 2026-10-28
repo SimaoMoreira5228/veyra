@@ -47,4 +47,14 @@ class NodeIdPool {
 
 }
 
+namespace veyra::core {
+using ::veyra::NodeId;
+using ::veyra::NodeIdPool;
+}
+
+namespace veyra::core::tree {
+using ::veyra::NodeId;
+using ::veyra::NodeIdPool;
+}
+
 #endif

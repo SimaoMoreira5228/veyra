@@ -616,4 +616,28 @@ inline SelectionResult select_tree_subtree(
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::TreeCursorMove;
+using ::veyra::TreeCursorOutcome;
+using ::veyra::TreeCursorResult;
+using ::veyra::TreeCursorRow;
+using ::veyra::TreeExpansion;
+using ::veyra::copy_tree_path;
+using ::veyra::resolve_tree_cursor;
+using ::veyra::select_tree_subtree;
+using ::veyra::tree_path_length;
+}
+
+namespace veyra::behaviors::selection {
+using ::veyra::TreeCursorMove;
+using ::veyra::TreeCursorOutcome;
+using ::veyra::TreeCursorResult;
+using ::veyra::TreeCursorRow;
+using ::veyra::TreeExpansion;
+using ::veyra::copy_tree_path;
+using ::veyra::resolve_tree_cursor;
+using ::veyra::select_tree_subtree;
+using ::veyra::tree_path_length;
+}
+
 #endif

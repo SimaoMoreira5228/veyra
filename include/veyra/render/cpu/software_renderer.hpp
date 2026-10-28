@@ -1,8 +1,9 @@
 #ifndef VEYRA_RENDER_SOFTWARE_RENDERER_HPP
 #define VEYRA_RENDER_SOFTWARE_RENDERER_HPP
 
-#include "veyra/layout/core/geometry.hpp"
-#include "veyra/style/theme/color.hpp"
+#include "veyra/foundation/geometry.hpp"
+#include "veyra/foundation/color.hpp"
+#include "veyra/foundation/image.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -49,14 +50,6 @@ struct StrokePolyline {
     float thickness{};
     DisplayColor color;
     bool closed{};
-};
-
-struct SoftwareMask {
-    std::size_t width{};
-    std::size_t height{};
-    std::size_t stride{};
-    std::span<const std::uint8_t> coverage;
-    std::uint64_t generation{};
 };
 
 struct DrawMask {
@@ -125,26 +118,6 @@ struct PushClip {
 
 struct PopClip {};
 
-struct SoftwarePixel {
-    std::uint8_t red{};
-    std::uint8_t green{};
-    std::uint8_t blue{};
-    std::uint8_t alpha{255};
-};
-
-struct SoftwareImage {
-    std::size_t width{};
-    std::size_t height{};
-    std::size_t stride{};
-    std::span<const SoftwarePixel> pixels;
-    std::uint64_t generation{};
-};
-
-enum class SoftwareImageSampling : std::uint8_t {
-    nearest,
-    linear,
-};
-
 struct DrawImage {
     LayoutRect source;
     LayoutRect destination;
@@ -168,20 +141,6 @@ using DisplayCommand = std::variant<
     PopTranslation,
     PushClip,
     PopClip>;
-
-struct SoftwareSurface {
-    std::size_t width{};
-    std::size_t height{};
-    std::size_t stride{};
-    std::span<SoftwarePixel> pixels;
-};
-
-struct SoftwareClipRect {
-    std::size_t left{};
-    std::size_t top{};
-    std::size_t right{};
-    std::size_t bottom{};
-};
 
 struct SoftwareRenderWorkspace {
     std::span<SoftwareClipRect> clips;
@@ -210,6 +169,62 @@ SoftwareRenderResult render_software(
     std::span<const LayoutRect> damage_regions
 ) noexcept;
 
+}
+
+namespace veyra::render {
+using ::veyra::DisplayColor;
+using ::veyra::DisplayCommand;
+using ::veyra::DrawGlyph;
+using ::veyra::DrawImage;
+using ::veyra::DrawMask;
+using ::veyra::FillPath;
+using ::veyra::FillRect;
+using ::veyra::FillRoundedRect;
+using ::veyra::PopClip;
+using ::veyra::PopTranslation;
+using ::veyra::PushClip;
+using ::veyra::PushTranslation;
+using ::veyra::SoftwareCubicTo;
+using ::veyra::SoftwareLineTo;
+using ::veyra::SoftwarePathContour;
+using ::veyra::SoftwarePathFillRule;
+using ::veyra::SoftwarePathSegment;
+using ::veyra::SoftwareQuadraticTo;
+using ::veyra::SoftwareRenderResult;
+using ::veyra::SoftwareRenderWorkspace;
+using ::veyra::StrokeLine;
+using ::veyra::StrokePolyline;
+using ::veyra::StrokeRect;
+using ::veyra::StrokeRoundedRect;
+using ::veyra::render_software;
+}
+
+namespace veyra::render::cpu {
+using ::veyra::DisplayColor;
+using ::veyra::DisplayCommand;
+using ::veyra::DrawGlyph;
+using ::veyra::DrawImage;
+using ::veyra::DrawMask;
+using ::veyra::FillPath;
+using ::veyra::FillRect;
+using ::veyra::FillRoundedRect;
+using ::veyra::PopClip;
+using ::veyra::PopTranslation;
+using ::veyra::PushClip;
+using ::veyra::PushTranslation;
+using ::veyra::SoftwareCubicTo;
+using ::veyra::SoftwareLineTo;
+using ::veyra::SoftwarePathContour;
+using ::veyra::SoftwarePathFillRule;
+using ::veyra::SoftwarePathSegment;
+using ::veyra::SoftwareQuadraticTo;
+using ::veyra::SoftwareRenderResult;
+using ::veyra::SoftwareRenderWorkspace;
+using ::veyra::StrokeLine;
+using ::veyra::StrokePolyline;
+using ::veyra::StrokeRect;
+using ::veyra::StrokeRoundedRect;
+using ::veyra::render_software;
 }
 
 #endif

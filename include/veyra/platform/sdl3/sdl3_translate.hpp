@@ -13,4 +13,12 @@ bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out)
 
 }
 
+namespace veyra::platform {
+using ::veyra::translate_sdl_event;
+}
+
+namespace veyra::platform::sdl3 {
+using ::veyra::translate_sdl_event;
+}
+
 #endif

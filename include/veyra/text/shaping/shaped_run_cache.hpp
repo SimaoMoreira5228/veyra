@@ -96,4 +96,22 @@ class ShapedRunCache {
 
 }
 
+namespace veyra::text {
+using ::veyra::ShapedRunCache;
+using ::veyra::ShapedRunCacheKey;
+using ::veyra::ShapedRunCacheResult;
+using ::veyra::ShapedRunCacheSlot;
+using ::veyra::shaped_run_language_id;
+using ::veyra::shaped_run_script_tag;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::ShapedRunCache;
+using ::veyra::ShapedRunCacheKey;
+using ::veyra::ShapedRunCacheResult;
+using ::veyra::ShapedRunCacheSlot;
+using ::veyra::shaped_run_language_id;
+using ::veyra::shaped_run_script_tag;
+}
+
 #endif

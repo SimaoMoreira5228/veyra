@@ -54,4 +54,12 @@ class FocusChain {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::FocusChain;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::FocusChain;
+}
+
 #endif

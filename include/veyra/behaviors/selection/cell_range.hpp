@@ -129,4 +129,22 @@ class CellRangeController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::CellRange;
+using ::veyra::CellRangeController;
+using ::veyra::CellRangeCopy;
+using ::veyra::CellRangeMode;
+using ::veyra::CellRangeOrder;
+using ::veyra::normalize_cell_range;
+}
+
+namespace veyra::behaviors::selection {
+using ::veyra::CellRange;
+using ::veyra::CellRangeController;
+using ::veyra::CellRangeCopy;
+using ::veyra::CellRangeMode;
+using ::veyra::CellRangeOrder;
+using ::veyra::normalize_cell_range;
+}
+
 #endif

@@ -290,4 +290,24 @@ class LineMeasureSession {
 
 }
 
+namespace veyra::text {
+using ::veyra::LineMeasure;
+using ::veyra::LineMeasureCache;
+using ::veyra::LineMeasureCacheResult;
+using ::veyra::LineMeasureCacheSlot;
+using ::veyra::LineMeasureFrame;
+using ::veyra::LineMeasureKey;
+using ::veyra::LineMeasureSession;
+}
+
+namespace veyra::text::rendering {
+using ::veyra::LineMeasure;
+using ::veyra::LineMeasureCache;
+using ::veyra::LineMeasureCacheResult;
+using ::veyra::LineMeasureCacheSlot;
+using ::veyra::LineMeasureFrame;
+using ::veyra::LineMeasureKey;
+using ::veyra::LineMeasureSession;
+}
+
 #endif

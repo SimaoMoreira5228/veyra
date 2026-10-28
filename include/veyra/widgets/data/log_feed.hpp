@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_LOG_FEED_HPP
 
 #include "veyra/behaviors/data/log_feed.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 #include "veyra/widgets/data/virtual_list.hpp"
@@ -50,6 +50,24 @@ LogFeedRowsOutput emit_log_feed_rows(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::LogFeedEmitResult;
+using ::veyra::LogFeedRowAppearance;
+using ::veyra::LogFeedRowState;
+using ::veyra::LogFeedRowsOutput;
+using ::veyra::emit_log_feed_rows;
+using ::veyra::log_feed_row_appearance;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::LogFeedEmitResult;
+using ::veyra::LogFeedRowAppearance;
+using ::veyra::LogFeedRowState;
+using ::veyra::LogFeedRowsOutput;
+using ::veyra::emit_log_feed_rows;
+using ::veyra::log_feed_row_appearance;
 }
 
 #endif

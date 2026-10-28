@@ -80,4 +80,24 @@ class OverlayController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::OverlayClose;
+using ::veyra::OverlayController;
+using ::veyra::OverlayIntent;
+using ::veyra::OverlayKind;
+using ::veyra::OverlayLayer;
+using ::veyra::OverlayReset;
+using ::veyra::OverlayResult;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::OverlayClose;
+using ::veyra::OverlayController;
+using ::veyra::OverlayIntent;
+using ::veyra::OverlayKind;
+using ::veyra::OverlayLayer;
+using ::veyra::OverlayReset;
+using ::veyra::OverlayResult;
+}
+
 #endif

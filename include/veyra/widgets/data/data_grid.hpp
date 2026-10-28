@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_DATA_GRID_HPP
 
 #include "veyra/behaviors/data/datagrid.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -91,6 +91,40 @@ DataGridEmit emit_data_grid_cell_background(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::DataGridCellAppearance;
+using ::veyra::DataGridCellState;
+using ::veyra::DataGridEmit;
+using ::veyra::DataGridHeaderAppearance;
+using ::veyra::DataGridHeaderGeometry;
+using ::veyra::DataGridHeaderState;
+using ::veyra::DataGridRangeGeometry;
+using ::veyra::data_grid_cell_appearance;
+using ::veyra::data_grid_header_appearance;
+using ::veyra::data_grid_header_capacity;
+using ::veyra::data_grid_range_capacity;
+using ::veyra::emit_data_grid_cell_background;
+using ::veyra::emit_data_grid_header;
+using ::veyra::emit_data_grid_range;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::DataGridCellAppearance;
+using ::veyra::DataGridCellState;
+using ::veyra::DataGridEmit;
+using ::veyra::DataGridHeaderAppearance;
+using ::veyra::DataGridHeaderGeometry;
+using ::veyra::DataGridHeaderState;
+using ::veyra::DataGridRangeGeometry;
+using ::veyra::data_grid_cell_appearance;
+using ::veyra::data_grid_header_appearance;
+using ::veyra::data_grid_header_capacity;
+using ::veyra::data_grid_range_capacity;
+using ::veyra::emit_data_grid_cell_background;
+using ::veyra::emit_data_grid_header;
+using ::veyra::emit_data_grid_range;
 }
 
 #endif

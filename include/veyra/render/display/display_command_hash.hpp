@@ -12,4 +12,12 @@ std::uint64_t hash_display_commands(std::span<const DisplayCommand> commands) no
 
 }
 
+namespace veyra::render {
+using ::veyra::hash_display_commands;
+}
+
+namespace veyra::render::display {
+using ::veyra::hash_display_commands;
+}
+
 #endif

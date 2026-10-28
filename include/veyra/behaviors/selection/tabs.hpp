@@ -122,4 +122,22 @@ class TabsController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::TabsActivation;
+using ::veyra::TabsClose;
+using ::veyra::TabsController;
+using ::veyra::TabsMove;
+using ::veyra::TabsResult;
+using ::veyra::TabsState;
+}
+
+namespace veyra::behaviors::selection {
+using ::veyra::TabsActivation;
+using ::veyra::TabsClose;
+using ::veyra::TabsController;
+using ::veyra::TabsMove;
+using ::veyra::TabsResult;
+using ::veyra::TabsState;
+}
+
 #endif

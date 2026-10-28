@@ -118,4 +118,14 @@ inline TreeGridCell resolve_treegrid_move(
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::TreeGridCell;
+using ::veyra::resolve_treegrid_move;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::TreeGridCell;
+using ::veyra::resolve_treegrid_move;
+}
+
 #endif

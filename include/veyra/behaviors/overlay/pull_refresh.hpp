@@ -64,4 +64,12 @@ class PullRefresh {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::PullRefresh;
+}
+
+namespace veyra::behaviors::overlay {
+using ::veyra::PullRefresh;
+}
+
 #endif

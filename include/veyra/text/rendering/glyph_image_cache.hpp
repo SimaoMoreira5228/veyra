@@ -35,4 +35,24 @@ using GlyphImageCache = BoundedImageCache<GlyphImageKey, GlyphImageHash, GlyphIm
 
 }
 
+namespace veyra::text {
+using ::veyra::GlyphImage;
+using ::veyra::GlyphImageCache;
+using ::veyra::GlyphImageCacheResult;
+using ::veyra::GlyphImageCacheSlot;
+using ::veyra::GlyphImageHash;
+using ::veyra::GlyphImageKey;
+using ::veyra::GlyphImageKeyValidator;
+}
+
+namespace veyra::text::rendering {
+using ::veyra::GlyphImage;
+using ::veyra::GlyphImageCache;
+using ::veyra::GlyphImageCacheResult;
+using ::veyra::GlyphImageCacheSlot;
+using ::veyra::GlyphImageHash;
+using ::veyra::GlyphImageKey;
+using ::veyra::GlyphImageKeyValidator;
+}
+
 #endif

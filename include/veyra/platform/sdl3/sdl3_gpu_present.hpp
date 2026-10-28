@@ -61,4 +61,12 @@ static_assert(SoftwareSurfacePresenter<SdlGpuPresenter>);
 
 }
 
+namespace veyra::platform {
+using ::veyra::SdlGpuPresenter;
+}
+
+namespace veyra::platform::sdl3 {
+using ::veyra::SdlGpuPresenter;
+}
+
 #endif

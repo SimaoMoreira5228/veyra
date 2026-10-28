@@ -107,4 +107,12 @@ static_assert(SoftwareSurfacePresenter<Sdl3Window>);
 
 }
 
+namespace veyra::platform {
+using ::veyra::Sdl3Window;
+}
+
+namespace veyra::platform::sdl3 {
+using ::veyra::Sdl3Window;
+}
+
 #endif

@@ -1,7 +1,7 @@
 #ifndef VEYRA_RENDER_DAMAGE_TRACKER_HPP
 #define VEYRA_RENDER_DAMAGE_TRACKER_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstddef>
 #include <span>
@@ -45,6 +45,14 @@ class DamageTracker {
     static bool overlaps(PixelBounds left, PixelBounds right) noexcept;
 };
 
+}
+
+namespace veyra::render {
+using ::veyra::DamageTracker;
+}
+
+namespace veyra::render::damage {
+using ::veyra::DamageTracker;
 }
 
 #endif

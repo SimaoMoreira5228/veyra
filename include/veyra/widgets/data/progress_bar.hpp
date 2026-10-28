@@ -2,7 +2,7 @@
 #define VEYRA_WIDGETS_DATA_PROGRESS_BAR_HPP
 
 #include "veyra/behaviors/control/progress.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -49,6 +49,30 @@ ProgressBarOutput emit_progress_bar(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::ProgressBarAppearance;
+using ::veyra::ProgressBarEmitResult;
+using ::veyra::ProgressBarGeometry;
+using ::veyra::ProgressBarOutput;
+using ::veyra::emit_progress_bar;
+using ::veyra::kProgressBarIndeterminatePeriodMs;
+using ::veyra::kProgressBarIndeterminateShare;
+using ::veyra::progress_bar_appearance;
+using ::veyra::progress_bar_required_commands;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::ProgressBarAppearance;
+using ::veyra::ProgressBarEmitResult;
+using ::veyra::ProgressBarGeometry;
+using ::veyra::ProgressBarOutput;
+using ::veyra::emit_progress_bar;
+using ::veyra::kProgressBarIndeterminatePeriodMs;
+using ::veyra::kProgressBarIndeterminateShare;
+using ::veyra::progress_bar_appearance;
+using ::veyra::progress_bar_required_commands;
 }
 
 #endif

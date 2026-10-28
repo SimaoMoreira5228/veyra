@@ -103,4 +103,24 @@ class MenubarController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::MenubarAction;
+using ::veyra::MenubarController;
+using ::veyra::MenubarFocus;
+using ::veyra::MenubarMove;
+using ::veyra::MenubarResult;
+using ::veyra::MenubarSwitch;
+using ::veyra::MenubarTitle;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::MenubarAction;
+using ::veyra::MenubarController;
+using ::veyra::MenubarFocus;
+using ::veyra::MenubarMove;
+using ::veyra::MenubarResult;
+using ::veyra::MenubarSwitch;
+using ::veyra::MenubarTitle;
+}
+
 #endif

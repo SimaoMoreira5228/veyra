@@ -167,4 +167,20 @@ class GlyphBoundsCache {
 
 }
 
+namespace veyra::text {
+using ::veyra::GlyphBounds;
+using ::veyra::GlyphBoundsCache;
+using ::veyra::GlyphBoundsCacheResult;
+using ::veyra::GlyphBoundsCacheSlot;
+using ::veyra::GlyphBoundsKey;
+}
+
+namespace veyra::text::rendering {
+using ::veyra::GlyphBounds;
+using ::veyra::GlyphBoundsCache;
+using ::veyra::GlyphBoundsCacheResult;
+using ::veyra::GlyphBoundsCacheSlot;
+using ::veyra::GlyphBoundsKey;
+}
+
 #endif

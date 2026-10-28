@@ -2,7 +2,7 @@
 #define VEYRA_LAYOUT_SPLIT_PANE_HPP
 
 #include "veyra/layout/flex/flex.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -150,6 +150,20 @@ resolve_split_pane(const SplitPaneRequest& request, SplitPaneLayout& output) noe
     return result;
 }
 
+}
+
+namespace veyra::layout {
+using ::veyra::SplitPaneLayout;
+using ::veyra::SplitPaneRequest;
+using ::veyra::SplitPaneResult;
+using ::veyra::resolve_split_pane;
+}
+
+namespace veyra::layout::panels {
+using ::veyra::SplitPaneLayout;
+using ::veyra::SplitPaneRequest;
+using ::veyra::SplitPaneResult;
+using ::veyra::resolve_split_pane;
 }
 
 #endif

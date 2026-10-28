@@ -2,8 +2,7 @@
 #define VEYRA_CORE_SEMANTICS_HPP
 
 #include "veyra/core/tree/node_tree.hpp"
-#include "veyra/layout/core/geometry.hpp"
-#include "veyra/layout/scroll/virtual_list.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -130,21 +129,6 @@ struct SemanticNode {
     std::uint16_t actions{};
 };
 
-struct VirtualSemanticNode {
-    NodeId list;
-    std::uint64_t key{};
-    std::size_t index{};
-    std::size_t position_in_set{};
-    std::size_t set_size{};
-    SemanticRole role{SemanticRole::list_item};
-    std::string_view label;
-    std::string_view value;
-    LayoutRect bounds;
-    std::uint16_t states{};
-    std::uint16_t actions{};
-    bool visible{};
-};
-
 enum class SemanticSnapshotResult : std::uint8_t {
     complete,
     insufficient_output,
@@ -158,16 +142,6 @@ enum class SemanticSnapshotResult : std::uint8_t {
     invalid_bounds,
 };
 
-enum class VirtualSemanticResult : std::uint8_t {
-    complete,
-    invalid_list,
-    invalid_item_index,
-    invalid_scroll_offset,
-    invalid_viewport,
-    invalid_data,
-    invalid_geometry,
-};
-
 SemanticSnapshotResult build_semantic_snapshot(
     const NodeTree& tree,
     NodeId root,
@@ -178,18 +152,34 @@ SemanticSnapshotResult build_semantic_snapshot(
     std::size_t& node_count
 ) noexcept;
 
-VirtualSemanticResult virtual_semantic_item(
-    const NodeTree& tree,
-    NodeId list,
-    const VirtualListIndex& index,
-    std::uint64_t item_key,
-    std::size_t item_index,
-    double scroll_offset,
-    LayoutRect viewport,
-    SemanticNodeData data,
-    VirtualSemanticNode& output
-) noexcept;
+}
 
+namespace veyra::core {
+using ::veyra::SemanticAction;
+using ::veyra::SemanticNode;
+using ::veyra::SemanticNodeData;
+using ::veyra::SemanticRole;
+using ::veyra::SemanticSnapshotResult;
+using ::veyra::SemanticState;
+using ::veyra::action_flag;
+using ::veyra::build_semantic_snapshot;
+using ::veyra::has_action;
+using ::veyra::has_state;
+using ::veyra::state_flag;
+}
+
+namespace veyra::core::semantics {
+using ::veyra::SemanticAction;
+using ::veyra::SemanticNode;
+using ::veyra::SemanticNodeData;
+using ::veyra::SemanticRole;
+using ::veyra::SemanticSnapshotResult;
+using ::veyra::SemanticState;
+using ::veyra::action_flag;
+using ::veyra::build_semantic_snapshot;
+using ::veyra::has_action;
+using ::veyra::has_state;
+using ::veyra::state_flag;
 }
 
 #endif

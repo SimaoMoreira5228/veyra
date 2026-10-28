@@ -58,4 +58,18 @@ class ScrollController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::ScrollController;
+using ::veyra::ScrollMove;
+using ::veyra::ScrollResult;
+using ::veyra::ScrollState;
+}
+
+namespace veyra::behaviors::control {
+using ::veyra::ScrollController;
+using ::veyra::ScrollMove;
+using ::veyra::ScrollResult;
+using ::veyra::ScrollState;
+}
+
 #endif

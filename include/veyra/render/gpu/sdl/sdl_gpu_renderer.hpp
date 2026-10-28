@@ -60,4 +60,33 @@ WindowResult present_sdl_gpu_frame(SdlGpuRenderer& renderer) noexcept;
 bool sdl_gpu_renderer_ready(const SdlGpuRenderer& renderer) noexcept;
 
 }
+
+namespace veyra::render {
+using ::veyra::SdlGpuRenderStats;
+using ::veyra::SdlGpuRenderer;
+using ::veyra::create_sdl_gpu_renderer;
+using ::veyra::destroy_sdl_gpu_renderer;
+using ::veyra::kSdlGpuMaxDraws;
+using ::veyra::kSdlGpuMaxFrameImages;
+using ::veyra::kSdlGpuMaxRects;
+using ::veyra::present_sdl_gpu_frame;
+using ::veyra::render_sdl_gpu_rects;
+using ::veyra::resize_sdl_gpu_renderer;
+using ::veyra::sdl_gpu_renderer_ready;
+}
+
+namespace veyra::render::gpu::sdl {
+using ::veyra::SdlGpuRenderStats;
+using ::veyra::SdlGpuRenderer;
+using ::veyra::create_sdl_gpu_renderer;
+using ::veyra::destroy_sdl_gpu_renderer;
+using ::veyra::kSdlGpuMaxDraws;
+using ::veyra::kSdlGpuMaxFrameImages;
+using ::veyra::kSdlGpuMaxRects;
+using ::veyra::present_sdl_gpu_frame;
+using ::veyra::render_sdl_gpu_rects;
+using ::veyra::resize_sdl_gpu_renderer;
+using ::veyra::sdl_gpu_renderer_ready;
+}
+
 #endif

@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_BASIC_TEXT_AREA_HPP
 #define VEYRA_WIDGETS_BASIC_TEXT_AREA_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -61,6 +61,28 @@ TextAreaOutput emit_text_area(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::TextAreaAppearance;
+using ::veyra::TextAreaEmitResult;
+using ::veyra::TextAreaGeometry;
+using ::veyra::TextAreaOutput;
+using ::veyra::TextAreaState;
+using ::veyra::emit_text_area;
+using ::veyra::text_area_appearance;
+using ::veyra::text_area_required_commands;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::TextAreaAppearance;
+using ::veyra::TextAreaEmitResult;
+using ::veyra::TextAreaGeometry;
+using ::veyra::TextAreaOutput;
+using ::veyra::TextAreaState;
+using ::veyra::emit_text_area;
+using ::veyra::text_area_appearance;
+using ::veyra::text_area_required_commands;
 }
 
 #endif

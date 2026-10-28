@@ -133,4 +133,35 @@ class TraceRecorder {
 };
 
 }
+
+namespace veyra::inspector {
+using ::veyra::TraceCachePayload;
+using ::veyra::TraceDamagePayload;
+using ::veyra::TraceEvent;
+using ::veyra::TraceEventKind;
+using ::veyra::TraceFocusPayload;
+using ::veyra::TraceFramePayload;
+using ::veyra::TraceInvalidateReason;
+using ::veyra::TraceInvalidationPayload;
+using ::veyra::TraceLayoutPayload;
+using ::veyra::TraceRecordResult;
+using ::veyra::TraceRecorder;
+using ::veyra::TraceReportResult;
+}
+
+namespace veyra::inspector::trace {
+using ::veyra::TraceCachePayload;
+using ::veyra::TraceDamagePayload;
+using ::veyra::TraceEvent;
+using ::veyra::TraceEventKind;
+using ::veyra::TraceFocusPayload;
+using ::veyra::TraceFramePayload;
+using ::veyra::TraceInvalidateReason;
+using ::veyra::TraceInvalidationPayload;
+using ::veyra::TraceLayoutPayload;
+using ::veyra::TraceRecordResult;
+using ::veyra::TraceRecorder;
+using ::veyra::TraceReportResult;
+}
+
 #endif

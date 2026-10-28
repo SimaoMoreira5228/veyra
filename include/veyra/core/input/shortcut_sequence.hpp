@@ -69,4 +69,14 @@ class ShortcutSequence {
 
 }
 
+namespace veyra::core {
+using ::veyra::SequenceHit;
+using ::veyra::ShortcutSequence;
+}
+
+namespace veyra::core::input {
+using ::veyra::SequenceHit;
+using ::veyra::ShortcutSequence;
+}
+
 #endif

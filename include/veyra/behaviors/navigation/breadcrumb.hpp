@@ -93,4 +93,26 @@ BreadcrumbOverflow resolve_breadcrumb_overflow(
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::BreadcrumbAction;
+using ::veyra::BreadcrumbBar;
+using ::veyra::BreadcrumbItem;
+using ::veyra::BreadcrumbMove;
+using ::veyra::BreadcrumbOverflow;
+using ::veyra::BreadcrumbOverflowResult;
+using ::veyra::BreadcrumbResult;
+using ::veyra::resolve_breadcrumb_overflow;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::BreadcrumbAction;
+using ::veyra::BreadcrumbBar;
+using ::veyra::BreadcrumbItem;
+using ::veyra::BreadcrumbMove;
+using ::veyra::BreadcrumbOverflow;
+using ::veyra::BreadcrumbOverflowResult;
+using ::veyra::BreadcrumbResult;
+using ::veyra::resolve_breadcrumb_overflow;
+}
+
 #endif

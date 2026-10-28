@@ -49,4 +49,14 @@ class DirectoryWatcher {
 
 }
 
+namespace veyra::files {
+using ::veyra::DirectoryWatchResult;
+using ::veyra::DirectoryWatcher;
+}
+
+namespace veyra::files::enumeration {
+using ::veyra::DirectoryWatchResult;
+using ::veyra::DirectoryWatcher;
+}
+
 #endif

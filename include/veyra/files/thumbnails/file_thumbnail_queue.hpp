@@ -60,4 +60,16 @@ class FileThumbnailQueue {
 
 }
 
+namespace veyra::files {
+using ::veyra::FileThumbnailQueue;
+using ::veyra::FileThumbnailQueueResult;
+using ::veyra::FileThumbnailRequest;
+}
+
+namespace veyra::files::thumbnails {
+using ::veyra::FileThumbnailQueue;
+using ::veyra::FileThumbnailQueueResult;
+using ::veyra::FileThumbnailRequest;
+}
+
 #endif

@@ -586,7 +586,7 @@ void render_commands(
     }
 }
 
-SoftwareRenderResult render(
+SoftwareRenderResult render_commands(
     std::span<const DisplayCommand> commands,
     SoftwareSurface surface,
     SoftwareRenderWorkspace workspace,
@@ -658,7 +658,7 @@ SoftwareRenderResult render_software(
     SoftwareSurface surface,
     SoftwareRenderWorkspace workspace
 ) noexcept {
-    return render(commands, surface, workspace, {}, true);
+    return render_commands(commands, surface, workspace, {}, true);
 }
 
 SoftwareRenderResult render_software(
@@ -667,7 +667,7 @@ SoftwareRenderResult render_software(
     SoftwareRenderWorkspace workspace,
     std::span<const LayoutRect> damage_regions
 ) noexcept {
-    return render(commands, surface, workspace, damage_regions, false);
+    return render_commands(commands, surface, workspace, damage_regions, false);
 }
 
 }

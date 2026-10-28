@@ -20,4 +20,14 @@ button_appearance(const Theme& theme, PressableState state, PressableTint tint) 
 
 }
 
+namespace veyra::widgets {
+using ::veyra::ButtonAppearance;
+using ::veyra::button_appearance;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::ButtonAppearance;
+using ::veyra::button_appearance;
+}
+
 #endif

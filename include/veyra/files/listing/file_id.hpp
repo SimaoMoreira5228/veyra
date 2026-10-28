@@ -24,4 +24,12 @@ struct FileId {
 
 }
 
+namespace veyra::files {
+using ::veyra::FileId;
+}
+
+namespace veyra::files::listing {
+using ::veyra::FileId;
+}
+
 #endif

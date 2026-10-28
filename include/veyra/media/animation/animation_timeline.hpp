@@ -39,4 +39,12 @@ class AnimationTimeline {
 
 }
 
+namespace veyra::media {
+using ::veyra::AnimationTimeline;
+}
+
+namespace veyra::media::animation {
+using ::veyra::AnimationTimeline;
+}
+
 #endif

@@ -117,4 +117,24 @@ LoopResult run_until_quit(RunLoopConfig<Backend, OnEvent, OnFrame>& config) noex
 
 }
 
+namespace veyra::platform {
+using ::veyra::FrameAction;
+using ::veyra::LoopResult;
+using ::veyra::RunLoopConfig;
+using ::veyra::kRunLoopIdleSleepMs;
+using ::veyra::kRunLoopMaxSleepMs;
+using ::veyra::pump_once;
+using ::veyra::run_until_quit;
+}
+
+namespace veyra::platform::core {
+using ::veyra::FrameAction;
+using ::veyra::LoopResult;
+using ::veyra::RunLoopConfig;
+using ::veyra::kRunLoopIdleSleepMs;
+using ::veyra::kRunLoopMaxSleepMs;
+using ::veyra::pump_once;
+using ::veyra::run_until_quit;
+}
+
 #endif

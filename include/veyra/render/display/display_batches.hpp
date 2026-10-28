@@ -53,4 +53,22 @@ BatchAnalysisResult analyze_display_batches(
 
 }
 
+namespace veyra::render {
+using ::veyra::BatchAnalysisResult;
+using ::veyra::BatchKey;
+using ::veyra::BatchPrimitive;
+using ::veyra::BatchRun;
+using ::veyra::analyze_display_batches;
+using ::veyra::same_batch_key;
+}
+
+namespace veyra::render::display {
+using ::veyra::BatchAnalysisResult;
+using ::veyra::BatchKey;
+using ::veyra::BatchPrimitive;
+using ::veyra::BatchRun;
+using ::veyra::analyze_display_batches;
+using ::veyra::same_batch_key;
+}
+
 #endif

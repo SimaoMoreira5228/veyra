@@ -84,4 +84,20 @@ class ServerRows {
 
 }
 
+namespace veyra::data {
+using ::veyra::ServerFilter;
+using ::veyra::ServerLoadedRange;
+using ::veyra::ServerRows;
+using ::veyra::ServerRowsResult;
+using ::veyra::ServerSort;
+}
+
+namespace veyra::data::source {
+using ::veyra::ServerFilter;
+using ::veyra::ServerLoadedRange;
+using ::veyra::ServerRows;
+using ::veyra::ServerRowsResult;
+using ::veyra::ServerSort;
+}
+
 #endif

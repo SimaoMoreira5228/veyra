@@ -183,4 +183,34 @@ indeterminate_progress_fraction(std::uint64_t elapsed_ms, std::uint64_t period_m
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::RangeConfig;
+using ::veyra::RangeController;
+using ::veyra::RangeKind;
+using ::veyra::RangeResult;
+using ::veyra::RangeSliderConfig;
+using ::veyra::RangeSliderController;
+using ::veyra::RangeSliderState;
+using ::veyra::RangeSliderTransition;
+using ::veyra::RangeState;
+using ::veyra::RangeThumb;
+using ::veyra::RangeTransition;
+using ::veyra::indeterminate_progress_fraction;
+}
+
+namespace veyra::behaviors::input {
+using ::veyra::RangeConfig;
+using ::veyra::RangeController;
+using ::veyra::RangeKind;
+using ::veyra::RangeResult;
+using ::veyra::RangeSliderConfig;
+using ::veyra::RangeSliderController;
+using ::veyra::RangeSliderState;
+using ::veyra::RangeSliderTransition;
+using ::veyra::RangeState;
+using ::veyra::RangeThumb;
+using ::veyra::RangeTransition;
+using ::veyra::indeterminate_progress_fraction;
+}
+
 #endif

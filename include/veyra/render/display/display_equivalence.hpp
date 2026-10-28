@@ -38,4 +38,30 @@ bool equivalent_display_lists(
 
 }
 
+namespace veyra::render {
+using ::veyra::equivalent_display_lists;
+using ::veyra::same_command;
+using ::veyra::same_contour;
+using ::veyra::same_contours;
+using ::veyra::same_float_bits;
+using ::veyra::same_point;
+using ::veyra::same_points;
+using ::veyra::same_rect;
+using ::veyra::same_segment;
+using ::veyra::same_segments;
+}
+
+namespace veyra::render::display {
+using ::veyra::equivalent_display_lists;
+using ::veyra::same_command;
+using ::veyra::same_contour;
+using ::veyra::same_contours;
+using ::veyra::same_float_bits;
+using ::veyra::same_point;
+using ::veyra::same_points;
+using ::veyra::same_rect;
+using ::veyra::same_segment;
+using ::veyra::same_segments;
+}
+
 #endif

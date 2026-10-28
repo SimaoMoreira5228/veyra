@@ -136,4 +136,22 @@ class EditableTextController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::EditableTextConfig;
+using ::veyra::EditableTextController;
+using ::veyra::EditableTextEdit;
+using ::veyra::EditableTextKind;
+using ::veyra::EditableTextResult;
+using ::veyra::EditableTextState;
+}
+
+namespace veyra::behaviors::input {
+using ::veyra::EditableTextConfig;
+using ::veyra::EditableTextController;
+using ::veyra::EditableTextEdit;
+using ::veyra::EditableTextKind;
+using ::veyra::EditableTextResult;
+using ::veyra::EditableTextState;
+}
+
 #endif

@@ -31,4 +31,24 @@ using AnimationFrameCache =
 
 }
 
+namespace veyra::media {
+using ::veyra::AnimationFrame;
+using ::veyra::AnimationFrameCache;
+using ::veyra::AnimationFrameCacheResult;
+using ::veyra::AnimationFrameCacheSlot;
+using ::veyra::AnimationFrameHash;
+using ::veyra::AnimationFrameKey;
+using ::veyra::AnimationFrameKeyValidator;
+}
+
+namespace veyra::media::animation {
+using ::veyra::AnimationFrame;
+using ::veyra::AnimationFrameCache;
+using ::veyra::AnimationFrameCacheResult;
+using ::veyra::AnimationFrameCacheSlot;
+using ::veyra::AnimationFrameHash;
+using ::veyra::AnimationFrameKey;
+using ::veyra::AnimationFrameKeyValidator;
+}
+
 #endif

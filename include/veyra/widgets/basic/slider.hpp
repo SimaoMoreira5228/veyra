@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_BASIC_SLIDER_HPP
 #define VEYRA_WIDGETS_BASIC_SLIDER_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -59,6 +59,30 @@ SliderOutput emit_slider(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::SliderAppearance;
+using ::veyra::SliderEmitResult;
+using ::veyra::SliderEmitState;
+using ::veyra::SliderGeometry;
+using ::veyra::SliderOutput;
+using ::veyra::SliderState;
+using ::veyra::emit_slider;
+using ::veyra::slider_appearance;
+using ::veyra::slider_required_commands;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::SliderAppearance;
+using ::veyra::SliderEmitResult;
+using ::veyra::SliderEmitState;
+using ::veyra::SliderGeometry;
+using ::veyra::SliderOutput;
+using ::veyra::SliderState;
+using ::veyra::emit_slider;
+using ::veyra::slider_appearance;
+using ::veyra::slider_required_commands;
 }
 
 #endif

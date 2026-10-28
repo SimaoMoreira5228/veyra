@@ -51,4 +51,18 @@ class ChatMessageChangeQueue {
 
 }
 
+namespace veyra::chat {
+using ::veyra::ChatMessageChange;
+using ::veyra::ChatMessageChangeKind;
+using ::veyra::ChatMessageChangeQueue;
+using ::veyra::ChatMessageChangeQueueResult;
+}
+
+namespace veyra::chat::message {
+using ::veyra::ChatMessageChange;
+using ::veyra::ChatMessageChangeKind;
+using ::veyra::ChatMessageChangeQueue;
+using ::veyra::ChatMessageChangeQueueResult;
+}
+
 #endif

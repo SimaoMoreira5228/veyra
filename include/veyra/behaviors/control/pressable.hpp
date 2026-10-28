@@ -83,4 +83,22 @@ class PressableTintAnimator {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::PressableController;
+using ::veyra::PressableKey;
+using ::veyra::PressableResult;
+using ::veyra::PressableState;
+using ::veyra::PressableTint;
+using ::veyra::PressableTintAnimator;
+}
+
+namespace veyra::behaviors::control {
+using ::veyra::PressableController;
+using ::veyra::PressableKey;
+using ::veyra::PressableResult;
+using ::veyra::PressableState;
+using ::veyra::PressableTint;
+using ::veyra::PressableTintAnimator;
+}
+
 #endif

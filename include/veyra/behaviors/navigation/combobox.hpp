@@ -131,4 +131,27 @@ class ComboBoxController {
 };
 
 }
+
+namespace veyra::behaviors {
+using ::veyra::ComboActive;
+using ::veyra::ComboBoxController;
+using ::veyra::ComboCommit;
+using ::veyra::ComboMode;
+using ::veyra::ComboMove;
+using ::veyra::ComboOption;
+using ::veyra::ComboResult;
+using ::veyra::ComboState;
+}
+
+namespace veyra::behaviors::navigation {
+using ::veyra::ComboActive;
+using ::veyra::ComboBoxController;
+using ::veyra::ComboCommit;
+using ::veyra::ComboMode;
+using ::veyra::ComboMove;
+using ::veyra::ComboOption;
+using ::veyra::ComboResult;
+using ::veyra::ComboState;
+}
+
 #endif

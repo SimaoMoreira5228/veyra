@@ -96,4 +96,26 @@ class ShortcutMap {
 
 }
 
+namespace veyra::core {
+using ::veyra::ShortcutBind;
+using ::veyra::ShortcutChord;
+using ::veyra::ShortcutHit;
+using ::veyra::ShortcutMap;
+using ::veyra::ShortcutModifier;
+using ::veyra::ShortcutResult;
+using ::veyra::has_modifier;
+using ::veyra::modifier_flag;
+}
+
+namespace veyra::core::input {
+using ::veyra::ShortcutBind;
+using ::veyra::ShortcutChord;
+using ::veyra::ShortcutHit;
+using ::veyra::ShortcutMap;
+using ::veyra::ShortcutModifier;
+using ::veyra::ShortcutResult;
+using ::veyra::has_modifier;
+using ::veyra::modifier_flag;
+}
+
 #endif

@@ -1,8 +1,8 @@
 #ifndef VEYRA_RENDER_GLYPH_ATLAS_HPP
 #define VEYRA_RENDER_GLYPH_ATLAS_HPP
 
-#include "veyra/render/cpu/software_renderer.hpp"
-#include "veyra/text/rendering/glyph_mask_cache.hpp"
+#include "veyra/foundation/glyph.hpp"
+#include "veyra/foundation/image.hpp"
 
 #include "stb_rect_pack.h"
 
@@ -88,6 +88,20 @@ class GlyphAtlas {
     bool valid_{};
 };
 
+}
+
+namespace veyra::render {
+using ::veyra::GlyphAtlas;
+using ::veyra::GlyphAtlasPlacement;
+using ::veyra::GlyphAtlasResult;
+using ::veyra::GlyphAtlasSlot;
+}
+
+namespace veyra::render::resource {
+using ::veyra::GlyphAtlas;
+using ::veyra::GlyphAtlasPlacement;
+using ::veyra::GlyphAtlasResult;
+using ::veyra::GlyphAtlasSlot;
 }
 
 #endif

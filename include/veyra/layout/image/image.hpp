@@ -1,7 +1,6 @@
 #ifndef VEYRA_LAYOUT_IMAGE_HPP
 #define VEYRA_LAYOUT_IMAGE_HPP
 
-#include "veyra/core/semantics/semantics.hpp"
 #include "veyra/layout/image/image_fit.hpp"
 
 #include <cstdint>
@@ -66,8 +65,6 @@ class ImageController {
     ImageSize intrinsic_size() const noexcept;
     ImageBrokenReason broken_reason() const noexcept;
 
-    bool write_image_semantics(std::string_view label, SemanticNodeData& output) const noexcept;
-
   private:
     static std::uint64_t next_generation(std::uint64_t generation) noexcept;
 
@@ -79,6 +76,26 @@ class ImageController {
     bool has_intrinsic_{};
 };
 
+}
+
+namespace veyra::layout {
+using ::veyra::ImageBrokenReason;
+using ::veyra::ImageController;
+using ::veyra::ImageIntrinsicUpdate;
+using ::veyra::ImageLoadState;
+using ::veyra::ImageRequest;
+using ::veyra::ImageRequestResult;
+using ::veyra::ImageSourceKind;
+}
+
+namespace veyra::layout::image {
+using ::veyra::ImageBrokenReason;
+using ::veyra::ImageController;
+using ::veyra::ImageIntrinsicUpdate;
+using ::veyra::ImageLoadState;
+using ::veyra::ImageRequest;
+using ::veyra::ImageRequestResult;
+using ::veyra::ImageSourceKind;
 }
 
 #endif

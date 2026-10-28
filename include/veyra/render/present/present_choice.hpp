@@ -26,4 +26,20 @@ std::uint64_t present_choice_generation(const PresentChoice& choice) noexcept;
 
 }
 
+namespace veyra::render {
+using ::veyra::PresentChoice;
+using ::veyra::PresentPath;
+using ::veyra::notify_presented;
+using ::veyra::present_choice_generation;
+using ::veyra::select_present_path;
+}
+
+namespace veyra::render::present {
+using ::veyra::PresentChoice;
+using ::veyra::PresentPath;
+using ::veyra::notify_presented;
+using ::veyra::present_choice_generation;
+using ::veyra::select_present_path;
+}
+
 #endif

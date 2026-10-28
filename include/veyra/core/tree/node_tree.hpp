@@ -75,4 +75,14 @@ class NodeTree {
 
 }
 
+namespace veyra::core {
+using ::veyra::DirtyCategory;
+using ::veyra::NodeTree;
+}
+
+namespace veyra::core::tree {
+using ::veyra::DirtyCategory;
+using ::veyra::NodeTree;
+}
+
 #endif

@@ -74,4 +74,22 @@ NoticeTextCopy copy_notice_text(const char* text, std::array<char, Capacity>& st
 
 }
 
+namespace veyra::platform {
+using ::veyra::NoticeAnnouncement;
+using ::veyra::NoticePermission;
+using ::veyra::NoticeTextCopy;
+using ::veyra::copy_notice_text;
+using ::veyra::kNoticeBodyCapacity;
+using ::veyra::kNoticeTitleCapacity;
+}
+
+namespace veyra::platform::core {
+using ::veyra::NoticeAnnouncement;
+using ::veyra::NoticePermission;
+using ::veyra::NoticeTextCopy;
+using ::veyra::copy_notice_text;
+using ::veyra::kNoticeBodyCapacity;
+using ::veyra::kNoticeTitleCapacity;
+}
+
 #endif

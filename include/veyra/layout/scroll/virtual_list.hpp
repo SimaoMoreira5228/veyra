@@ -90,4 +90,18 @@ class VirtualListIndex {
 
 }
 
+namespace veyra::layout {
+using ::veyra::VirtualListAnchor;
+using ::veyra::VirtualListIndex;
+using ::veyra::VirtualListItemIndexLookup;
+using ::veyra::VirtualListRange;
+}
+
+namespace veyra::layout::scroll {
+using ::veyra::VirtualListAnchor;
+using ::veyra::VirtualListIndex;
+using ::veyra::VirtualListItemIndexLookup;
+using ::veyra::VirtualListRange;
+}
+
 #endif

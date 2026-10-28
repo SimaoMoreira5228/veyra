@@ -1,7 +1,7 @@
 #ifndef VEYRA_RENDER_SHADOW_HPP
 #define VEYRA_RENDER_SHADOW_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 
 #include <cstddef>
@@ -31,6 +31,20 @@ struct ShadowLowered {
 
 ShadowLowered lower_box_shadow(const BoxShadow& shadow, std::span<DisplayCommand> output) noexcept;
 
+}
+
+namespace veyra::render {
+using ::veyra::BoxShadow;
+using ::veyra::ShadowLowered;
+using ::veyra::ShadowResult;
+using ::veyra::lower_box_shadow;
+}
+
+namespace veyra::render::draw {
+using ::veyra::BoxShadow;
+using ::veyra::ShadowLowered;
+using ::veyra::ShadowResult;
+using ::veyra::lower_box_shadow;
 }
 
 #endif

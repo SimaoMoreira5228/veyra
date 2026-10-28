@@ -1,4 +1,5 @@
 #include "veyra/core/semantics/semantics.hpp"
+#include "veyra/layout/scroll/virtual_semantics.hpp"
 #include "veyra/layout/scroll/scroll_axis.hpp"
 
 #include <algorithm>

@@ -61,4 +61,12 @@ class SelectionTypeahead {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::SelectionTypeahead;
+}
+
+namespace veyra::behaviors::selection {
+using ::veyra::SelectionTypeahead;
+}
+
 #endif

@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_MENU_PLACEMENT_HPP
 #define VEYRA_LAYOUT_MENU_PLACEMENT_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -128,6 +128,20 @@ resolve_menu_placement(const MenuPlacementRequest& request, MenuPlacement& outpu
     return MenuPlacementResult::complete;
 }
 
+}
+
+namespace veyra::layout {
+using ::veyra::MenuPlacement;
+using ::veyra::MenuPlacementRequest;
+using ::veyra::MenuPlacementResult;
+using ::veyra::resolve_menu_placement;
+}
+
+namespace veyra::layout::panels {
+using ::veyra::MenuPlacement;
+using ::veyra::MenuPlacementRequest;
+using ::veyra::MenuPlacementResult;
+using ::veyra::resolve_menu_placement;
 }
 
 #endif

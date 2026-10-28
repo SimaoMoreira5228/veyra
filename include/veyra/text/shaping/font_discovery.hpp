@@ -33,4 +33,18 @@ FontDiscoveryResult default_font_search_paths(std::span<std::filesystem::path> o
 
 }
 
+namespace veyra::text {
+using ::veyra::FontDiscoveryResult;
+using ::veyra::default_font_search_paths;
+using ::veyra::discover_fonts_in;
+using ::veyra::kFontDiscoveryCapacity;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::FontDiscoveryResult;
+using ::veyra::default_font_search_paths;
+using ::veyra::discover_fonts_in;
+using ::veyra::kFontDiscoveryCapacity;
+}
+
 #endif

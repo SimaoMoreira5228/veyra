@@ -148,4 +148,28 @@ class RadioGroup {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::RadioGroup;
+using ::veyra::RadioMove;
+using ::veyra::SelectionConfig;
+using ::veyra::SelectionController;
+using ::veyra::SelectionMode;
+using ::veyra::SelectionResult;
+using ::veyra::SelectionState;
+using ::veyra::SelectionTriState;
+using ::veyra::selection_tri_state;
+}
+
+namespace veyra::behaviors::selection {
+using ::veyra::RadioGroup;
+using ::veyra::RadioMove;
+using ::veyra::SelectionConfig;
+using ::veyra::SelectionController;
+using ::veyra::SelectionMode;
+using ::veyra::SelectionResult;
+using ::veyra::SelectionState;
+using ::veyra::SelectionTriState;
+using ::veyra::selection_tri_state;
+}
+
 #endif

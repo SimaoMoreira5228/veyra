@@ -56,4 +56,16 @@ class FontFallbackResolver {
 
 }
 
+namespace veyra::text {
+using ::veyra::FontFallbackResolver;
+using ::veyra::FontFallbackResult;
+using ::veyra::FontFallbackRun;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::FontFallbackResolver;
+using ::veyra::FontFallbackResult;
+using ::veyra::FontFallbackRun;
+}
+
 #endif

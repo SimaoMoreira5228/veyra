@@ -1,7 +1,7 @@
 #ifndef VEYRA_PLATFORM_TEXT_INPUT_HPP
 #define VEYRA_PLATFORM_TEXT_INPUT_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/platform/core/window.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"
 
@@ -124,6 +124,22 @@ text_area_for_caret(LayoutRect caret_rect_px, std::size_t cursor_byte) noexcept 
     return area;
 }
 
+}
+
+namespace veyra::platform {
+using ::veyra::TextCommitApplied;
+using ::veyra::TextEditingApplied;
+using ::veyra::apply_text_commit;
+using ::veyra::apply_text_editing;
+using ::veyra::text_area_for_caret;
+}
+
+namespace veyra::platform::core {
+using ::veyra::TextCommitApplied;
+using ::veyra::TextEditingApplied;
+using ::veyra::apply_text_commit;
+using ::veyra::apply_text_editing;
+using ::veyra::text_area_for_caret;
 }
 
 #endif

@@ -1,7 +1,8 @@
 #ifndef VEYRA_TEXT_GLYPH_MASK_CACHE_HPP
 #define VEYRA_TEXT_GLYPH_MASK_CACHE_HPP
 
-#include "veyra/render/cpu/software_renderer.hpp"
+#include "veyra/foundation/glyph.hpp"
+#include "veyra/foundation/image.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -9,29 +10,6 @@
 #include <span>
 
 namespace veyra {
-
-enum class GlyphRasterMode : std::uint8_t {
-    grayscale,
-    monochrome,
-};
-
-struct GlyphMaskKey {
-    std::uint64_t face_id{};
-    std::uint64_t variation_id{};
-    std::uint32_t glyph_id{};
-    std::uint32_t pixel_size{};
-    std::uint32_t scale_x_16_16{65'536};
-    std::uint32_t scale_y_16_16{65'536};
-    GlyphRasterMode mode{GlyphRasterMode::grayscale};
-
-    friend constexpr bool operator==(const GlyphMaskKey&, const GlyphMaskKey&) = default;
-};
-
-struct GlyphMask {
-    SoftwareMask mask;
-    std::int32_t bearing_x{};
-    std::int32_t bearing_y{};
-};
 
 struct GlyphMaskCacheSlot {
     GlyphMaskKey key;
@@ -88,6 +66,18 @@ class GlyphMaskCache {
     void mark_recent(std::size_t slot_index) noexcept;
 };
 
+}
+
+namespace veyra::text {
+using ::veyra::GlyphMaskCache;
+using ::veyra::GlyphMaskCacheResult;
+using ::veyra::GlyphMaskCacheSlot;
+}
+
+namespace veyra::text::rendering {
+using ::veyra::GlyphMaskCache;
+using ::veyra::GlyphMaskCacheResult;
+using ::veyra::GlyphMaskCacheSlot;
 }
 
 #endif

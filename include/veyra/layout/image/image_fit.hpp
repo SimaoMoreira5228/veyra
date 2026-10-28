@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_IMAGE_FIT_HPP
 #define VEYRA_LAYOUT_IMAGE_FIT_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstdint>
 
@@ -38,6 +38,22 @@ ImageFitResult fit_image(
     ImagePlacement& placement
 ) noexcept;
 
+}
+
+namespace veyra::layout {
+using ::veyra::ImageFitMode;
+using ::veyra::ImageFitResult;
+using ::veyra::ImagePlacement;
+using ::veyra::ImageSize;
+using ::veyra::fit_image;
+}
+
+namespace veyra::layout::image {
+using ::veyra::ImageFitMode;
+using ::veyra::ImageFitResult;
+using ::veyra::ImagePlacement;
+using ::veyra::ImageSize;
+using ::veyra::fit_image;
 }
 
 #endif

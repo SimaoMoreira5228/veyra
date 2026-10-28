@@ -92,4 +92,24 @@ class RadioGroupController {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::RadioGroupConfig;
+using ::veyra::RadioGroupController;
+using ::veyra::RadioGroupState;
+using ::veyra::RadioKey;
+using ::veyra::RadioOption;
+using ::veyra::RadioResult;
+using ::veyra::RadioTransition;
+}
+
+namespace veyra::behaviors::input {
+using ::veyra::RadioGroupConfig;
+using ::veyra::RadioGroupController;
+using ::veyra::RadioGroupState;
+using ::veyra::RadioKey;
+using ::veyra::RadioOption;
+using ::veyra::RadioResult;
+using ::veyra::RadioTransition;
+}
+
 #endif

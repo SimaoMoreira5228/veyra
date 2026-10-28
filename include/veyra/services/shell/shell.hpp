@@ -180,4 +180,26 @@ ShellResult enumerate_filesystem_directory(
 
 }
 
+namespace veyra::services {
+using ::veyra::FakeShell;
+using ::veyra::ShellCapabilities;
+using ::veyra::ShellEntry;
+using ::veyra::ShellEnumerateRequest;
+using ::veyra::ShellOp;
+using ::veyra::ShellResult;
+using ::veyra::ShellScript;
+using ::veyra::enumerate_filesystem_directory;
+}
+
+namespace veyra::services::shell {
+using ::veyra::FakeShell;
+using ::veyra::ShellCapabilities;
+using ::veyra::ShellEntry;
+using ::veyra::ShellEnumerateRequest;
+using ::veyra::ShellOp;
+using ::veyra::ShellResult;
+using ::veyra::ShellScript;
+using ::veyra::enumerate_filesystem_directory;
+}
+
 #endif

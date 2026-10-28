@@ -103,4 +103,14 @@ static_assert(NoticeBackend<NullNotices>);
 
 }
 
+namespace veyra::platform {
+using ::veyra::NullNotices;
+using ::veyra::NullWindow;
+}
+
+namespace veyra::platform::headless {
+using ::veyra::NullNotices;
+using ::veyra::NullWindow;
+}
+
 #endif

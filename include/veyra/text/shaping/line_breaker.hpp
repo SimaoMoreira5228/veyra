@@ -55,4 +55,18 @@ class TextLineBreaker {
 
 }
 
+namespace veyra::text {
+using ::veyra::LineBreakResult;
+using ::veyra::TextLineBreak;
+using ::veyra::TextLineBreakKind;
+using ::veyra::TextLineBreaker;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::LineBreakResult;
+using ::veyra::TextLineBreak;
+using ::veyra::TextLineBreakKind;
+using ::veyra::TextLineBreaker;
+}
+
 #endif

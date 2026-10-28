@@ -1,7 +1,7 @@
 #ifndef VEYRA_WIDGETS_DATA_MENU_LIST_HPP
 #define VEYRA_WIDGETS_DATA_MENU_LIST_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
@@ -57,6 +57,28 @@ MenuListOutput emit_menu_list(
     std::span<DisplayCommand> commands_out
 ) noexcept;
 
+}
+
+namespace veyra::widgets {
+using ::veyra::MenuListEmitResult;
+using ::veyra::MenuListGeometry;
+using ::veyra::MenuListOutput;
+using ::veyra::MenuListRowState;
+using ::veyra::MenuRowAppearance;
+using ::veyra::emit_menu_list;
+using ::veyra::menu_list_required_commands;
+using ::veyra::menu_row_appearance;
+}
+
+namespace veyra::widgets::data {
+using ::veyra::MenuListEmitResult;
+using ::veyra::MenuListGeometry;
+using ::veyra::MenuListOutput;
+using ::veyra::MenuListRowState;
+using ::veyra::MenuRowAppearance;
+using ::veyra::emit_menu_list;
+using ::veyra::menu_list_required_commands;
+using ::veyra::menu_row_appearance;
 }
 
 #endif

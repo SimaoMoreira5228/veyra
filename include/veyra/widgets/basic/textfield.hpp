@@ -20,4 +20,14 @@ TextFieldAppearance textfield_appearance(const Theme& theme, EditableTextState s
 
 }
 
+namespace veyra::widgets {
+using ::veyra::TextFieldAppearance;
+using ::veyra::textfield_appearance;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::TextFieldAppearance;
+using ::veyra::textfield_appearance;
+}
+
 #endif

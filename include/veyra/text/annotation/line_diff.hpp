@@ -91,4 +91,28 @@ LineDiffOutcome diff_lines(
 
 }
 
+namespace veyra::text {
+using ::veyra::DiffRow;
+using ::veyra::LineChange;
+using ::veyra::LineChangeKind;
+using ::veyra::LineDiffOutcome;
+using ::veyra::LineDiffResult;
+using ::veyra::diff_lines;
+using ::veyra::diff_row_at;
+using ::veyra::kNoDiffLine;
+using ::veyra::line_diff_scratch_runs;
+}
+
+namespace veyra::text::annotation {
+using ::veyra::DiffRow;
+using ::veyra::LineChange;
+using ::veyra::LineChangeKind;
+using ::veyra::LineDiffOutcome;
+using ::veyra::LineDiffResult;
+using ::veyra::diff_lines;
+using ::veyra::diff_row_at;
+using ::veyra::kNoDiffLine;
+using ::veyra::line_diff_scratch_runs;
+}
+
 #endif

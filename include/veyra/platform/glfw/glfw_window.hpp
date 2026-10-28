@@ -102,4 +102,12 @@ static_assert(WindowBackend<GlfwWindow>);
 
 }
 
+namespace veyra::platform {
+using ::veyra::GlfwWindow;
+}
+
+namespace veyra::platform::glfw {
+using ::veyra::GlfwWindow;
+}
+
 #endif

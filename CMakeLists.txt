@@ -11,9 +11,15 @@ if(NOT VEYRA_PROFILE IN_LIST _veyra_profiles)
  message(FATAL_ERROR "Invalid VEYRA_PROFILE: ${VEYRA_PROFILE}")
 endif()
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake")
+
 # A desktop profile prefers a real GPU, but never requires one to configure:
 # without SDL3 it falls back to software and says so.
-find_package(SDL3 3.2 CONFIG QUIET COMPONENTS SDL3)
+if(VEYRA_HERMETIC)
+ set(SDL3_FOUND TRUE)
+else()
+ find_package(SDL3 3.2 CONFIG QUIET COMPONENTS SDL3)
+endif()
 set(_veyra_desktop_default OFF)
 if(VEYRA_PROFILE STREQUAL "desktop")
  set(_veyra_desktop_default ON)
@@ -44,6 +50,13 @@ set(VEYRA_LIBAVIF_URL "https://github.com/AOMediaCodec/libavif/archive/refs/tags
 set(VEYRA_LIBAVIF_SHA256 "2b645287340ba5a631d268b551dc2d72bd73ac33335962dd36dcdb6d8366921d" CACHE STRING "libavif pinned tarball sha256")
 if(VEYRA_GPU_SDL)
  set(VEYRA_WITH_SDL3 ON)
+endif()
+
+if(VEYRA_WITH_SDL3)
+ veyra_dependency_sdl3()
+ if(NOT TARGET SDL3::SDL3)
+  message(FATAL_ERROR "VEYRA_WITH_SDL3=ON but SDL3::SDL3 is unavailable")
+ endif()
 endif()
 
 enable_testing()

@@ -173,4 +173,32 @@ class TextEditorBuffer {
 
 }
 
+namespace veyra::text {
+using ::veyra::TextCaretStop;
+using ::veyra::TextComposition;
+using ::veyra::TextCursorDirection;
+using ::veyra::TextEditResult;
+using ::veyra::TextEditorBuffer;
+using ::veyra::TextSelection;
+using ::veyra::TextVerticalDirection;
+using ::veyra::TextVisualEdge;
+using ::veyra::TextVisualLine;
+using ::veyra::TextVisualPosition;
+using ::veyra::utf8_byte_offset;
+}
+
+namespace veyra::text::editing {
+using ::veyra::TextCaretStop;
+using ::veyra::TextComposition;
+using ::veyra::TextCursorDirection;
+using ::veyra::TextEditResult;
+using ::veyra::TextEditorBuffer;
+using ::veyra::TextSelection;
+using ::veyra::TextVerticalDirection;
+using ::veyra::TextVisualEdge;
+using ::veyra::TextVisualLine;
+using ::veyra::TextVisualPosition;
+using ::veyra::utf8_byte_offset;
+}
+
 #endif

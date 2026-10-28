@@ -61,4 +61,14 @@ class IconRegistry {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::IconRecord;
+using ::veyra::IconRegistry;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::IconRecord;
+using ::veyra::IconRegistry;
+}
+
 #endif

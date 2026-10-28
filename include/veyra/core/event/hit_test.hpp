@@ -2,7 +2,7 @@
 #define VEYRA_CORE_HIT_TEST_HPP
 
 #include "veyra/core/tree/node_tree.hpp"
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 
 #include <cstdint>
 #include <span>
@@ -26,6 +26,16 @@ HitTestResult hit_test(
     NodeId& target
 ) noexcept;
 
+}
+
+namespace veyra::core {
+using ::veyra::HitTestResult;
+using ::veyra::hit_test;
+}
+
+namespace veyra::core::event {
+using ::veyra::HitTestResult;
+using ::veyra::hit_test;
 }
 
 #endif

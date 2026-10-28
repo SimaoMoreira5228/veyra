@@ -96,4 +96,24 @@ class FileOperationQueue {
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::FileOperation;
+using ::veyra::FileOperationClear;
+using ::veyra::FileOperationFault;
+using ::veyra::FileOperationKind;
+using ::veyra::FileOperationQueue;
+using ::veyra::FileOperationResult;
+using ::veyra::FileOperationState;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::FileOperation;
+using ::veyra::FileOperationClear;
+using ::veyra::FileOperationFault;
+using ::veyra::FileOperationKind;
+using ::veyra::FileOperationQueue;
+using ::veyra::FileOperationResult;
+using ::veyra::FileOperationState;
+}
+
 #endif

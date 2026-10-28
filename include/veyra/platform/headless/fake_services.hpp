@@ -185,4 +185,26 @@ static_assert(NoticeBackend<FakeServices>);
 
 }
 
+namespace veyra::platform {
+using ::veyra::DialogAnswer;
+using ::veyra::DialogKind;
+using ::veyra::DialogOpen;
+using ::veyra::DialogPoll;
+using ::veyra::FakeServices;
+using ::veyra::NoticeAsk;
+using ::veyra::NoticeRead;
+using ::veyra::ServiceResult;
+}
+
+namespace veyra::platform::headless {
+using ::veyra::DialogAnswer;
+using ::veyra::DialogKind;
+using ::veyra::DialogOpen;
+using ::veyra::DialogPoll;
+using ::veyra::FakeServices;
+using ::veyra::NoticeAsk;
+using ::veyra::NoticeRead;
+using ::veyra::ServiceResult;
+}
+
 #endif

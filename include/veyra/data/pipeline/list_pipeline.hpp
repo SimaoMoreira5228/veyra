@@ -160,4 +160,34 @@ class ListPipeline {
 
 }
 
+namespace veyra::data {
+using ::veyra::CombinedListLoadStates;
+using ::veyra::ListDirectionLoad;
+using ::veyra::ListDirectionStates;
+using ::veyra::ListEdgeReach;
+using ::veyra::ListLoadDirection;
+using ::veyra::ListLoadOrigin;
+using ::veyra::ListLoadRequest;
+using ::veyra::ListLoadState;
+using ::veyra::ListPipeline;
+using ::veyra::ListPipelineConfig;
+using ::veyra::ListPipelineResult;
+using ::veyra::kListLoadDirections;
+}
+
+namespace veyra::data::pipeline {
+using ::veyra::CombinedListLoadStates;
+using ::veyra::ListDirectionLoad;
+using ::veyra::ListDirectionStates;
+using ::veyra::ListEdgeReach;
+using ::veyra::ListLoadDirection;
+using ::veyra::ListLoadOrigin;
+using ::veyra::ListLoadRequest;
+using ::veyra::ListLoadState;
+using ::veyra::ListPipeline;
+using ::veyra::ListPipelineConfig;
+using ::veyra::ListPipelineResult;
+using ::veyra::kListLoadDirections;
+}
+
 #endif

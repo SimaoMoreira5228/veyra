@@ -48,4 +48,24 @@ using FileThumbnailCache =
 
 }
 
+namespace veyra::files {
+using ::veyra::FileThumbnail;
+using ::veyra::FileThumbnailCache;
+using ::veyra::FileThumbnailCacheResult;
+using ::veyra::FileThumbnailCacheSlot;
+using ::veyra::FileThumbnailHash;
+using ::veyra::FileThumbnailKey;
+using ::veyra::FileThumbnailKeyValidator;
+}
+
+namespace veyra::files::thumbnails {
+using ::veyra::FileThumbnail;
+using ::veyra::FileThumbnailCache;
+using ::veyra::FileThumbnailCacheResult;
+using ::veyra::FileThumbnailCacheSlot;
+using ::veyra::FileThumbnailHash;
+using ::veyra::FileThumbnailKey;
+using ::veyra::FileThumbnailKeyValidator;
+}
+
 #endif

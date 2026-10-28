@@ -43,4 +43,22 @@ lex_c_line(std::string_view line, SyntaxLineState state, std::span<SyntaxSpan> o
 
 }
 
+namespace veyra::text {
+using ::veyra::SyntaxKind;
+using ::veyra::SyntaxLineOutcome;
+using ::veyra::SyntaxLineState;
+using ::veyra::SyntaxResult;
+using ::veyra::SyntaxSpan;
+using ::veyra::lex_c_line;
+}
+
+namespace veyra::text::annotation {
+using ::veyra::SyntaxKind;
+using ::veyra::SyntaxLineOutcome;
+using ::veyra::SyntaxLineState;
+using ::veyra::SyntaxResult;
+using ::veyra::SyntaxSpan;
+using ::veyra::lex_c_line;
+}
+
 #endif

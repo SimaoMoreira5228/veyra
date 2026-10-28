@@ -32,4 +32,18 @@ write_theme_file(const Theme& theme, std::span<char> buffer_out, std::size_t& us
 
 }
 
+namespace veyra::style {
+using ::veyra::ThemeFileError;
+using ::veyra::ThemeFileResult;
+using ::veyra::parse_theme_file;
+using ::veyra::write_theme_file;
+}
+
+namespace veyra::style::theme {
+using ::veyra::ThemeFileError;
+using ::veyra::ThemeFileResult;
+using ::veyra::parse_theme_file;
+using ::veyra::write_theme_file;
+}
+
 #endif

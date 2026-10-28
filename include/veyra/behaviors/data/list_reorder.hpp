@@ -59,4 +59,16 @@ inline bool apply_reorder_index(
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::adjust_reorder_destination;
+using ::veyra::apply_reorder_index;
+using ::veyra::kInvalidReorderIndex;
+}
+
+namespace veyra::behaviors::data {
+using ::veyra::adjust_reorder_destination;
+using ::veyra::apply_reorder_index;
+using ::veyra::kInvalidReorderIndex;
+}
+
 #endif

@@ -127,4 +127,28 @@ inline SpinboxCommit resolve_spinbox_commit(SpinboxParsed parsed, double current
 
 }
 
+namespace veyra::behaviors {
+using ::veyra::SpinboxCommit;
+using ::veyra::SpinboxCommitAction;
+using ::veyra::SpinboxFormatResult;
+using ::veyra::SpinboxParseResult;
+using ::veyra::SpinboxParsed;
+using ::veyra::format_spinbox_text;
+using ::veyra::kSpinboxFormatCapacity;
+using ::veyra::parse_spinbox_text;
+using ::veyra::resolve_spinbox_commit;
+}
+
+namespace veyra::behaviors::input {
+using ::veyra::SpinboxCommit;
+using ::veyra::SpinboxCommitAction;
+using ::veyra::SpinboxFormatResult;
+using ::veyra::SpinboxParseResult;
+using ::veyra::SpinboxParsed;
+using ::veyra::format_spinbox_text;
+using ::veyra::kSpinboxFormatCapacity;
+using ::veyra::parse_spinbox_text;
+using ::veyra::resolve_spinbox_commit;
+}
+
 #endif

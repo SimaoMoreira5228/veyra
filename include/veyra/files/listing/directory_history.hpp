@@ -34,4 +34,14 @@ class DirectoryHistory {
 
 }
 
+namespace veyra::files {
+using ::veyra::DirectoryHistory;
+using ::veyra::DirectoryHistoryResult;
+}
+
+namespace veyra::files::listing {
+using ::veyra::DirectoryHistory;
+using ::veyra::DirectoryHistoryResult;
+}
+
 #endif

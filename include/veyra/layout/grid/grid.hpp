@@ -1,7 +1,7 @@
 #ifndef VEYRA_LAYOUT_GRID_HPP
 #define VEYRA_LAYOUT_GRID_HPP
 
-#include "veyra/layout/core/geometry.hpp"
+#include "veyra/foundation/geometry.hpp"
 #include "veyra/layout/core/measure.hpp"
 
 #include <cstddef>
@@ -71,6 +71,28 @@ GridLayoutResult layout_grid(
     std::span<LayoutRect> output
 ) noexcept;
 
+}
+
+namespace veyra::layout {
+using ::veyra::GridContainer;
+using ::veyra::GridItem;
+using ::veyra::GridItemPlacement;
+using ::veyra::GridLayoutResult;
+using ::veyra::GridLayoutWorkspace;
+using ::veyra::GridTrack;
+using ::veyra::GridTrackWorkspace;
+using ::veyra::layout_grid;
+}
+
+namespace veyra::layout::grid {
+using ::veyra::GridContainer;
+using ::veyra::GridItem;
+using ::veyra::GridItemPlacement;
+using ::veyra::GridLayoutResult;
+using ::veyra::GridLayoutWorkspace;
+using ::veyra::GridTrack;
+using ::veyra::GridTrackWorkspace;
+using ::veyra::layout_grid;
 }
 
 #endif

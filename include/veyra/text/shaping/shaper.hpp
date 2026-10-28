@@ -69,4 +69,18 @@ class TextShaper {
 
 }
 
+namespace veyra::text {
+using ::veyra::ShapeResult;
+using ::veyra::ShapedGlyph;
+using ::veyra::TextRunProperties;
+using ::veyra::TextShaper;
+}
+
+namespace veyra::text::shaping {
+using ::veyra::ShapeResult;
+using ::veyra::ShapedGlyph;
+using ::veyra::TextRunProperties;
+using ::veyra::TextShaper;
+}
+
 #endif

@@ -25,4 +25,19 @@ CheckboxAppearance checkbox_appearance(const Theme& theme, ToggleState state) no
 SwitchAppearance switch_appearance(const Theme& theme, ToggleState state) noexcept;
 
 }
+
+namespace veyra::widgets {
+using ::veyra::CheckboxAppearance;
+using ::veyra::SwitchAppearance;
+using ::veyra::checkbox_appearance;
+using ::veyra::switch_appearance;
+}
+
+namespace veyra::widgets::basic {
+using ::veyra::CheckboxAppearance;
+using ::veyra::SwitchAppearance;
+using ::veyra::checkbox_appearance;
+using ::veyra::switch_appearance;
+}
+
 #endif

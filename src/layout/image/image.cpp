@@ -145,33 +145,5 @@ ImageBrokenReason ImageController::broken_reason() const noexcept {
     return reason_;
 }
 
-bool ImageController::write_image_semantics(
-    std::string_view label,
-    SemanticNodeData& output
-) const noexcept {
-    if (state_ == ImageLoadState::empty) {
-        return false;
-    }
-
-    if (label.empty()) {
-        return false;
-    }
-
-    std::uint16_t states{};
-    if (state_ == ImageLoadState::loading) {
-        states = states | SemanticState::busy;
-    }
-    if (state_ == ImageLoadState::broken) {
-        states = states | SemanticState::invalid;
-    }
-
-    output = {
-        .role = SemanticRole::image,
-        .label = label,
-        .states = states,
-    };
-
-    return true;
-}
 
 }

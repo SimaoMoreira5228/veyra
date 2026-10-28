@@ -2,8 +2,8 @@
 #define VEYRA_PLATFORM_WINDOW_HPP
 
 #include "veyra/core/input/shortcut_map.hpp"
-#include "veyra/layout/core/geometry.hpp"
-#include "veyra/render/cpu/software_renderer.hpp"
+#include "veyra/foundation/geometry.hpp"
+#include "veyra/foundation/image.hpp"
 
 #include <array>
 #include <concepts>
@@ -282,6 +282,80 @@ concept SoftwareSurfacePresenter =
         { presenter.present() } noexcept -> std::same_as<WindowResult>;
     };
 
+}
+
+namespace veyra::platform {
+using ::veyra::PointerButton;
+using ::veyra::TextInputArea;
+using ::veyra::WindowCapabilities;
+using ::veyra::WindowClipSupport;
+using ::veyra::WindowColorSpace;
+using ::veyra::WindowEvent;
+using ::veyra::WindowEventData;
+using ::veyra::WindowEventKind;
+using ::veyra::WindowGamepadAxis;
+using ::veyra::WindowGamepadButton;
+using ::veyra::WindowGamepadDevice;
+using ::veyra::WindowId;
+using ::veyra::WindowKey;
+using ::veyra::WindowPointer;
+using ::veyra::WindowPresentMode;
+using ::veyra::WindowResize;
+using ::veyra::WindowResult;
+using ::veyra::WindowScale;
+using ::veyra::WindowTextCommit;
+using ::veyra::WindowTextEditing;
+using ::veyra::WindowTextureFormat;
+using ::veyra::WindowWheel;
+using ::veyra::button_flag;
+using ::veyra::color_space_flag;
+using ::veyra::has_button;
+using ::veyra::has_color_space;
+using ::veyra::has_present_mode;
+using ::veyra::has_texture_format;
+using ::veyra::kInvalidWindowId;
+using ::veyra::kMousePointerId;
+using ::veyra::kWindowTextCommitCapacity;
+using ::veyra::kWindowTextPreeditCapacity;
+using ::veyra::present_mode_flag;
+using ::veyra::texture_format_flag;
+}
+
+namespace veyra::platform::core {
+using ::veyra::PointerButton;
+using ::veyra::TextInputArea;
+using ::veyra::WindowCapabilities;
+using ::veyra::WindowClipSupport;
+using ::veyra::WindowColorSpace;
+using ::veyra::WindowEvent;
+using ::veyra::WindowEventData;
+using ::veyra::WindowEventKind;
+using ::veyra::WindowGamepadAxis;
+using ::veyra::WindowGamepadButton;
+using ::veyra::WindowGamepadDevice;
+using ::veyra::WindowId;
+using ::veyra::WindowKey;
+using ::veyra::WindowPointer;
+using ::veyra::WindowPresentMode;
+using ::veyra::WindowResize;
+using ::veyra::WindowResult;
+using ::veyra::WindowScale;
+using ::veyra::WindowTextCommit;
+using ::veyra::WindowTextEditing;
+using ::veyra::WindowTextureFormat;
+using ::veyra::WindowWheel;
+using ::veyra::button_flag;
+using ::veyra::color_space_flag;
+using ::veyra::has_button;
+using ::veyra::has_color_space;
+using ::veyra::has_present_mode;
+using ::veyra::has_texture_format;
+using ::veyra::kInvalidWindowId;
+using ::veyra::kMousePointerId;
+using ::veyra::kWindowTextCommitCapacity;
+using ::veyra::kWindowTextPreeditCapacity;
+using ::veyra::present_mode_flag;
+using ::veyra::texture_format_flag;
 }
 
 #endif

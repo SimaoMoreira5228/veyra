@@ -25,4 +25,12 @@ class FrameScheduler {
 
 }
 
+namespace veyra::core {
+using ::veyra::FrameScheduler;
+}
+
+namespace veyra::core::schedule {
+using ::veyra::FrameScheduler;
+}
+
 #endif

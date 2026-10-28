@@ -8,6 +8,7 @@
 #include "veyra/core/input/shortcut_map.hpp"
 #include "veyra/platform/core/text_input.hpp"
 #include "veyra/platform/core/window.hpp"
+#include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 #include "veyra/style/theme/theme_file.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"

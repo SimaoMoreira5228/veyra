@@ -49,4 +49,14 @@ class ContainerQuerySet {
 
 }
 
+namespace veyra::layout {
+using ::veyra::ContainerQuerySet;
+using ::veyra::ContainerVariant;
+}
+
+namespace veyra::layout::responsive {
+using ::veyra::ContainerQuerySet;
+using ::veyra::ContainerVariant;
+}
+
 #endif

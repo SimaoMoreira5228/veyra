@@ -50,4 +50,14 @@ class EditorViewport {
 
 }
 
+namespace veyra::text {
+using ::veyra::EditorViewport;
+using ::veyra::EditorViewportResult;
+}
+
+namespace veyra::text::editing {
+using ::veyra::EditorViewport;
+using ::veyra::EditorViewportResult;
+}
+
 #endif
