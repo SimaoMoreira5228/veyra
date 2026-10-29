@@ -67,6 +67,10 @@ bool NullWindow::text_input_active() const noexcept {
     return text_input_active_;
 }
 
+WindowState NullWindow::window_state() const noexcept {
+    return window_state_;
+}
+
 bool NullWindow::push_event(WindowEvent event) noexcept {
     if (queue_count_ == kEventCapacity) {
         return false;
@@ -103,6 +107,10 @@ bool NullWindow::poll_event(WindowEvent& event) noexcept {
     if (event.kind == WindowEventKind::scale_change) {
         scale_x_ = event.data.scale.x;
         scale_y_ = event.data.scale.y;
+    }
+
+    if (event.kind == WindowEventKind::state_change) {
+        window_state_ = event.data.state;
     }
 
     return true;
@@ -179,6 +187,18 @@ WindowResult NullWindow::present() noexcept {
     frame_acquired_ = false;
     ++presented_frames_;
 
+    return WindowResult::ready;
+}
+
+WindowResult NullWindow::set_state(WindowState state) noexcept {
+    if (creation_result_ != WindowResult::ready) {
+        return creation_result_;
+    }
+    if (!valid_window_state(state)) {
+        return WindowResult::invalid_input;
+    }
+
+    window_state_ = state;
     return WindowResult::ready;
 }
 
@@ -300,6 +320,10 @@ bool NullWindow::is_valid_script(const WindowEvent& event) noexcept {
 
     if (event.kind == WindowEventKind::text_editing) {
         return event.data.editing.length <= kWindowTextPreeditCapacity;
+    }
+
+    if (event.kind == WindowEventKind::state_change) {
+        return valid_window_state(event.data.state);
     }
 
     return true;

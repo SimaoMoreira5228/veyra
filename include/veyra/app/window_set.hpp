@@ -11,6 +11,8 @@
 
 namespace veyra {
 
+class NodeTree;
+
 enum class ShutdownMode : std::uint8_t {
     on_last_window_close,
     on_main_window_close,
@@ -37,6 +39,8 @@ enum class WindowSetResult : std::uint8_t {
     already_shown,
     capacity,
     creation_failed,
+    invalid_root,
+    invalid_geometry,
     cancelled,
     not_dialog,
     invalid_state,
@@ -66,6 +70,13 @@ struct WindowSlot {
     std::uint64_t dialog_value{};
     NodeId focused_node{};
     NodeId accessibility_root{};
+    NodeTree* semantics_tree{};
+    WindowState window_state{WindowState::normal};
+    float width{};
+    float height{};
+    float scale_x{1.0F};
+    float scale_y{1.0F};
+    std::uint64_t scale_generation{};
     Theme theme{};
 };
 
@@ -78,6 +89,12 @@ struct WindowInfo {
     std::size_t child_count{};
     NodeId focused_node{};
     NodeId accessibility_root{};
+    WindowState state{WindowState::normal};
+    float width{};
+    float height{};
+    float scale_x{1.0F};
+    float scale_y{1.0F};
+    std::uint64_t scale_generation{};
 };
 
 struct DialogOutcome {
@@ -108,9 +125,12 @@ class WindowSet {
     WindowSetResult destroy(WindowId window) noexcept;
     WindowSetResult set_main_window(WindowId window) noexcept;
     WindowSetResult take_dialog_outcome(WindowId window, DialogOutcome& out) noexcept;
+    WindowSetResult
+    set_geometry(WindowId window, float width, float height, float scale_x, float scale_y) noexcept;
+    WindowSetResult set_state(WindowId window, WindowState state) noexcept;
+    WindowSetResult bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept;
     bool set_focused_node(WindowId window, NodeId node) noexcept;
     NodeId focused_node(WindowId window) const noexcept;
-    bool set_accessibility_root(WindowId window, NodeId node) noexcept;
     NodeId accessibility_root(WindowId window) const noexcept;
     Theme* theme(WindowId window) noexcept;
     const Theme* theme(WindowId window) const noexcept;
@@ -157,6 +177,7 @@ using ::veyra::WindowSet;
 using ::veyra::WindowSetResult;
 using ::veyra::WindowSlot;
 using ::veyra::WindowSlotState;
+using ::veyra::WindowState;
 }
 
 #endif

@@ -1,8 +1,10 @@
 #include "veyra/app/window_set.hpp"
+#include "veyra/core/tree/node_tree.hpp"
 
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 
@@ -237,21 +239,158 @@ void check_window_contexts() {
         "a theme override does not leak to another window"
     );
 
-    const auto first_node = veyra::NodeId{.index = 7, .generation = 2};
-    const auto second_node = veyra::NodeId{.index = 9, .generation = 4};
+    require(
+        !windows.set_focused_node(first, veyra::NodeId{.index = 0, .generation = 1}),
+        "focus is rejected before a semantic scope is bound"
+    );
+
+    auto tree = veyra::NodeTree{};
+    tree.reserve(4);
+    const auto first_root = tree.create();
+    const auto first_node = tree.create();
+    const auto second_root = tree.create();
+    const auto second_node = tree.create();
+    require(tree.append_child(first_root, first_node), "first focus node attaches");
+    require(tree.append_child(second_root, second_node), "second focus node attaches");
+    require(tree.set_focusable(first_node, true), "first focus node is focusable");
+    require(tree.set_focusable(second_node, true), "second focus node is focusable");
+
+    require(
+        windows.bind_semantics(first, tree, first_root) == veyra::WindowSetResult::ok,
+        "first window binds its root"
+    );
+    require(
+        windows.bind_semantics(second, tree, second_root) == veyra::WindowSetResult::ok,
+        "second window binds its root"
+    );
+    require(
+        windows.bind_semantics(first, tree, veyra::NodeId{.index = 99, .generation = 1}) ==
+            veyra::WindowSetResult::invalid_root,
+        "a root outside the tree is rejected"
+    );
+
     require(windows.set_focused_node(first, first_node), "first focus is accepted");
     require(windows.set_focused_node(second, second_node), "second focus is accepted");
     require(windows.focused_node(first) == first_node, "first window keeps its focus");
     require(windows.focused_node(second) == second_node, "second window keeps its focus");
+    require(
+        !windows.set_focused_node(first, second_node),
+        "focus cannot cross into another window scope"
+    );
+    require(windows.focused_node(first) == first_node, "a rejected focus leaves the old focus");
     require(windows.focused_node(veyra::kInvalidWindowId).is_null(), "unknown focus is null");
-
-    const auto root = veyra::NodeId{.index = 3, .generation = 1};
-    require(windows.set_accessibility_root(first, root), "accessibility root is accepted");
-    require(windows.accessibility_root(first) == root, "accessibility root is stored");
-    require(windows.accessibility_root(second).is_null(), "other windows keep their own root");
+    require(windows.accessibility_root(first) == first_root, "accessibility root is stored");
+    require(windows.accessibility_root(second) == second_root, "other windows keep their own root");
     require(
         windows.accessibility_root(veyra::kInvalidWindowId).is_null(),
         "unknown accessibility root is null"
+    );
+
+    require(
+        windows.bind_semantics(first, tree, second_root) == veyra::WindowSetResult::ok,
+        "a window scope can move to another root"
+    );
+    require(
+        windows.focused_node(first).is_null(),
+        "moving the scope drops focus that no longer belongs to it"
+    );
+    require(
+        windows.bind_semantics(veyra::kInvalidWindowId, tree, first_root) ==
+            veyra::WindowSetResult::invalid_window,
+        "an unknown window cannot bind a scope"
+    );
+}
+
+void check_geometry_and_state() {
+    auto slots = std::array<veyra::WindowSlot, 2>{};
+    auto windows = veyra::WindowSet(slots);
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(
+        windows.create({}, first) == veyra::WindowSetResult::ok,
+        "first geometry window creates"
+    );
+    require(
+        windows.create({}, second) == veyra::WindowSetResult::ok,
+        "second geometry window creates"
+    );
+
+    auto info = veyra::WindowInfo{};
+    require(windows.info(first, info), "new window info is available");
+    require(info.state == veyra::WindowState::normal, "new windows start normal");
+    require(info.width == 0.0F && info.height == 0.0F, "new windows start without geometry");
+    require(info.scale_generation == 0, "new windows have no scale generation");
+
+    require(
+        windows.set_geometry(first, 320.0F, 200.0F, 1.0F, 1.0F) == veyra::WindowSetResult::ok,
+        "first geometry is accepted"
+    );
+    require(
+        windows.set_geometry(second, 640.0F, 480.0F, 2.0F, 2.0F) == veyra::WindowSetResult::ok,
+        "second geometry is accepted"
+    );
+    require(windows.info(first, info), "first info stays available");
+    require(info.width == 320.0F && info.height == 200.0F, "first client size is stored");
+    require(
+        info.scale_x == 1.0F && info.scale_generation == 1,
+        "first scale starts generation one"
+    );
+    require(windows.info(second, info), "second info stays available");
+    require(info.width == 640.0F && info.height == 480.0F, "second client size is stored");
+    require(
+        info.scale_x == 2.0F && info.scale_generation == 1,
+        "second scale starts generation one"
+    );
+
+    require(
+        windows.set_geometry(first, 320.0F, 200.0F, 1.0F, 1.0F) == veyra::WindowSetResult::ok,
+        "repeating the same geometry is accepted"
+    );
+    require(windows.info(first, info), "first info stays available");
+    require(info.scale_generation == 1, "unchanged scales keep the generation");
+    require(
+        windows.set_geometry(first, 320.0F, 200.0F, 1.5F, 1.5F) == veyra::WindowSetResult::ok,
+        "a scale change is accepted"
+    );
+    require(windows.info(first, info), "first info stays available");
+    require(info.scale_x == 1.5F && info.scale_generation == 2, "scale changes bump generation");
+
+    require(
+        windows.set_geometry(first, 0.0F, 200.0F, 1.0F, 1.0F) ==
+            veyra::WindowSetResult::invalid_geometry,
+        "zero width is rejected"
+    );
+    require(
+        windows.set_geometry(first, 320.0F, std::numeric_limits<float>::infinity(), 1.0F, 1.0F) ==
+            veyra::WindowSetResult::invalid_geometry,
+        "non-finite height is rejected"
+    );
+    require(
+        windows.set_geometry(first, 320.0F, 200.0F, -1.0F, 1.0F) ==
+            veyra::WindowSetResult::invalid_geometry,
+        "negative scale is rejected"
+    );
+    require(
+        windows.set_geometry(veyra::kInvalidWindowId, 320.0F, 200.0F, 1.0F, 1.0F) ==
+            veyra::WindowSetResult::invalid_window,
+        "unknown windows reject geometry"
+    );
+
+    require(
+        windows.set_state(first, veyra::WindowState::maximized) == veyra::WindowSetResult::ok,
+        "window state is accepted"
+    );
+    require(windows.info(first, info), "first info stays available");
+    require(info.state == veyra::WindowState::maximized, "window state is stored");
+    require(
+        windows.set_state(veyra::kInvalidWindowId, veyra::WindowState::minimized) ==
+            veyra::WindowSetResult::invalid_window,
+        "unknown windows reject state"
+    );
+    require(
+        windows.set_state(first, static_cast<veyra::WindowState>(99)) ==
+            veyra::WindowSetResult::invalid_state,
+        "unknown states are rejected"
     );
 }
 
@@ -266,6 +405,7 @@ int main() {
         check_shutdown_modes();
         check_capacity_and_stale_ids();
         check_window_contexts();
+        check_geometry_and_state();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

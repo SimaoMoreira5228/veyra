@@ -7,5 +7,5 @@ Checks: >
   performance-*,
   portability-*
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*(include/veyra|src|bench)/'
+HeaderFilterRegex: '^(?!.*(\.deps|third_party)).*(include/veyra|src|bench)/'
 FormatStyle: file

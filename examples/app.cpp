@@ -213,8 +213,8 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     }
 
     auto semantics = veyra::AppSemantics{};
-    app.set_accessibility_root(main_window, semantics.root);
-    app.set_accessibility_root(inspector, semantics.inspector_root);
+    app.bind_semantics(main_window, semantics.tree(), semantics.root);
+    app.bind_semantics(inspector, semantics.tree(), semantics.inspector_root);
 
     auto model = veyra::AppModel{};
     model.open(

@@ -36,8 +36,9 @@ class Sdl3WindowHost {
     WindowSetResult request_close(WindowId window, CloseReason reason) noexcept;
     WindowSetResult close_with_result(WindowId window, bool accepted, std::uint64_t value) noexcept;
     WindowSetResult destroy(WindowId window) noexcept;
+    WindowSetResult set_state(WindowId window, WindowState state) noexcept;
+    bool bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept;
     bool set_focused_node(WindowId window, NodeId node) noexcept;
-    bool set_accessibility_root(WindowId window, NodeId node) noexcept;
 
     bool poll_event(WindowEvent& event, WindowId& logical_window) noexcept;
 

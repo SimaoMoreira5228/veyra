@@ -41,6 +41,19 @@ WindowSetResult Sdl3WindowHost::create(
         return WindowSetResult::creation_failed;
     }
 
+    if (windows_.set_geometry(
+            logical,
+            backend->logical_width(),
+            backend->logical_height(),
+            backend->scale_x(),
+            backend->scale_y()
+        ) != WindowSetResult::ok) {
+        router_.detach(logical);
+        backend.reset();
+        windows_.destroy(logical);
+        return WindowSetResult::creation_failed;
+    }
+
     sdl_ids_[index] = backend->window_id();
     out_window = logical;
     return WindowSetResult::ok;
@@ -95,8 +108,30 @@ bool Sdl3WindowHost::set_focused_node(WindowId window, NodeId node) noexcept {
     return router_.set_focused_node(window, node);
 }
 
-bool Sdl3WindowHost::set_accessibility_root(WindowId window, NodeId node) noexcept {
-    return windows_.set_accessibility_root(window, node);
+bool Sdl3WindowHost::bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
+    return windows_.bind_semantics(window, tree, root) == WindowSetResult::ok;
+}
+
+WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) noexcept {
+    const auto index = slot_for(window);
+    if (index == kCapacity) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& backend = backends_[index];
+    if (!backend.has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+    if (backend->set_state(state) != WindowResult::ready) {
+        return WindowSetResult::invalid_state;
+    }
+
+    const auto result = windows_.set_state(window, state);
+    if (result == WindowSetResult::ok) {
+        router_.mark_damaged(window);
+    }
+
+    return result;
 }
 
 WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
@@ -123,6 +158,20 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
 
             event.window = logical;
             router_.route(event);
+            if (event.kind == WindowEventKind::state_change) {
+                windows_.set_state(logical, event.data.state);
+                router_.mark_damaged(logical);
+            }
+            const auto* state = router_.find(logical);
+            if (state != nullptr) {
+                windows_.set_geometry(
+                    logical,
+                    state->logical_width(),
+                    state->logical_height(),
+                    state->scale_x(),
+                    state->scale_y()
+                );
+            }
             logical_window = logical;
             return true;
         }

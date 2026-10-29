@@ -133,6 +133,13 @@ bool translate_resize(const SDL_WindowEvent& in, WindowEvent& out) noexcept {
     return true;
 }
 
+bool translate_state(WindowState state, WindowEvent& out) noexcept {
+    out.kind = WindowEventKind::state_change;
+    out.data.state = state;
+
+    return true;
+}
+
 bool translate_focus(bool gained, WindowEvent& out) noexcept {
     out.kind = gained ? WindowEventKind::focus_gained : WindowEventKind::focus_lost;
 
@@ -326,6 +333,21 @@ bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out)
         break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         handled = translate_focus(false, mapped);
+        break;
+    case SDL_EVENT_WINDOW_MINIMIZED:
+        handled = translate_state(WindowState::minimized, mapped);
+        break;
+    case SDL_EVENT_WINDOW_MAXIMIZED:
+        handled = translate_state(WindowState::maximized, mapped);
+        break;
+    case SDL_EVENT_WINDOW_RESTORED:
+        handled = translate_state(WindowState::normal, mapped);
+        break;
+    case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+        handled = translate_state(WindowState::fullscreen, mapped);
+        break;
+    case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+        handled = translate_state(WindowState::normal, mapped);
         break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:

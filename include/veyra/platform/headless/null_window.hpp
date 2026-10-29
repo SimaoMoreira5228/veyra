@@ -1,8 +1,8 @@
 #ifndef VEYRA_PLATFORM_NULL_WINDOW_HPP
 #define VEYRA_PLATFORM_NULL_WINDOW_HPP
 
-#include "veyra/platform/headless/fake_services.hpp"
 #include "veyra/platform/core/window.hpp"
+#include "veyra/platform/headless/fake_services.hpp"
 
 #include <array>
 #include <cstddef>
@@ -33,6 +33,7 @@ class NullWindow {
     WindowCapabilities capabilities() const noexcept;
     std::uint64_t presented_frames() const noexcept;
     bool text_input_active() const noexcept;
+    WindowState window_state() const noexcept;
 
     bool push_event(WindowEvent event) noexcept;
     bool poll_event(WindowEvent& event) noexcept;
@@ -51,6 +52,7 @@ class NullWindow {
     WindowResult set_clipboard_text(const char* text) noexcept;
     WindowResult get_clipboard_text(std::span<char> output, std::size_t& length) noexcept;
 
+    WindowResult set_state(WindowState state) noexcept;
     void set_suspended(bool suspended) noexcept;
 
   private:
@@ -69,6 +71,7 @@ class NullWindow {
     bool frame_acquired_{};
     bool suspended_{};
     bool text_input_active_{};
+    WindowState window_state_{WindowState::normal};
     TextInputArea input_area_{};
     std::array<char, kClipboardCapacity> clipboard_{};
     std::size_t clipboard_length_{};

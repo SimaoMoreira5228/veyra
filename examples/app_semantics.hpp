@@ -18,6 +18,7 @@ class AppSemantics {
 
     AppSemantics();
 
+    NodeTree& tree() noexcept;
     NodeId focus_node(std::uint64_t id) const noexcept;
     SemanticSnapshotResult snapshot(
         const WindowSet& windows,
@@ -86,6 +87,10 @@ inline AppSemantics::AppSemantics() {
         };
     }
     bounds_[inspector_root.index] = {.width = 240.0F, .height = 160.0F};
+}
+
+inline NodeTree& AppSemantics::tree() noexcept {
+    return tree_;
 }
 
 inline NodeId AppSemantics::focus_node(std::uint64_t id) const noexcept {

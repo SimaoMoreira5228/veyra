@@ -30,6 +30,8 @@ class Sdl3Window {
 
     WindowResult creation_result() const noexcept;
     WindowResult show() noexcept;
+    WindowResult set_state(WindowState state) noexcept;
+    WindowState window_state() const noexcept;
     WindowId window_id() const noexcept;
     float logical_width() const noexcept;
     float logical_height() const noexcept;

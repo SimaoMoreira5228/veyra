@@ -67,8 +67,12 @@ class Sdl3Application {
         return result;
     }
 
-    bool set_accessibility_root(WindowId window, NodeId node) noexcept {
-        return host_.set_accessibility_root(window, node);
+    bool bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
+        const auto result = host_.bind_semantics(window, tree, root);
+        if (result) {
+            scheduler_.request_immediate();
+        }
+        return result;
     }
 
     bool poll_event(WindowEvent& event, WindowId& window) noexcept {

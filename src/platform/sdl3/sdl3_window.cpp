@@ -182,6 +182,54 @@ WindowResult Sdl3Window::show() noexcept {
     return SDL_ShowWindow(window_.get()) ? WindowResult::ready : WindowResult::presentation_failed;
 }
 
+WindowResult Sdl3Window::set_state(WindowState state) noexcept {
+    if (!window_) {
+        return WindowResult::invalid_state;
+    }
+
+    auto changed = false;
+    switch (state) {
+    case WindowState::normal:
+        changed = window_state() == WindowState::fullscreen
+            ? SDL_SetWindowFullscreen(window_.get(), false)
+            : true;
+        if (changed) {
+            changed = SDL_RestoreWindow(window_.get());
+        }
+        break;
+    case WindowState::minimized:
+        changed = SDL_MinimizeWindow(window_.get());
+        break;
+    case WindowState::maximized:
+        changed = SDL_MaximizeWindow(window_.get());
+        break;
+    case WindowState::fullscreen:
+        changed = SDL_SetWindowFullscreen(window_.get(), true);
+        break;
+    }
+
+    return changed ? WindowResult::ready : WindowResult::presentation_failed;
+}
+
+WindowState Sdl3Window::window_state() const noexcept {
+    if (!window_) {
+        return WindowState::normal;
+    }
+
+    const auto flags = SDL_GetWindowFlags(window_.get());
+    if ((flags & SDL_WINDOW_FULLSCREEN) != 0) {
+        return WindowState::fullscreen;
+    }
+    if ((flags & SDL_WINDOW_MINIMIZED) != 0) {
+        return WindowState::minimized;
+    }
+    if ((flags & SDL_WINDOW_MAXIMIZED) != 0) {
+        return WindowState::maximized;
+    }
+
+    return WindowState::normal;
+}
+
 float Sdl3Window::logical_width() const noexcept {
     return logical_width_;
 }

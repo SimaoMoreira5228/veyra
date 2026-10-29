@@ -1,6 +1,27 @@
 #include "veyra/app/window_set.hpp"
 
+#include "veyra/core/tree/node_tree.hpp"
+
+#include <cmath>
+
 namespace veyra {
+namespace {
+
+bool in_scope(const NodeTree& tree, NodeId root, NodeId node) noexcept {
+    if (!tree.contains(node)) {
+        return false;
+    }
+
+    for (auto current = node; !current.is_null(); current = tree.parent_of(current)) {
+        if (current == root) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+}
 
 WindowSet::WindowSet(
     std::span<WindowSlot> storage,
@@ -144,27 +165,91 @@ bool WindowSet::info(WindowId window, WindowInfo& out) const noexcept {
         .child_count = child_count(window),
         .focused_node = slot->focused_node,
         .accessibility_root = slot->accessibility_root,
+        .state = slot->window_state,
+        .width = slot->width,
+        .height = slot->height,
+        .scale_x = slot->scale_x,
+        .scale_y = slot->scale_y,
+        .scale_generation = slot->scale_generation,
     };
     return true;
 }
 
-bool WindowSet::set_focused_node(WindowId window, NodeId node) noexcept {
+WindowSetResult WindowSet::set_geometry(
+    WindowId window,
+    float width,
+    float height,
+    float scale_x,
+    float scale_y
+) noexcept {
     auto* slot = find_slot(window);
     if (slot == nullptr || slot->state != WindowSlotState::open) {
+        return WindowSetResult::invalid_window;
+    }
+    if (!std::isfinite(width) || !std::isfinite(height) || !std::isfinite(scale_x) ||
+        !std::isfinite(scale_y) || width <= 0.0F || height <= 0.0F || scale_x <= 0.0F ||
+        scale_y <= 0.0F) {
+        return WindowSetResult::invalid_geometry;
+    }
+
+    if (slot->scale_generation == 0) {
+        slot->scale_generation = 1;
+    } else if (slot->scale_x != scale_x || slot->scale_y != scale_y) {
+        ++slot->scale_generation;
+    }
+    slot->width = width;
+    slot->height = height;
+    slot->scale_x = scale_x;
+    slot->scale_y = scale_y;
+    return WindowSetResult::ok;
+}
+
+WindowSetResult WindowSet::set_state(WindowId window, WindowState state) noexcept {
+    auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open) {
+        return WindowSetResult::invalid_window;
+    }
+    if (!valid_window_state(state)) {
+        return WindowSetResult::invalid_state;
+    }
+
+    slot->window_state = state;
+    return WindowSetResult::ok;
+}
+
+WindowSetResult WindowSet::bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
+    auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open) {
+        return WindowSetResult::invalid_window;
+    }
+    if (!tree.contains(root)) {
+        return WindowSetResult::invalid_root;
+    }
+
+    slot->semantics_tree = &tree;
+    slot->accessibility_root = root;
+    if (!slot->focused_node.is_null() && !in_scope(tree, root, slot->focused_node)) {
+        slot->focused_node = {};
+    }
+    return WindowSetResult::ok;
+}
+
+bool WindowSet::set_focused_node(WindowId window, NodeId node) noexcept {
+    auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open ||
+        slot->semantics_tree == nullptr) {
+        return false;
+    }
+
+    if (node.is_null()) {
+        slot->focused_node = {};
+        return true;
+    }
+    if (!in_scope(*slot->semantics_tree, slot->accessibility_root, node)) {
         return false;
     }
 
     slot->focused_node = node;
-    return true;
-}
-
-bool WindowSet::set_accessibility_root(WindowId window, NodeId node) noexcept {
-    auto* slot = find_slot(window);
-    if (slot == nullptr || slot->state != WindowSlotState::open) {
-        return false;
-    }
-
-    slot->accessibility_root = node;
     return true;
 }
 
@@ -342,6 +427,9 @@ void WindowSet::finish_close(WindowSlot& slot, bool accepted, std::uint64_t valu
         slot.dialog_value = value;
         slot.shown = false;
         slot.state = WindowSlotState::closed;
+        slot.focused_node = {};
+        slot.accessibility_root = {};
+        slot.semantics_tree = nullptr;
         return;
     }
 

@@ -46,6 +46,49 @@ void check_close_and_focus() {
     require(out.kind == veyra::WindowEventKind::focus_lost, "focus lost keeps its kind");
 
     in = {};
+    in.type = SDL_EVENT_WINDOW_MINIMIZED;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "minimize translates");
+    require(
+        out.kind == veyra::WindowEventKind::state_change &&
+            out.data.state == veyra::WindowState::minimized,
+        "minimize becomes the minimized state"
+    );
+
+    in = {};
+    in.type = SDL_EVENT_WINDOW_MAXIMIZED;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "maximize translates");
+    require(
+        out.data.state == veyra::WindowState::maximized,
+        "maximize becomes the maximized state"
+    );
+
+    in = {};
+    in.type = SDL_EVENT_WINDOW_RESTORED;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "restore translates");
+    require(out.data.state == veyra::WindowState::normal, "restore becomes the normal state");
+
+    in = {};
+    in.type = SDL_EVENT_WINDOW_ENTER_FULLSCREEN;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "fullscreen enter translates");
+    require(
+        out.data.state == veyra::WindowState::fullscreen,
+        "fullscreen enter becomes the fullscreen state"
+    );
+
+    in = {};
+    in.type = SDL_EVENT_WINDOW_LEAVE_FULLSCREEN;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "fullscreen leave translates");
+    require(
+        out.data.state == veyra::WindowState::normal,
+        "fullscreen leave becomes the normal state"
+    );
+
+    in = {};
     in.type = SDL_EVENT_WINDOW_RESIZED;
     in.window.data1 = 160;
     in.window.data2 = 120;

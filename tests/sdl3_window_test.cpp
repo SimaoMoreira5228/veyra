@@ -31,6 +31,10 @@ void check_window_contract() {
         "SDL reports logical size"
     );
     require(first.surface_generation() > 0, "SDL reports a surface generation");
+    require(
+        first.window_state() == veyra::WindowState::normal,
+        "SDL reports a normal window state"
+    );
 
     std::array<veyra::SoftwarePixel, 19200> pixels{};
     veyra::SoftwareSurface surface{};

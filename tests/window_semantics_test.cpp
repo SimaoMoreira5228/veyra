@@ -54,8 +54,14 @@ void check_snapshots_stay_inside_their_window() {
     auto second = veyra::WindowId{};
     require(windows.create({}, first) == veyra::WindowSetResult::ok, "first window creates");
     require(windows.create({}, second) == veyra::WindowSetResult::ok, "second window creates");
-    require(windows.set_accessibility_root(first, root_a), "first root is stored");
-    require(windows.set_accessibility_root(second, root_b), "second root is stored");
+    require(
+        windows.bind_semantics(first, tree, root_a) == veyra::WindowSetResult::ok,
+        "first root is bound"
+    );
+    require(
+        windows.bind_semantics(second, tree, root_b) == veyra::WindowSetResult::ok,
+        "second root is bound"
+    );
     require(windows.set_focused_node(first, button_a), "first focus is stored");
     require(windows.set_focused_node(second, button_b), "second focus is stored");
 
@@ -87,13 +93,11 @@ void check_snapshots_stay_inside_their_window() {
         "second focus comes from the second window"
     );
 
-    require(windows.set_focused_node(first, button_b), "cross-window focus is stored as an id");
+    require(!windows.set_focused_node(first, button_b), "cross-window focus is rejected");
     require(
-        veyra::app::build_window_snapshot(tree, windows, first, data, bounds, output, count) ==
-            veyra::SemanticSnapshotResult::invalid_focus,
-        "cross-window focus is rejected by the snapshot"
+        windows.focused_node(first) == button_a,
+        "a rejected focus leaves the first window unchanged"
     );
-    require(count == 0, "a rejected snapshot clears the count");
 }
 
 void check_snapshot_capacity_and_unknown_window() {
@@ -116,7 +120,10 @@ void check_snapshot_capacity_and_unknown_window() {
     auto windows = veyra::WindowSet(slots);
     auto window = veyra::WindowId{};
     require(windows.create({}, window) == veyra::WindowSetResult::ok, "window creates");
-    require(windows.set_accessibility_root(window, root), "root is stored");
+    require(
+        windows.bind_semantics(window, tree, root) == veyra::WindowSetResult::ok,
+        "root is bound"
+    );
 
     std::array<veyra::SemanticNode, 1> output{};
     auto count = std::size_t{};

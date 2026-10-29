@@ -22,6 +22,24 @@ inline constexpr std::uint32_t kMousePointerId = 0;
 inline constexpr std::size_t kWindowTextCommitCapacity = 128;
 inline constexpr std::size_t kWindowTextPreeditCapacity = 64;
 
+enum class WindowState : std::uint8_t {
+    normal,
+    minimized,
+    maximized,
+    fullscreen,
+};
+
+constexpr bool valid_window_state(WindowState state) noexcept {
+    switch (state) {
+    case WindowState::normal:
+    case WindowState::minimized:
+    case WindowState::maximized:
+    case WindowState::fullscreen:
+        return true;
+    }
+    return false;
+}
+
 enum class WindowResult : std::uint8_t {
     ready,
     suspended,
@@ -132,6 +150,7 @@ enum class WindowEventKind : std::uint8_t {
     close_request,
     resize,
     scale_change,
+    state_change,
     pointer_down,
     pointer_up,
     pointer_move,
@@ -220,6 +239,7 @@ static_assert(std::is_trivially_copyable_v<WindowGamepadDevice>);
 union WindowEventData {
     WindowResize resize;
     WindowScale scale;
+    WindowState state;
     WindowPointer pointer;
     WindowWheel wheel;
     WindowKey key;
@@ -299,6 +319,7 @@ using ::veyra::PointerButton;
 using ::veyra::present_mode_flag;
 using ::veyra::TextInputArea;
 using ::veyra::texture_format_flag;
+using ::veyra::valid_window_state;
 using ::veyra::WindowCapabilities;
 using ::veyra::WindowClipSupport;
 using ::veyra::WindowColorSpace;
@@ -315,6 +336,7 @@ using ::veyra::WindowPresentMode;
 using ::veyra::WindowResize;
 using ::veyra::WindowResult;
 using ::veyra::WindowScale;
+using ::veyra::WindowState;
 using ::veyra::WindowTextCommit;
 using ::veyra::WindowTextEditing;
 using ::veyra::WindowTextureFormat;
@@ -336,6 +358,7 @@ using ::veyra::PointerButton;
 using ::veyra::present_mode_flag;
 using ::veyra::TextInputArea;
 using ::veyra::texture_format_flag;
+using ::veyra::valid_window_state;
 using ::veyra::WindowCapabilities;
 using ::veyra::WindowClipSupport;
 using ::veyra::WindowColorSpace;
@@ -352,6 +375,7 @@ using ::veyra::WindowPresentMode;
 using ::veyra::WindowResize;
 using ::veyra::WindowResult;
 using ::veyra::WindowScale;
+using ::veyra::WindowState;
 using ::veyra::WindowTextCommit;
 using ::veyra::WindowTextEditing;
 using ::veyra::WindowTextureFormat;

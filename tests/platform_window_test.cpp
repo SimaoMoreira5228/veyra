@@ -27,6 +27,15 @@ veyra::WindowEvent make_resize(float width, float height) {
     return event;
 }
 
+veyra::WindowEvent make_state(veyra::WindowState state) {
+    veyra::WindowEvent event{};
+
+    event.kind = veyra::WindowEventKind::state_change;
+    event.data.state = state;
+
+    return event;
+}
+
 veyra::WindowEvent make_scale(float x, float y) {
     veyra::WindowEvent event{};
 
@@ -361,6 +370,40 @@ void check_script_round_trip() {
     require(!window.poll_event(event), "drained queue polls nothing");
 }
 
+void check_window_state() {
+    veyra::NullWindow window("Veyra state test", 80, 60);
+    require(window.creation_result() == veyra::WindowResult::ready, "state window creates");
+    require(
+        window.window_state() == veyra::WindowState::normal,
+        "windows start in the normal state"
+    );
+    require(
+        window.set_state(veyra::WindowState::minimized) == veyra::WindowResult::ready,
+        "minimize is accepted"
+    );
+    require(window.window_state() == veyra::WindowState::minimized, "minimize updates the state");
+
+    require(
+        window.push_event(make_state(veyra::WindowState::maximized)),
+        "a maximize event scripts"
+    );
+    auto event = veyra::WindowEvent{};
+    require(window.poll_event(event), "the state event polls");
+    require(
+        event.kind == veyra::WindowEventKind::state_change &&
+            event.data.state == veyra::WindowState::maximized,
+        "the state event carries the platform state"
+    );
+    require(
+        window.window_state() == veyra::WindowState::maximized,
+        "polled state events update the backend"
+    );
+    require(
+        !window.push_event(make_state(static_cast<veyra::WindowState>(99))),
+        "unknown states are rejected"
+    );
+}
+
 void check_queue_limits() {
     veyra::NullWindow window("queue", 160, 120);
 
@@ -659,6 +702,7 @@ int main() {
     try {
         check_invalid_construction();
         check_script_round_trip();
+        check_window_state();
         check_queue_limits();
         check_surface_lifecycle();
         check_text_and_clipboard();
