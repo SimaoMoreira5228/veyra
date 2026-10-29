@@ -17,6 +17,8 @@ enum class TraceEventKind : std::uint8_t {
     invalidation,
     cache,
     focus,
+    route,
+    provenance,
 };
 
 enum class TraceInvalidateReason : std::uint8_t {
@@ -56,6 +58,19 @@ struct TraceFocusPayload {
     NodeId to{};
 };
 
+struct TraceRoutePayload {
+    std::uint8_t event_kind{};
+    std::uint8_t route_result{};
+    std::uint64_t window{};
+};
+
+struct TraceProvenancePayload {
+    std::uint8_t token_kind{};
+    std::uint8_t token{};
+    std::uint8_t layer{};
+    std::uint32_t line{};
+};
+
 struct TraceEvent {
     TraceEventKind kind{TraceEventKind::frame_begin};
     std::uint64_t time_ms{};
@@ -67,6 +82,8 @@ struct TraceEvent {
         TraceInvalidationPayload invalidation;
         TraceCachePayload cache;
         TraceFocusPayload focus;
+        TraceRoutePayload route;
+        TraceProvenancePayload provenance;
 
         constexpr Payload() noexcept : frame{} {
         }
@@ -120,6 +137,21 @@ class TraceRecorder {
     TraceRecordResult record_cache(std::uint64_t time_ms, std::uint8_t cache_id, bool hit) noexcept;
     TraceRecordResult record_focus(std::uint64_t time_ms, NodeId from, NodeId to) noexcept;
 
+    TraceRecordResult record_route(
+        std::uint64_t time_ms,
+        std::uint8_t event_kind,
+        std::uint8_t route_result,
+        std::uint64_t window
+    ) noexcept;
+
+    TraceRecordResult record_provenance(
+        std::uint64_t time_ms,
+        std::uint8_t token_kind,
+        std::uint8_t token,
+        std::uint8_t layer,
+        std::uint32_t line
+    ) noexcept;
+
     TraceReportResult write_report(std::span<char> output, std::size_t& needed) const noexcept;
 
   private:
@@ -144,9 +176,11 @@ using ::veyra::TraceFramePayload;
 using ::veyra::TraceInvalidateReason;
 using ::veyra::TraceInvalidationPayload;
 using ::veyra::TraceLayoutPayload;
-using ::veyra::TraceRecordResult;
+using ::veyra::TraceProvenancePayload;
 using ::veyra::TraceRecorder;
+using ::veyra::TraceRecordResult;
 using ::veyra::TraceReportResult;
+using ::veyra::TraceRoutePayload;
 }
 
 namespace veyra::inspector::trace {
@@ -159,9 +193,11 @@ using ::veyra::TraceFramePayload;
 using ::veyra::TraceInvalidateReason;
 using ::veyra::TraceInvalidationPayload;
 using ::veyra::TraceLayoutPayload;
-using ::veyra::TraceRecordResult;
+using ::veyra::TraceProvenancePayload;
 using ::veyra::TraceRecorder;
+using ::veyra::TraceRecordResult;
 using ::veyra::TraceReportResult;
+using ::veyra::TraceRoutePayload;
 }
 
 #endif

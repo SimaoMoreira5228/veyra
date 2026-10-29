@@ -36,6 +36,7 @@ class Sdl3Window {
     bool visible() const noexcept;
     std::uint32_t pixel_width() const noexcept;
     std::uint32_t pixel_height() const noexcept;
+    WindowResult recreate_renderer() noexcept;
     WindowId window_id() const noexcept;
     float logical_width() const noexcept;
     float logical_height() const noexcept;

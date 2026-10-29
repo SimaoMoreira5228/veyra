@@ -398,6 +398,26 @@ void Sdl3Window::discard_frame() noexcept {
     acquired_pixels_ = {};
 }
 
+WindowResult Sdl3Window::recreate_renderer() noexcept {
+    if (!window_) {
+        return WindowResult::invalid_state;
+    }
+
+    texture_.reset();
+    renderer_.reset();
+    surface_width_ = 0;
+    surface_height_ = 0;
+    frame_acquired_ = false;
+    acquired_pixels_ = {};
+
+    auto* renderer = SDL_CreateRenderer(window_.get(), nullptr);
+    if (renderer == nullptr) {
+        return WindowResult::presentation_failed;
+    }
+    renderer_.reset(renderer);
+    return WindowResult::ready;
+}
+
 WindowResult Sdl3Window::present() noexcept {
     if (!frame_acquired_) {
         return WindowResult::invalid_state;

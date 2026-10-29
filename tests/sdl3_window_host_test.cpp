@@ -1,8 +1,10 @@
 #include "veyra/app/sdl3/window_host.hpp"
+#include "veyra/core/schedule/frame_scheduler.hpp"
 #include "veyra/core/tree/node_tree.hpp"
 
 #include <SDL3/SDL.h>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -16,6 +18,141 @@ void require(bool condition, std::string_view message) {
     if (!condition) {
         throw std::runtime_error(std::string(message));
     }
+}
+
+void check_pipelined_present() {
+    auto host = veyra::app::sdl3::Sdl3WindowHost{};
+    auto wake_scheduler = veyra::FrameScheduler{};
+    auto wake_count = std::atomic<int>{};
+    struct Observer {
+        veyra::FrameScheduler* scheduler;
+        std::atomic<int>* count;
+    };
+    auto observer = Observer{&wake_scheduler, &wake_count};
+    host.set_present_observer(
+        [](void* user) noexcept {
+            auto* state = static_cast<Observer*>(user);
+            state->scheduler->request_immediate();
+            state->count->fetch_add(1, std::memory_order_relaxed);
+        },
+        &observer
+    );
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(
+        host.create("first", 160, 120, {}, first) == veyra::WindowSetResult::ok,
+        "pipeline first window creates"
+    );
+    require(
+        host.create("second", 120, 90, {}, second) == veyra::WindowSetResult::ok,
+        "pipeline second window creates"
+    );
+    require(host.show(first) == veyra::WindowSetResult::ok, "pipeline first shows");
+    require(host.show(second) == veyra::WindowSetResult::ok, "pipeline second shows");
+
+    auto first_width = std::uint32_t{};
+    auto first_height = std::uint32_t{};
+    auto second_width = std::uint32_t{};
+    auto second_height = std::uint32_t{};
+    require(host.surface_size(first, first_width, first_height), "first size is available");
+    require(host.surface_size(second, second_width, second_height), "second size is available");
+
+    auto first_backing = std::array<veyra::SoftwarePixel, std::size_t{160} * 120>{};
+    auto second_backing = std::array<veyra::SoftwarePixel, std::size_t{120} * 90>{};
+    auto first_display = std::array<veyra::DisplayCommand, 1>{veyra::DisplayCommand{veyra::FillRect{
+        .bounds = {.width = 160.0F, .height = 120.0F},
+        .color = {.red = 10, .green = 20, .blue = 30},
+    }}};
+    auto second_display =
+        std::array<veyra::DisplayCommand, 1>{veyra::DisplayCommand{veyra::FillRect{
+            .bounds = {.width = 120.0F, .height = 90.0F},
+            .color = {.red = 30, .green = 20, .blue = 10},
+        }}};
+
+    require(
+        host.commit(first, first_display, first_width, first_height) == veyra::WindowSetResult::ok,
+        "first frame commits"
+    );
+    require(
+        host.commit(second, second_display, second_width, second_height) ==
+            veyra::WindowSetResult::ok,
+        "second frame commits"
+    );
+    require(
+        host.present_async(first, first_backing) == veyra::WindowSetResult::ok,
+        "first frame submits without waiting"
+    );
+    require(
+        host.present_async(second, second_backing) == veyra::WindowSetResult::ok,
+        "second frame submits before the first completes"
+    );
+    require(host.wait_presented(), "both submitted frames complete");
+    require(wake_count.load() == 2, "both completions wake the loop");
+    require(wake_scheduler.immediate_pending(), "completion requests an immediate frame");
+
+    auto first_result = veyra::WindowSetResult::presentation_failed;
+    auto second_result = veyra::WindowSetResult::presentation_failed;
+    require(host.take_present_result(first, first_result), "first result is available");
+    require(host.take_present_result(second, second_result), "second result is available");
+    require(first_result == veyra::WindowSetResult::ok, "first frame presents");
+    require(second_result == veyra::WindowSetResult::ok, "second frame presents");
+    require(host.backend(first)->visible(), "first frame shows its window");
+    require(host.backend(second)->visible(), "second frame shows its window");
+
+    auto native_event = SDL_Event{};
+    native_event.type = SDL_EVENT_RENDER_DEVICE_LOST;
+    native_event.render.windowID = static_cast<Uint32>(host.backend(first)->window_id());
+    require(SDL_PushEvent(&native_event), "device loss queues for the pipeline");
+
+    auto event = veyra::WindowEvent{};
+    auto window = veyra::WindowId{};
+    auto lost = false;
+    for (auto attempt = 0; attempt < 16; ++attempt) {
+        if (!host.poll_event(event, window)) {
+            break;
+        }
+        if (window == first && event.kind == veyra::WindowEventKind::device_lost) {
+            lost = true;
+            break;
+        }
+    }
+    require(lost, "device loss reaches the pipeline window");
+    require(host.take_device_lost(first), "device loss is reported");
+
+    require(
+        host.commit(first, first_display, first_width, first_height) == veyra::WindowSetResult::ok,
+        "unrecovered frame commits"
+    );
+    require(
+        host.present_async(first, first_backing) == veyra::WindowSetResult::ok,
+        "unrecovered frame submits"
+    );
+    require(host.wait_presented(), "unrecovered frame completes");
+    first_result = veyra::WindowSetResult::ok;
+    require(host.take_present_result(first, first_result), "unrecovered result is available");
+    require(
+        first_result == veyra::WindowSetResult::presentation_failed,
+        "an unrecovered device fails presentation"
+    );
+
+    require(
+        host.recover_device(first) == veyra::WindowSetResult::ok,
+        "the renderer is recreated after device loss"
+    );
+
+    require(
+        host.commit(first, first_display, first_width, first_height) == veyra::WindowSetResult::ok,
+        "recovered frame commits"
+    );
+    require(
+        host.present_async(first, first_backing) == veyra::WindowSetResult::ok,
+        "recovered frame submits"
+    );
+    require(host.wait_presented(), "recovered frame completes");
+    first_result = veyra::WindowSetResult::presentation_failed;
+    require(host.take_present_result(first, first_result), "recovered result is available");
+    require(first_result == veyra::WindowSetResult::ok, "the recovered frame presents");
+    require(!host.take_device_lost(first), "recovery clears the loss report");
 }
 
 }
@@ -281,6 +418,7 @@ int main() {
         auto event = veyra::WindowEvent{};
         auto logical = veyra::WindowId{};
         require(!host.poll_event(event, logical), "closed host has no events");
+        check_pipelined_present();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

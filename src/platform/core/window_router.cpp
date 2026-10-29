@@ -120,6 +120,19 @@ const WindowRouteState* WindowRouter::find(WindowId id) const noexcept {
 }
 
 WindowRouteResult WindowRouter::route(const WindowEvent& event) noexcept {
+    const auto result = route_event(event);
+    if (observer_ != nullptr) {
+        observer_(observer_user_, event, result);
+    }
+    return result;
+}
+
+void WindowRouter::set_observer(RouteObserver observer, void* user) noexcept {
+    observer_ = observer;
+    observer_user_ = user;
+}
+
+WindowRouteResult WindowRouter::route_event(const WindowEvent& event) noexcept {
     if (event.window == kInvalidWindowId) {
         return WindowRouteResult::invalid_window;
     }

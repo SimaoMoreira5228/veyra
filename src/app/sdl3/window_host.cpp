@@ -1,16 +1,6 @@
 #include "veyra/app/sdl3/window_host.hpp"
 
 namespace veyra::app::sdl3 {
-namespace {
-
-struct PresentTask {
-    Sdl3WindowHost* host{};
-    WindowId window{kInvalidWindowId};
-    std::span<SoftwarePixel> backing{};
-    WindowSetResult result{WindowSetResult::presentation_failed};
-};
-
-}
 
 WindowSetResult Sdl3WindowHost::create(
     const char* title,
@@ -19,6 +9,7 @@ WindowSetResult Sdl3WindowHost::create(
     const WindowDesc& desc,
     WindowId& out_window
 ) noexcept {
+    std::lock_guard lock(state_mutex_);
     auto logical = WindowId{};
     const auto result = windows_.create(desc, logical);
     if (result != WindowSetResult::ok) {
@@ -71,6 +62,7 @@ WindowSetResult Sdl3WindowHost::create(
 }
 
 WindowSetResult Sdl3WindowHost::show(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto index = slot_for(window);
     if (index == kCapacity || !backends_[index].has_value()) {
         return WindowSetResult::invalid_window;
@@ -102,6 +94,7 @@ WindowSetResult Sdl3WindowHost::show(WindowId window) noexcept {
 }
 
 WindowSetResult Sdl3WindowHost::request_close(WindowId window, CloseReason reason) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto result = windows_.request_close(window, reason);
     if (result == WindowSetResult::ok) {
         sync_backends();
@@ -112,6 +105,7 @@ WindowSetResult Sdl3WindowHost::request_close(WindowId window, CloseReason reaso
 
 WindowSetResult
 Sdl3WindowHost::close_with_result(WindowId window, bool accepted, std::uint64_t value) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto result = windows_.close_with_result(window, accepted, value);
     if (result == WindowSetResult::ok) {
         sync_backends();
@@ -121,6 +115,7 @@ Sdl3WindowHost::close_with_result(WindowId window, bool accepted, std::uint64_t 
 }
 
 bool Sdl3WindowHost::set_focused_node(WindowId window, NodeId node) noexcept {
+    std::lock_guard lock(state_mutex_);
     if (!windows_.set_focused_node(window, node)) {
         return false;
     }
@@ -129,6 +124,7 @@ bool Sdl3WindowHost::set_focused_node(WindowId window, NodeId node) noexcept {
 }
 
 bool Sdl3WindowHost::bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
+    std::lock_guard lock(state_mutex_);
     return windows_.bind_semantics(window, tree, root) == WindowSetResult::ok;
 }
 
@@ -138,12 +134,17 @@ WindowSetResult Sdl3WindowHost::commit(
     std::uint32_t width,
     std::uint32_t height
 ) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto index = slot_for(window);
     if (index == kCapacity || !backends_[index].has_value()) {
         return WindowSetResult::invalid_window;
     }
 
     auto& present = present_[index];
+    if (present.in_flight || present.completed) {
+        return WindowSetResult::capacity;
+    }
+
     const auto result =
         commit_frame(commands, width, height, present.commit.sequence + 1, present.commit);
     if (result == FrameCommitResult::insufficient_capacity) {
@@ -164,19 +165,133 @@ Sdl3WindowHost::present(WindowId window, std::span<SoftwarePixel> backing) noexc
         return present_now(window, backing);
     }
 
-    auto task = PresentTask{
+    const auto submitted = present_async(window, backing);
+    if (submitted != WindowSetResult::ok) {
+        return submitted;
+    }
+    if (!wait_presented()) {
+        return WindowSetResult::presentation_failed;
+    }
+
+    auto result = WindowSetResult::presentation_failed;
+    if (!take_present_result(window, result)) {
+        return WindowSetResult::presentation_failed;
+    }
+    return result;
+}
+
+WindowSetResult
+Sdl3WindowHost::present_async(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+    if (!render_worker_.running()) {
+        return present_now(window, backing);
+    }
+
+    std::lock_guard lock(state_mutex_);
+    const auto index = slot_for(window);
+    if (index == kCapacity || !backends_[index].has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& present = present_[index];
+    if (!present.has_commit) {
+        return WindowSetResult::stale_frame;
+    }
+    if (present.in_flight || present.completed) {
+        return WindowSetResult::capacity;
+    }
+
+    present.in_flight = true;
+    present.completed = false;
+    present.task = {
         .host = this,
         .window = window,
         .backing = backing,
     };
-    if (!render_worker_.run(&Sdl3WindowHost::run_present_task, &task)) {
+    if (!render_worker_.submit(&Sdl3WindowHost::run_present_task, &present.task)) {
+        present.in_flight = false;
+        return WindowSetResult::presentation_failed;
+    }
+    return WindowSetResult::ok;
+}
+
+bool Sdl3WindowHost::wait_presented() noexcept {
+    return render_worker_.wait_idle();
+}
+
+bool Sdl3WindowHost::take_present_result(WindowId window, WindowSetResult& out) noexcept {
+    std::lock_guard lock(state_mutex_);
+    const auto index = slot_for(window);
+    if (index == kCapacity || !present_[index].completed) {
+        return false;
+    }
+
+    out = present_[index].result;
+    present_[index].completed = false;
+    return true;
+}
+
+WindowSetResult Sdl3WindowHost::recover_device(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
+    const auto index = slot_for(window);
+    if (index == kCapacity) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& backend = backends_[index];
+    if (!backend.has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+    if (present_[index].in_flight) {
+        return WindowSetResult::invalid_state;
+    }
+    if (backend->recreate_renderer() != WindowResult::ready) {
         return WindowSetResult::presentation_failed;
     }
 
-    return task.result;
+    auto& present = present_[index];
+    present.device_lost = false;
+    present.needs_recovery = false;
+    present.has_commit = false;
+    present.completed = false;
+    present.result = WindowSetResult::presentation_failed;
+    router_.mark_damaged(window);
+    return WindowSetResult::ok;
+}
+
+void Sdl3WindowHost::set_present_observer(PresentObserver observer, void* user) noexcept {
+    std::lock_guard lock(state_mutex_);
+    present_observer_ = observer;
+    present_observer_user_ = user;
+}
+
+void Sdl3WindowHost::set_route_observer(RouteObserver observer, void* user) noexcept {
+    std::lock_guard lock(state_mutex_);
+    router_.set_observer(observer, user);
+}
+
+bool Sdl3WindowHost::surface_size(
+    WindowId window,
+    std::uint32_t& width,
+    std::uint32_t& height
+) noexcept {
+    std::lock_guard lock(state_mutex_);
+    const auto index = slot_for(window);
+    if (index == kCapacity) {
+        return false;
+    }
+
+    auto& backend = backends_[index];
+    if (!backend.has_value()) {
+        return false;
+    }
+
+    width = backend->pixel_width();
+    height = backend->pixel_height();
+    return true;
 }
 
 bool Sdl3WindowHost::take_device_lost(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto index = slot_for(window);
     if (index == kCapacity) {
         return false;
@@ -196,18 +311,19 @@ std::thread::id Sdl3WindowHost::render_thread_id() const noexcept {
 }
 
 std::uint64_t Sdl3WindowHost::render_thread_presents() const noexcept {
-    return render_thread_presents_;
+    return render_thread_presents_.load(std::memory_order_relaxed);
 }
 
 void Sdl3WindowHost::run_present_task(void* context) noexcept {
-    auto* task = static_cast<PresentTask*>(context);
-    task->result = task->host->present_now(task->window, task->backing);
+    auto* task = static_cast<Sdl3WindowHost::PresentTask*>(context);
+    task->host->present_now(task->window, task->backing);
 }
 
 WindowSetResult
 Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+    std::lock_guard lock(state_mutex_);
     if (render_worker_.is_worker_thread()) {
-        ++render_thread_presents_;
+        render_thread_presents_.fetch_add(1, std::memory_order_relaxed);
     }
 
     const auto index = slot_for(window);
@@ -221,21 +337,34 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
     }
     auto* backend = &*optional;
     auto& present = present_[index];
+    auto finish = [&](WindowSetResult result) noexcept {
+        present.in_flight = false;
+        present.completed = true;
+        present.result = result;
+        if (present_observer_ != nullptr) {
+            present_observer_(present_observer_user_);
+        }
+        return result;
+    };
+
+    if (present.needs_recovery) {
+        return finish(WindowSetResult::presentation_failed);
+    }
     if (!present.has_commit) {
-        return WindowSetResult::stale_frame;
+        return finish(WindowSetResult::stale_frame);
     }
     if (present.commit.width != backend->pixel_width() ||
         present.commit.height != backend->pixel_height()) {
-        return WindowSetResult::stale_frame;
+        return finish(WindowSetResult::stale_frame);
     }
 
     auto surface = SoftwareSurface{};
     if (backend->acquire_surface(surface, backing) != WindowResult::ready) {
-        return WindowSetResult::presentation_failed;
+        return finish(WindowSetResult::presentation_failed);
     }
     if (surface.width != present.commit.width || surface.height != present.commit.height) {
         backend->discard_frame();
-        return WindowSetResult::stale_frame;
+        return finish(WindowSetResult::stale_frame);
     }
 
     const SoftwareRenderWorkspace workspace{
@@ -253,10 +382,10 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
             workspace
         ) != SoftwareRenderResult::complete) {
         backend->discard_frame();
-        return WindowSetResult::presentation_failed;
+        return finish(WindowSetResult::presentation_failed);
     }
     if (backend->present() != WindowResult::ready) {
-        return WindowSetResult::presentation_failed;
+        return finish(WindowSetResult::presentation_failed);
     }
 
     present.has_commit = false;
@@ -264,12 +393,12 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
     router_.mark_presented(window);
     if (present.show_pending) {
         if (backend->show() != WindowResult::ready) {
-            return WindowSetResult::presentation_failed;
+            return finish(WindowSetResult::presentation_failed);
         }
         present.show_pending = false;
     }
 
-    return WindowSetResult::ok;
+    return finish(WindowSetResult::ok);
 }
 
 Sdl3WindowHost::~Sdl3WindowHost() {
@@ -277,6 +406,7 @@ Sdl3WindowHost::~Sdl3WindowHost() {
 }
 
 WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto index = slot_for(window);
     if (index == kCapacity) {
         return WindowSetResult::invalid_window;
@@ -299,6 +429,7 @@ WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) no
 }
 
 WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
     const auto result = windows_.destroy(window);
     if (result == WindowSetResult::ok) {
         sync_backends();
@@ -308,6 +439,7 @@ WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
 }
 
 bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) noexcept {
+    std::lock_guard lock(state_mutex_);
     for (auto& optional : backends_) {
         if (!optional.has_value()) {
             continue;
@@ -330,6 +462,7 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
                 const auto index = slot_for(logical);
                 if (index != kCapacity) {
                     present_[index].device_lost = true;
+                    present_[index].needs_recovery = true;
                 }
                 router_.mark_damaged(logical);
             }

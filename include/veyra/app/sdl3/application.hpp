@@ -4,7 +4,10 @@
 #include "veyra/app/sdl3/window_host.hpp"
 #include "veyra/app/window_loop.hpp"
 
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <mutex>
 
 namespace veyra::app::sdl3 {
 
@@ -12,6 +15,7 @@ class Sdl3Application {
   public:
     explicit Sdl3Application(ShutdownMode shutdown = ShutdownMode::on_last_window_close) noexcept :
         host_(shutdown) {
+        host_.set_present_observer(&Sdl3Application::on_presented, this);
         scheduler_.request_immediate();
     }
 
@@ -84,6 +88,30 @@ class Sdl3Application {
         return host_.present(window, backing);
     }
 
+    WindowSetResult present_async(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+        return host_.present_async(window, backing);
+    }
+
+    bool wait_presented() noexcept {
+        return host_.wait_presented();
+    }
+
+    bool take_present_result(WindowId window, WindowSetResult& out) noexcept {
+        return host_.take_present_result(window, out);
+    }
+
+    WindowSetResult recover_device(WindowId window) noexcept {
+        return host_.recover_device(window);
+    }
+
+    bool surface_size(WindowId window, std::uint32_t& width, std::uint32_t& height) noexcept {
+        return host_.surface_size(window, width, height);
+    }
+
+    void set_route_observer(RouteObserver observer, void* user) noexcept {
+        host_.set_route_observer(observer, user);
+    }
+
     bool bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
         const auto result = host_.bind_semantics(window, tree, root);
         if (result) {
@@ -109,6 +137,8 @@ class Sdl3Application {
             on_frame,
             sleep_ms,
         };
+        config.wait_ms = &Sdl3Application::wait_for;
+        config.wait_user = this;
         config.frame_cap = frame_cap;
         return run_until_quit(config);
     }
@@ -134,8 +164,30 @@ class Sdl3Application {
     }
 
   private:
-    Sdl3WindowHost host_;
+    static void on_presented(void* user) noexcept {
+        auto* app = static_cast<Sdl3Application*>(user);
+        app->scheduler_.request_immediate();
+        {
+            std::lock_guard lock(app->wake_mutex_);
+            ++app->wake_generation_;
+        }
+        app->wake_cv_.notify_one();
+    }
+
+    static void wait_for(void* user, unsigned ms) noexcept {
+        auto* app = static_cast<Sdl3Application*>(user);
+        std::unique_lock lock(app->wake_mutex_);
+        app->wake_cv_.wait_for(lock, std::chrono::milliseconds(ms), [&] {
+            return app->wake_generation_ != 0;
+        });
+        app->wake_generation_ = 0;
+    }
+
     FrameScheduler scheduler_;
+    std::mutex wake_mutex_;
+    std::condition_variable wake_cv_;
+    std::uint64_t wake_generation_{};
+    Sdl3WindowHost host_;
 };
 
 }

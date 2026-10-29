@@ -8,7 +8,7 @@ namespace veyra {
 
 namespace {
 
-constexpr std::size_t kKindCount = 7;
+constexpr std::size_t kKindCount = 9;
 
 constexpr std::string_view kKindLabels[kKindCount] = {
     "frame_begin",
@@ -18,6 +18,8 @@ constexpr std::string_view kKindLabels[kKindCount] = {
     "invalidation",
     "cache",
     "focus",
+    "route",
+    "provenance",
 };
 
 constexpr std::string_view kReportHead = "trace v1 events=";
@@ -212,6 +214,40 @@ TraceRecorder::record_focus(std::uint64_t time_ms, NodeId from, NodeId to) noexc
     event.time_ms = time_ms;
     event.payload.focus.from = from;
     event.payload.focus.to = to;
+
+    return push(event);
+}
+
+TraceRecordResult TraceRecorder::record_route(
+    std::uint64_t time_ms,
+    std::uint8_t event_kind,
+    std::uint8_t route_result,
+    std::uint64_t window
+) noexcept {
+    TraceEvent event{};
+    event.kind = TraceEventKind::route;
+    event.time_ms = time_ms;
+    event.payload.route.event_kind = event_kind;
+    event.payload.route.route_result = route_result;
+    event.payload.route.window = window;
+
+    return push(event);
+}
+
+TraceRecordResult TraceRecorder::record_provenance(
+    std::uint64_t time_ms,
+    std::uint8_t token_kind,
+    std::uint8_t token,
+    std::uint8_t layer,
+    std::uint32_t line
+) noexcept {
+    TraceEvent event{};
+    event.kind = TraceEventKind::provenance;
+    event.time_ms = time_ms;
+    event.payload.provenance.token_kind = token_kind;
+    event.payload.provenance.token = token;
+    event.payload.provenance.layer = layer;
+    event.payload.provenance.line = line;
 
     return push(event);
 }

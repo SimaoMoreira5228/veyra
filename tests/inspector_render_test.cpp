@@ -61,7 +61,17 @@ int main() {
             },
         };
 
-        auto view = veyra::InspectorView{.nodes = nodes, .focused = list, .window_focused = true};
+        auto trace = std::array<veyra::TraceEvent, 3>{};
+        trace[0].kind = veyra::TraceEventKind::route;
+        trace[1].kind = veyra::TraceEventKind::provenance;
+        trace[2].kind = veyra::TraceEventKind::focus;
+
+        auto view = veyra::InspectorView{
+            .nodes = nodes,
+            .trace = trace,
+            .focused = list,
+            .window_focused = true,
+        };
         require(
             veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
                 veyra::SoftwareRenderResult::complete,
@@ -69,6 +79,15 @@ int main() {
         );
         const auto list_focused = checksum(pixels);
 
+        view.trace = {};
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders without trace events"
+        );
+        require(checksum(pixels) != list_focused, "trace events change the inspector frame");
+
+        view.trace = trace;
         view.focused = field;
         require(
             veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==

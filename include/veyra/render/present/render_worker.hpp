@@ -31,7 +31,6 @@ class RenderWorker {
 
     bool submit(Task task, void* context) noexcept;
     bool wait_idle() noexcept;
-    bool run(Task task, void* context) noexcept;
 
   private:
     struct Job {

@@ -9,20 +9,20 @@
 
 namespace {
 
-constexpr std::string_view kGolden =
-    "trace v1 events=8 dropped=0\n"
-    "frame_begin=1 frame_end=1 layout=1 damage=1 invalidation=1 cache=2 focus=1\n"
-    "frame_time_ms min=7 max=7 avg=7\n";
+constexpr std::string_view kGolden = "trace v1 events=8 dropped=0\n"
+                                     "frame_begin=1 frame_end=1 layout=1 damage=1 invalidation=1 "
+                                     "cache=2 focus=1 route=0 provenance=0\n"
+                                     "frame_time_ms min=7 max=7 avg=7\n";
 
-constexpr std::string_view kGoldenStats =
-    "trace v1 events=4 dropped=0\n"
-    "frame_begin=2 frame_end=2 layout=0 damage=0 invalidation=0 cache=0 focus=0\n"
-    "frame_time_ms min=4 max=7 avg=5\n";
+constexpr std::string_view kGoldenStats = "trace v1 events=4 dropped=0\n"
+                                          "frame_begin=2 frame_end=2 layout=0 damage=0 "
+                                          "invalidation=0 cache=0 focus=0 route=0 provenance=0\n"
+                                          "frame_time_ms min=4 max=7 avg=5\n";
 
-constexpr std::string_view kGoldenBackward =
-    "trace v1 events=2 dropped=0\n"
-    "frame_begin=1 frame_end=1 layout=0 damage=0 invalidation=0 cache=0 focus=0\n"
-    "frame_time_ms none\n";
+constexpr std::string_view kGoldenBackward = "trace v1 events=2 dropped=0\n"
+                                             "frame_begin=1 frame_end=1 layout=0 damage=0 "
+                                             "invalidation=0 cache=0 focus=0 route=0 provenance=0\n"
+                                             "frame_time_ms none\n";
 
 void require(bool condition, std::string_view message) {
     if (!condition) {
@@ -241,6 +241,26 @@ void check_disabled_and_invalid() {
     require(recorder.size() == 1, "rejected reason stores nothing");
 }
 
+void check_route_and_provenance() {
+    std::array<veyra::TraceEvent, 4> storage{};
+    veyra::TraceRecorder recorder(storage);
+    recorder.set_enabled(true);
+
+    require_recorded(recorder.record_route(10, 6, 0, 42), "route event records");
+    require_recorded(recorder.record_provenance(11, 0, 2, 2, 9), "provenance event records");
+    require(recorder.count(veyra::TraceEventKind::route) == 1, "route kind counts");
+    require(recorder.count(veyra::TraceEventKind::provenance) == 1, "provenance kind counts");
+
+    const auto events = recorder.events();
+    require(events[0].payload.route.event_kind == 6, "route keeps the event kind");
+    require(events[0].payload.route.route_result == 0, "route keeps the result");
+    require(events[0].payload.route.window == 42, "route keeps the window");
+    require(events[1].payload.provenance.token_kind == 0, "provenance keeps the token kind");
+    require(events[1].payload.provenance.token == 2, "provenance keeps the token");
+    require(events[1].payload.provenance.layer == 2, "provenance keeps the layer");
+    require(events[1].payload.provenance.line == 9, "provenance keeps the line");
+}
+
 }
 
 int main() {
@@ -251,6 +271,7 @@ int main() {
         check_overflow_keeps_tail();
         check_truncation_and_retry();
         check_disabled_and_invalid();
+        check_route_and_provenance();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

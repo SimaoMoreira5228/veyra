@@ -86,26 +86,6 @@ bool RenderWorker::wait_idle() noexcept {
     return true;
 }
 
-bool RenderWorker::run(Task task, void* context) noexcept {
-    if (task == nullptr) {
-        return false;
-    }
-
-    std::unique_lock lock(mutex_);
-    if (!running_.load(std::memory_order_acquire) || stopping_ || count_ == kCapacity) {
-        return false;
-    }
-
-    jobs_[tail_] = {.task = task, .context = context};
-    tail_ = (tail_ + 1) % kCapacity;
-    ++count_;
-    wake_.notify_one();
-    idle_.wait(lock, [&] {
-        return count_ == 0 && !busy_;
-    });
-    return true;
-}
-
 void RenderWorker::thread_main() noexcept {
     for (;;) {
         Task task = nullptr;

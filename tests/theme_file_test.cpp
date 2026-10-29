@@ -337,6 +337,26 @@ void check_file_theme_drives_widget_colors() {
     );
 }
 
+void check_file_provenance() {
+    const auto theme = parse_ok("schema: 1\ncolor_surface = #010203\nspace_medium = 6px\n");
+    const auto color = theme.provenance(
+        veyra::TokenKind::color,
+        static_cast<std::uint8_t>(veyra::ColorToken::surface)
+    );
+    require(color.layer == veyra::ThemeLayer::file, "file colors report the file layer");
+    require(color.line == 2, "file colors keep their source line");
+    const auto space = theme.provenance(
+        veyra::TokenKind::space,
+        static_cast<std::uint8_t>(veyra::SpaceToken::medium)
+    );
+    require(space.layer == veyra::ThemeLayer::file, "file spaces report the file layer");
+    require(space.line == 3, "file spaces keep their source line");
+    require(
+        theme.provenance(veyra::TokenKind::radius, 0).layer == veyra::ThemeLayer::defaults,
+        "tokens absent from a file stay on the default layer"
+    );
+}
+
 }
 
 int main() {
@@ -351,6 +371,7 @@ int main() {
         check_truncated_output();
         check_overlay_never_touches_the_base();
         check_file_theme_drives_widget_colors();
+        check_file_provenance();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

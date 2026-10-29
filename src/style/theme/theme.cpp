@@ -44,17 +44,22 @@ constexpr std::array default_motions{
     Milliseconds{300},
 };
 
-template <typename Token, typename Value, std::size_t Size>
+template <typename Token, typename Value, typename Provenance, std::size_t Size>
 ThemeUpdateResult set_override(
     Token token,
     Value value,
     std::array<std::optional<Value>, Size>& overrides,
+    std::array<Provenance, Size>& provenance,
+    ThemeLayer layer,
+    std::uint32_t line,
     std::uint64_t& version
 ) noexcept {
     const auto index = static_cast<std::size_t>(token);
     if (index >= Size) {
         return ThemeUpdateResult::invalid_token;
     }
+    provenance[index].layer = layer;
+    provenance[index].line = line;
     if (overrides[index] == value) {
         return ThemeUpdateResult::unchanged;
     }
@@ -66,16 +71,18 @@ ThemeUpdateResult set_override(
     return ThemeUpdateResult::changed;
 }
 
-template <typename Token, typename Value, std::size_t Size>
+template <typename Token, typename Value, typename Provenance, std::size_t Size>
 ThemeUpdateResult clear_override(
     Token token,
     std::array<std::optional<Value>, Size>& overrides,
+    std::array<Provenance, Size>& provenance,
     std::uint64_t& version
 ) noexcept {
     const auto index = static_cast<std::size_t>(token);
     if (index >= Size) {
         return ThemeUpdateResult::invalid_token;
     }
+    provenance[index] = {};
     if (!overrides[index]) {
         return ThemeUpdateResult::unchanged;
     }
@@ -96,7 +103,7 @@ Theme with_preset(std::span<const ColorOverride> presets) noexcept {
     auto theme = Theme{};
 
     for (const auto& preset : presets) {
-        theme.set(preset.token, preset.value);
+        theme.set(preset.token, preset.value, ThemeLayer::preset);
     }
 
     return theme;
@@ -121,6 +128,54 @@ bool valid_dimension(LogicalPx value) noexcept {
 
 }
 
+TokenProvenance Theme::provenance(TokenKind kind, std::uint8_t token) const noexcept {
+    const auto index = static_cast<std::size_t>(token);
+    switch (kind) {
+    case TokenKind::color:
+        if (index < color_provenance_.size()) {
+            return {
+                .kind = kind,
+                .token = token,
+                .layer = color_provenance_[index].layer,
+                .line = color_provenance_[index].line,
+            };
+        }
+        break;
+    case TokenKind::space:
+        if (index < space_provenance_.size()) {
+            return {
+                .kind = kind,
+                .token = token,
+                .layer = space_provenance_[index].layer,
+                .line = space_provenance_[index].line,
+            };
+        }
+        break;
+    case TokenKind::radius:
+        if (index < radius_provenance_.size()) {
+            return {
+                .kind = kind,
+                .token = token,
+                .layer = radius_provenance_[index].layer,
+                .line = radius_provenance_[index].line,
+            };
+        }
+        break;
+    case TokenKind::motion:
+        if (index < motion_provenance_.size()) {
+            return {
+                .kind = kind,
+                .token = token,
+                .layer = motion_provenance_[index].layer,
+                .line = motion_provenance_[index].line,
+            };
+        }
+        break;
+    }
+
+    return {.kind = kind, .token = token};
+}
+
 Srgba8 Theme::color(ColorToken token) const noexcept {
     return resolve(token, default_colors, colors_);
 }
@@ -137,48 +192,52 @@ Milliseconds Theme::motion(MotionToken token) const noexcept {
     return resolve(token, default_motions, motions_);
 }
 
-ThemeUpdateResult Theme::set(ColorToken token, Srgba8 value) noexcept {
-    return set_override(token, value, colors_, version_);
+ThemeUpdateResult
+Theme::set(ColorToken token, Srgba8 value, ThemeLayer layer, std::uint32_t line) noexcept {
+    return set_override(token, value, colors_, color_provenance_, layer, line, version_);
 }
 
-ThemeUpdateResult Theme::set(SpaceToken token, LogicalPx value) noexcept {
+ThemeUpdateResult
+Theme::set(SpaceToken token, LogicalPx value, ThemeLayer layer, std::uint32_t line) noexcept {
     if (static_cast<std::size_t>(token) >= spaces_.size()) {
         return ThemeUpdateResult::invalid_token;
     }
     if (!valid_dimension(value)) {
         return ThemeUpdateResult::invalid_value;
     }
-    return set_override(token, value, spaces_, version_);
+    return set_override(token, value, spaces_, space_provenance_, layer, line, version_);
 }
 
-ThemeUpdateResult Theme::set(RadiusToken token, LogicalPx value) noexcept {
+ThemeUpdateResult
+Theme::set(RadiusToken token, LogicalPx value, ThemeLayer layer, std::uint32_t line) noexcept {
     if (static_cast<std::size_t>(token) >= radii_.size()) {
         return ThemeUpdateResult::invalid_token;
     }
     if (!valid_dimension(value)) {
         return ThemeUpdateResult::invalid_value;
     }
-    return set_override(token, value, radii_, version_);
+    return set_override(token, value, radii_, radius_provenance_, layer, line, version_);
 }
 
-ThemeUpdateResult Theme::set(MotionToken token, Milliseconds value) noexcept {
-    return set_override(token, value, motions_, version_);
+ThemeUpdateResult
+Theme::set(MotionToken token, Milliseconds value, ThemeLayer layer, std::uint32_t line) noexcept {
+    return set_override(token, value, motions_, motion_provenance_, layer, line, version_);
 }
 
 ThemeUpdateResult Theme::clear(ColorToken token) noexcept {
-    return clear_override(token, colors_, version_);
+    return clear_override(token, colors_, color_provenance_, version_);
 }
 
 ThemeUpdateResult Theme::clear(SpaceToken token) noexcept {
-    return clear_override(token, spaces_, version_);
+    return clear_override(token, spaces_, space_provenance_, version_);
 }
 
 ThemeUpdateResult Theme::clear(RadiusToken token) noexcept {
-    return clear_override(token, radii_, version_);
+    return clear_override(token, radii_, radius_provenance_, version_);
 }
 
 ThemeUpdateResult Theme::clear(MotionToken token) noexcept {
-    return clear_override(token, motions_, version_);
+    return clear_override(token, motions_, motion_provenance_, version_);
 }
 
 std::uint64_t Theme::version() const noexcept {
@@ -229,28 +288,44 @@ ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
     auto changed = false;
 
     for (auto index = std::size_t{}; index < colors_.size(); ++index) {
-        if (overlay.colors_[index] && colors_[index] != overlay.colors_[index]) {
+        if (!overlay.colors_[index]) {
+            continue;
+        }
+        color_provenance_[index] = overlay.color_provenance_[index];
+        if (colors_[index] != overlay.colors_[index]) {
             colors_[index] = overlay.colors_[index];
             changed = true;
         }
     }
 
     for (auto index = std::size_t{}; index < spaces_.size(); ++index) {
-        if (overlay.spaces_[index] && spaces_[index] != overlay.spaces_[index]) {
+        if (!overlay.spaces_[index]) {
+            continue;
+        }
+        space_provenance_[index] = overlay.space_provenance_[index];
+        if (spaces_[index] != overlay.spaces_[index]) {
             spaces_[index] = overlay.spaces_[index];
             changed = true;
         }
     }
 
     for (auto index = std::size_t{}; index < radii_.size(); ++index) {
-        if (overlay.radii_[index] && radii_[index] != overlay.radii_[index]) {
+        if (!overlay.radii_[index]) {
+            continue;
+        }
+        radius_provenance_[index] = overlay.radius_provenance_[index];
+        if (radii_[index] != overlay.radii_[index]) {
             radii_[index] = overlay.radii_[index];
             changed = true;
         }
     }
 
     for (auto index = std::size_t{}; index < motions_.size(); ++index) {
-        if (overlay.motions_[index] && motions_[index] != overlay.motions_[index]) {
+        if (!overlay.motions_[index]) {
+            continue;
+        }
+        motion_provenance_[index] = overlay.motion_provenance_[index];
+        if (motions_[index] != overlay.motions_[index]) {
             motions_[index] = overlay.motions_[index];
             changed = true;
         }

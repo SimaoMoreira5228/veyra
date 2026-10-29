@@ -103,21 +103,60 @@ enum class ThemeUpdateResult : std::uint8_t {
     invalid_value,
 };
 
+enum class ThemeLayer : std::uint8_t {
+    defaults,
+    preset,
+    file,
+    override,
+};
+
+enum class TokenKind : std::uint8_t {
+    color,
+    space,
+    radius,
+    motion,
+};
+
+struct TokenProvenance {
+    TokenKind kind{TokenKind::color};
+    std::uint8_t token{};
+    ThemeLayer layer{ThemeLayer::defaults};
+    std::uint32_t line{};
+};
+
 class Theme {
   public:
     static Theme light() noexcept;
     static Theme dark() noexcept;
     static Theme high_contrast() noexcept;
 
+    TokenProvenance provenance(TokenKind kind, std::uint8_t token) const noexcept;
+
     Srgba8 color(ColorToken token) const noexcept;
     LogicalPx space(SpaceToken token) const noexcept;
     LogicalPx radius(RadiusToken token) const noexcept;
     Milliseconds motion(MotionToken token) const noexcept;
 
-    ThemeUpdateResult set(ColorToken token, Srgba8 value) noexcept;
-    ThemeUpdateResult set(SpaceToken token, LogicalPx value) noexcept;
-    ThemeUpdateResult set(RadiusToken token, LogicalPx value) noexcept;
-    ThemeUpdateResult set(MotionToken token, Milliseconds value) noexcept;
+    ThemeUpdateResult
+    set(ColorToken token,
+        Srgba8 value,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0) noexcept;
+    ThemeUpdateResult
+    set(SpaceToken token,
+        LogicalPx value,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0) noexcept;
+    ThemeUpdateResult
+    set(RadiusToken token,
+        LogicalPx value,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0) noexcept;
+    ThemeUpdateResult
+    set(MotionToken token,
+        Milliseconds value,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0) noexcept;
 
     ThemeUpdateResult clear(ColorToken token) noexcept;
     ThemeUpdateResult clear(SpaceToken token) noexcept;
@@ -128,11 +167,20 @@ class Theme {
     std::uint64_t version() const noexcept;
 
   private:
+    struct ProvenanceEntry {
+        ThemeLayer layer{ThemeLayer::defaults};
+        std::uint32_t line{};
+    };
+
     std::array<std::optional<Srgba8>, static_cast<std::size_t>(ColorToken::count)> colors_{};
+    std::array<ProvenanceEntry, static_cast<std::size_t>(ColorToken::count)> color_provenance_{};
     std::array<std::optional<LogicalPx>, static_cast<std::size_t>(SpaceToken::count)> spaces_{};
+    std::array<ProvenanceEntry, static_cast<std::size_t>(SpaceToken::count)> space_provenance_{};
     std::array<std::optional<LogicalPx>, static_cast<std::size_t>(RadiusToken::count)> radii_{};
+    std::array<ProvenanceEntry, static_cast<std::size_t>(RadiusToken::count)> radius_provenance_{};
     std::array<std::optional<Milliseconds>, static_cast<std::size_t>(MotionToken::count)>
         motions_{};
+    std::array<ProvenanceEntry, static_cast<std::size_t>(MotionToken::count)> motion_provenance_{};
     std::uint64_t version_{1};
 };
 
@@ -146,7 +194,10 @@ using ::veyra::MotionToken;
 using ::veyra::RadiusToken;
 using ::veyra::SpaceToken;
 using ::veyra::Theme;
+using ::veyra::ThemeLayer;
 using ::veyra::ThemeUpdateResult;
+using ::veyra::TokenKind;
+using ::veyra::TokenProvenance;
 }
 
 namespace veyra::style::theme {
@@ -157,7 +208,10 @@ using ::veyra::MotionToken;
 using ::veyra::RadiusToken;
 using ::veyra::SpaceToken;
 using ::veyra::Theme;
+using ::veyra::ThemeLayer;
 using ::veyra::ThemeUpdateResult;
+using ::veyra::TokenKind;
+using ::veyra::TokenProvenance;
 }
 
 #endif

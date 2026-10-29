@@ -29,6 +29,8 @@ template <WindowHost Host, typename OnEvent, typename OnFrame> struct WindowLoop
     OnEvent on_event;
     OnFrame on_frame;
     void (*sleep_ms)(unsigned) noexcept = nullptr;
+    void (*wait_ms)(void*, unsigned) noexcept = nullptr;
+    void* wait_user = nullptr;
     unsigned idle_sleep_ms{kWindowLoopIdleSleepMs};
     unsigned max_sleep_ms{kWindowLoopMaxSleepMs};
     std::uint64_t frame_cap{};
@@ -75,6 +77,17 @@ pump_once(WindowLoopConfig<Host, OnEvent, OnFrame>& config, FrameScheduler::Dead
 }
 
 template <WindowHost Host, typename OnEvent, typename OnFrame>
+void wait_or_sleep(WindowLoopConfig<Host, OnEvent, OnFrame>& config, unsigned ms) noexcept {
+    if (config.wait_ms != nullptr) {
+        config.wait_ms(config.wait_user, ms);
+        return;
+    }
+    if (config.sleep_ms != nullptr) {
+        config.sleep_ms(ms);
+    }
+}
+
+template <WindowHost Host, typename OnEvent, typename OnFrame>
 LoopResult run_until_quit(WindowLoopConfig<Host, OnEvent, OnFrame>& config) noexcept {
     auto iterations = std::uint64_t{};
 
@@ -88,29 +101,29 @@ LoopResult run_until_quit(WindowLoopConfig<Host, OnEvent, OnFrame>& config) noex
         }
         ++iterations;
 
-        if (config.sleep_ms == nullptr) {
+        if (config.sleep_ms == nullptr && config.wait_ms == nullptr) {
             continue;
         }
         if (config.scheduler.immediate_pending()) {
-            config.sleep_ms(0);
+            wait_or_sleep(config, 0);
             continue;
         }
         const auto deadline = config.scheduler.deadline();
         if (!deadline.has_value()) {
-            config.sleep_ms(config.idle_sleep_ms);
+            wait_or_sleep(config, config.idle_sleep_ms);
             continue;
         }
         const auto remaining = *deadline - FrameScheduler::Clock::now();
         if (remaining.count() <= 0) {
-            config.sleep_ms(0);
+            wait_or_sleep(config, 0);
             continue;
         }
         if (remaining > std::chrono::milliseconds(config.max_sleep_ms)) {
-            config.sleep_ms(config.max_sleep_ms);
+            wait_or_sleep(config, config.max_sleep_ms);
             continue;
         }
         const auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(remaining);
-        config.sleep_ms(wait.count() <= 0 ? 1 : static_cast<unsigned>(wait.count()));
+        wait_or_sleep(config, wait.count() <= 0 ? 1 : static_cast<unsigned>(wait.count()));
     }
 }
 

@@ -30,6 +30,55 @@ veyra::WindowEvent make_focus(veyra::WindowId id, veyra::WindowEventKind kind) {
     return event;
 }
 
+struct RouteLog {
+    int count{};
+    veyra::WindowRouteResult result{veyra::WindowRouteResult::routed};
+    veyra::WindowEventKind kind{veyra::WindowEventKind::close_request};
+    veyra::WindowId window{};
+};
+
+void observe_route(
+    void* user,
+    const veyra::WindowEvent& event,
+    veyra::WindowRouteResult result
+) noexcept {
+    auto* log = static_cast<RouteLog*>(user);
+    ++log->count;
+    log->result = result;
+    log->kind = event.kind;
+    log->window = event.window;
+}
+
+void check_route_observer() {
+    std::array<veyra::WindowRouteState, 1> storage{};
+    veyra::WindowRouter router(storage);
+    require(router.attach(1, 100.0F, 80.0F, 1.0F, 1.0F) != nullptr, "observer window attaches");
+
+    auto log = RouteLog{};
+    router.set_observer(&observe_route, &log);
+    require(
+        router.route(make_focus(1, veyra::WindowEventKind::focus_gained)) ==
+            veyra::WindowRouteResult::routed,
+        "observed focus routes"
+    );
+    require(log.count == 1, "observer sees a routed event");
+    require(log.result == veyra::WindowRouteResult::routed, "observer keeps the result");
+    require(log.kind == veyra::WindowEventKind::focus_gained, "observer keeps the event kind");
+    require(log.window == 1, "observer keeps the window id");
+
+    veyra::WindowEvent missing{};
+    require(
+        router.route(missing) == veyra::WindowRouteResult::invalid_window,
+        "invalid event still returns"
+    );
+    require(log.count == 2, "observer sees rejected events");
+    require(log.result == veyra::WindowRouteResult::invalid_window, "observer keeps the rejection");
+
+    router.set_observer(nullptr, nullptr);
+    router.route(missing);
+    require(log.count == 2, "clearing the observer stops reporting");
+}
+
 void check_window_state_is_isolated() {
     std::array<veyra::WindowRouteState, 2> storage{};
     veyra::WindowRouter router(storage);
@@ -130,6 +179,7 @@ void check_capacity_and_invalid_routes() {
 int main() {
     try {
         check_window_state_is_isolated();
+        check_route_observer();
         check_capacity_and_invalid_routes();
         std::cout << "window routing checks passed\n";
         return 0;

@@ -8,8 +8,10 @@
 #include "veyra/render/present/render_worker.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <thread>
 
@@ -49,6 +51,16 @@ class Sdl3WindowHost {
         std::uint32_t height
     ) noexcept;
     WindowSetResult present(WindowId window, std::span<SoftwarePixel> backing) noexcept;
+    WindowSetResult present_async(WindowId window, std::span<SoftwarePixel> backing) noexcept;
+    bool wait_presented() noexcept;
+    bool take_present_result(WindowId window, WindowSetResult& out) noexcept;
+    WindowSetResult recover_device(WindowId window) noexcept;
+    using PresentObserver = void (*)(void*) noexcept;
+    // NOTE: the observer runs on the render thread while host state is locked.
+    // It must not call back into the host.
+    void set_present_observer(PresentObserver observer, void* user) noexcept;
+    void set_route_observer(RouteObserver observer, void* user) noexcept;
+    bool surface_size(WindowId window, std::uint32_t& width, std::uint32_t& height) noexcept;
     bool take_device_lost(WindowId window) noexcept;
     bool render_thread_active() const noexcept;
     std::thread::id render_thread_id() const noexcept;
@@ -66,16 +78,27 @@ class Sdl3WindowHost {
     const WindowRouter& router() const noexcept;
 
   private:
+    struct PresentTask {
+        Sdl3WindowHost* host{};
+        WindowId window{kInvalidWindowId};
+        std::span<SoftwarePixel> backing{};
+    };
+
     struct PresentSlot {
         FrameCommit commit{};
         std::array<SoftwareClipRect, 64> clips{};
         std::array<LayoutPoint, 64> translations{};
         std::array<double, 128> path_intersections{};
         std::array<std::int8_t, 128> path_windings{};
+        PresentTask task{};
+        WindowSetResult result{WindowSetResult::presentation_failed};
         bool has_commit{};
+        bool in_flight{};
+        bool completed{};
         bool show_pending{};
         bool presented{};
         bool device_lost{};
+        bool needs_recovery{};
     };
 
     WindowSetResult present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept;
@@ -91,7 +114,10 @@ class Sdl3WindowHost {
     std::array<WindowRouteState, kCapacity> route_storage_{};
     WindowRouter router_{route_storage_};
     WindowSet windows_{slots_};
-    std::uint64_t render_thread_presents_{};
+    mutable std::mutex state_mutex_;
+    PresentObserver present_observer_{};
+    void* present_observer_user_{};
+    std::atomic<std::uint64_t> render_thread_presents_{};
     RenderWorker render_worker_;
 };
 

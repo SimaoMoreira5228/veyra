@@ -1,6 +1,7 @@
 #ifndef VEYRA_CORE_FRAME_SCHEDULER_HPP
 #define VEYRA_CORE_FRAME_SCHEDULER_HPP
 
+#include <atomic>
 #include <chrono>
 #include <optional>
 
@@ -20,7 +21,7 @@ class FrameScheduler {
 
   private:
     std::optional<Deadline> deadline_;
-    bool immediate_pending_{};
+    std::atomic<bool> immediate_pending_{};
 };
 
 }

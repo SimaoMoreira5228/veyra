@@ -257,7 +257,12 @@ bool format_motion(std::span<char> line, std::size_t& length, Milliseconds value
     return true;
 }
 
-bool store_token(Theme& overlay, const TokenEntry& entry, std::string_view value) noexcept {
+bool store_token(
+    Theme& overlay,
+    const TokenEntry& entry,
+    std::string_view value,
+    std::uint32_t line
+) noexcept {
     const auto color_token = static_cast<ColorToken>(entry.index);
     const auto space_token = static_cast<SpaceToken>(entry.index);
     const auto radius_token = static_cast<RadiusToken>(entry.index);
@@ -268,28 +273,32 @@ bool store_token(Theme& overlay, const TokenEntry& entry, std::string_view value
         if (!parse_color(value, color)) {
             return false;
         }
-        return overlay.set(color_token, color) != ThemeUpdateResult::invalid_token;
+        return overlay.set(color_token, color, ThemeLayer::file, line) !=
+            ThemeUpdateResult::invalid_token;
     }
     if (entry.kind == TokenKind::space) {
         float parsed{};
         if (!parse_decimal(value, parsed)) {
             return false;
         }
-        return overlay.set(space_token, LogicalPx{parsed}) != ThemeUpdateResult::invalid_value;
+        return overlay.set(space_token, LogicalPx{parsed}, ThemeLayer::file, line) !=
+            ThemeUpdateResult::invalid_value;
     }
     if (entry.kind == TokenKind::radius) {
         float parsed{};
         if (!parse_decimal(value, parsed)) {
             return false;
         }
-        return overlay.set(radius_token, LogicalPx{parsed}) != ThemeUpdateResult::invalid_value;
+        return overlay.set(radius_token, LogicalPx{parsed}, ThemeLayer::file, line) !=
+            ThemeUpdateResult::invalid_value;
     }
 
     Milliseconds parsed{};
     if (!parse_motion(value, parsed)) {
         return false;
     }
-    return overlay.set(motion_token, parsed) != ThemeUpdateResult::invalid_token;
+    return overlay.set(motion_token, parsed, ThemeLayer::file, line) !=
+        ThemeUpdateResult::invalid_token;
 }
 
 bool line_differs(const Theme& theme, const Theme& defaults, const TokenEntry& entry) noexcept {
@@ -411,7 +420,7 @@ parse_theme_file(std::span<const char> text, Theme& overlay_out, ThemeFileError&
                     };
                     return ThemeFileResult::duplicate_token;
                 }
-                if (!store_token(overlay, token_table[entry_index], value)) {
+                if (!store_token(overlay, token_table[entry_index], value, line_number)) {
                     error = ThemeFileError{
                         .code = ThemeFileResult::bad_value,
                         .line = line_number,

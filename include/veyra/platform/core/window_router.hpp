@@ -42,6 +42,9 @@ enum class WindowRouteResult : std::uint8_t {
     invalid_geometry,
 };
 
+using RouteObserver =
+    void (*)(void* user, const WindowEvent& event, WindowRouteResult result) noexcept;
+
 class WindowRouter {
   public:
     explicit WindowRouter(std::span<WindowRouteState> storage) noexcept;
@@ -58,6 +61,7 @@ class WindowRouter {
     const WindowRouteState* find(WindowId id) const noexcept;
 
     WindowRouteResult route(const WindowEvent& event) noexcept;
+    void set_observer(RouteObserver observer, void* user) noexcept;
     bool set_focused_node(WindowId id, NodeId node) noexcept;
     bool mark_damaged(WindowId id) noexcept;
     bool mark_presented(WindowId id) noexcept;
@@ -67,7 +71,10 @@ class WindowRouter {
   private:
     std::span<WindowRouteState> storage_;
     std::size_t size_{};
+    RouteObserver observer_{};
+    void* observer_user_{};
 
+    WindowRouteResult route_event(const WindowEvent& event) noexcept;
     WindowRouteState* find_mutable(WindowId id) noexcept;
     static bool valid_geometry(float width, float height, float scale_x, float scale_y) noexcept;
 };
@@ -75,15 +82,17 @@ class WindowRouter {
 }
 
 namespace veyra::platform {
+using ::veyra::RouteObserver;
+using ::veyra::WindowRouter;
 using ::veyra::WindowRouteResult;
 using ::veyra::WindowRouteState;
-using ::veyra::WindowRouter;
 }
 
 namespace veyra::platform::core {
+using ::veyra::RouteObserver;
+using ::veyra::WindowRouter;
 using ::veyra::WindowRouteResult;
 using ::veyra::WindowRouteState;
-using ::veyra::WindowRouter;
 }
 
 #endif

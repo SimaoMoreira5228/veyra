@@ -1,6 +1,7 @@
 #include "app_render.hpp"
 #include "app_semantics.hpp"
 #include "inspector_render.hpp"
+#include "veyra/inspector/trace/trace_recorder.hpp"
 #include "veyra/text/shaping/font_discovery.hpp"
 
 #if defined(VEYRA_APP_HAS_SDL3)
@@ -193,6 +194,29 @@ int run_null(const Options& options, const std::string& theme_text, const AppFon
 #if defined(VEYRA_APP_HAS_SDL3)
 int run_sdl(const Options& options, const std::string& theme_text, const AppFonts& fonts) {
     auto app = veyra::app::sdl3::Sdl3Application{};
+    auto trace_storage = std::array<veyra::TraceEvent, 256>{};
+    auto trace = veyra::TraceRecorder(trace_storage);
+    trace.set_enabled(true);
+    struct RouteTrace {
+        veyra::TraceRecorder* recorder;
+    };
+    auto route_trace = RouteTrace{&trace};
+    app.set_route_observer(
+        [](void* user, const veyra::WindowEvent& event, veyra::WindowRouteResult result) noexcept {
+            auto* state = static_cast<RouteTrace*>(user);
+            const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now().time_since_epoch()
+            )
+                                 .count();
+            state->recorder->record_route(
+                static_cast<std::uint64_t>(now),
+                static_cast<std::uint8_t>(event.kind),
+                static_cast<std::uint8_t>(result),
+                event.window
+            );
+        },
+        &route_trace
+    );
     auto main_window = veyra::WindowId{};
     auto inspector = veyra::WindowId{};
 
@@ -225,14 +249,58 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     app.set_focused_node(main_window, semantics.focus_node(model.focused()));
     app.set_focused_node(inspector, semantics.inspector_root);
 
+    const auto record_provenance = [&](veyra::TokenKind kind, std::size_t count) noexcept {
+        for (auto index = std::size_t{}; index < count; ++index) {
+            const auto provenance =
+                model.theme().provenance(kind, static_cast<std::uint8_t>(index));
+            if (provenance.layer != veyra::ThemeLayer::defaults) {
+                trace.record_provenance(
+                    0,
+                    static_cast<std::uint8_t>(kind),
+                    provenance.token,
+                    static_cast<std::uint8_t>(provenance.layer),
+                    provenance.line
+                );
+            }
+        }
+    };
+    record_provenance(veyra::TokenKind::color, static_cast<std::size_t>(veyra::ColorToken::count));
+    record_provenance(veyra::TokenKind::space, static_cast<std::size_t>(veyra::SpaceToken::count));
+    record_provenance(
+        veyra::TokenKind::radius,
+        static_cast<std::size_t>(veyra::RadiusToken::count)
+    );
+    record_provenance(
+        veyra::TokenKind::motion,
+        static_cast<std::size_t>(veyra::MotionToken::count)
+    );
+
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight> backing{};
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight>
         inspector_backing{};
+
+    auto main_width = std::uint32_t{};
+    auto main_height = std::uint32_t{};
+    auto inspector_width = std::uint32_t{};
+    auto inspector_height = std::uint32_t{};
+    if (!app.surface_size(main_window, main_width, main_height) ||
+        !app.surface_size(inspector, inspector_width, inspector_height)) {
+        std::cerr << "sdl surface size failed\n";
+        return 1;
+    }
 
     auto on_event = [&](veyra::WindowId window, veyra::WindowEvent& event) noexcept {
         if (event.kind == veyra::WindowEventKind::close_request) {
             app.request_close(window, veyra::CloseReason::user);
             return window == main_window;
+        }
+        if (event.kind == veyra::WindowEventKind::resize ||
+            event.kind == veyra::WindowEventKind::scale_change) {
+            if (window == main_window) {
+                app.surface_size(main_window, main_width, main_height);
+            } else if (window == inspector) {
+                app.surface_size(inspector, inspector_width, inspector_height);
+            }
         }
         if (window == main_window) {
             const bool quit = model.handle_event(event);
@@ -242,16 +310,34 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         }
         return false;
     };
-    auto on_frame = [&](veyra::WindowId window, bool) noexcept -> veyra::FrameAction {
-        auto* backend = app.host().backend(window);
-        if (backend == nullptr) {
-            return {.failed = true};
+
+    auto submit = [&](veyra::WindowId window,
+                      std::span<const veyra::DisplayCommand> commands,
+                      std::uint32_t width,
+                      std::uint32_t height,
+                      std::span<veyra::SoftwarePixel> pixels) noexcept -> bool {
+        auto result = app.commit(window, commands, width, height);
+        if (result == veyra::WindowSetResult::capacity) {
+            if (!app.wait_presented()) {
+                return false;
+            }
+
+            auto previous = veyra::WindowSetResult::ok;
+            if (app.take_present_result(window, previous) &&
+                previous != veyra::WindowSetResult::ok) {
+                return false;
+            }
+            result = app.commit(window, commands, width, height);
+        }
+        if (result != veyra::WindowSetResult::ok) {
+            return false;
         }
 
-        if (window == inspector) {
-            const auto width = backend->pixel_width();
-            const auto height = backend->pixel_height();
+        return app.present_async(window, pixels) == veyra::WindowSetResult::ok;
+    };
 
+    auto on_frame = [&](veyra::WindowId window, bool) noexcept -> veyra::FrameAction {
+        if (window == inspector) {
             auto nodes = std::array<veyra::SemanticNode, 32>{};
             auto node_count = std::size_t{};
             if (semantics.snapshot(app.windows(), main_window, nodes, node_count) !=
@@ -261,22 +347,26 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
 
             const auto view = veyra::InspectorView{
                 .nodes = std::span<const veyra::SemanticNode>(nodes.data(), node_count),
+                .trace = trace.events(),
                 .focused = app.windows().focused_node(main_window),
                 .window_focused = app.windows().focused_node(inspector) == semantics.inspector_root,
             };
-            const auto display = veyra::build_inspector_display(model.theme(), view, width, height);
-            if (display.count == 0) {
+            const auto display = veyra::build_inspector_display(
+                model.theme(),
+                view,
+                inspector_width,
+                inspector_height
+            );
+            if (display.count == 0 || display.overflowed) {
                 return {.failed = true};
             }
-            if (app.commit(
+            if (!submit(
                     inspector,
                     std::span<const veyra::DisplayCommand>(display.commands.data(), display.count),
-                    width,
-                    height
-                ) != veyra::WindowSetResult::ok) {
-                return {.failed = true};
-            }
-            if (app.present(inspector, inspector_backing) != veyra::WindowSetResult::ok) {
+                    inspector_width,
+                    inspector_height,
+                    inspector_backing
+                )) {
                 return {.failed = true};
             }
             return {.rendered = true};
@@ -286,21 +376,17 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             return {};
         }
 
-        const auto width = backend->pixel_width();
-        const auto height = backend->pixel_height();
-        const auto display = veyra::build_app_display(model, width, height);
-        if (display.count == 0) {
+        const auto display = veyra::build_app_display(model, main_width, main_height);
+        if (display.count == 0 || display.overflowed) {
             return {.failed = true};
         }
-        if (app.commit(
+        if (!submit(
                 main_window,
                 std::span<const veyra::DisplayCommand>(display.commands.data(), display.count),
-                width,
-                height
-            ) != veyra::WindowSetResult::ok) {
-            return {.failed = true};
-        }
-        if (app.present(main_window, backing) != veyra::WindowSetResult::ok) {
+                main_width,
+                main_height,
+                backing
+            )) {
             return {.failed = true};
         }
         return {.rendered = true, .quit = model.quit_requested()};
@@ -308,6 +394,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
 
     const std::uint64_t cap = options.has_frames ? options.frames : 0;
     const auto outcome = app.run(on_event, on_frame, &app_sleep, cap);
+    app.wait_presented();
     if (app.windows().open_count() > 0) {
         app.request_close(main_window, veyra::CloseReason::application);
     }

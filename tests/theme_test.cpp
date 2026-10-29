@@ -570,6 +570,64 @@ void check_apply_overlays_set_tokens() {
     );
 }
 
+void check_provenance() {
+    const auto dark = veyra::Theme::dark();
+    const auto surface = static_cast<std::uint8_t>(veyra::ColorToken::surface);
+    const auto preset = dark.provenance(veyra::TokenKind::color, surface);
+    require(preset.layer == veyra::ThemeLayer::preset, "preset tokens report the preset layer");
+    require(preset.token == surface, "preset provenance keeps the token index");
+    require(
+        veyra::Theme{}.provenance(veyra::TokenKind::color, surface).layer ==
+            veyra::ThemeLayer::defaults,
+        "untouched tokens report the default layer"
+    );
+
+    auto theme = veyra::Theme::dark();
+    require(
+        theme.set(veyra::ColorToken::surface, {.red = 1, .green = 2, .blue = 3}) ==
+            veyra::ThemeUpdateResult::changed,
+        "a window override applies"
+    );
+    auto provenance = theme.provenance(veyra::TokenKind::color, surface);
+    require(
+        provenance.layer == veyra::ThemeLayer::override,
+        "window overrides report the override layer"
+    );
+
+    auto file = veyra::Theme{};
+    require(
+        file.set(
+            veyra::ColorToken::surface,
+            {.red = 4, .green = 5, .blue = 6},
+            veyra::ThemeLayer::file,
+            17
+        ) == veyra::ThemeUpdateResult::changed,
+        "a file token applies"
+    );
+    require(
+        theme.apply(file) == veyra::ThemeUpdateResult::changed,
+        "a file overlay applies to the window theme"
+    );
+    provenance = theme.provenance(veyra::TokenKind::color, surface);
+    require(
+        provenance.layer == veyra::ThemeLayer::file && provenance.line == 17,
+        "applying an overlay preserves its layer and line"
+    );
+
+    require(
+        theme.clear(veyra::ColorToken::surface) == veyra::ThemeUpdateResult::changed,
+        "clearing a token succeeds"
+    );
+    require(
+        theme.provenance(veyra::TokenKind::color, surface).layer == veyra::ThemeLayer::defaults,
+        "clearing restores the default layer"
+    );
+    require(
+        theme.provenance(static_cast<veyra::TokenKind>(99), 0).layer == veyra::ThemeLayer::defaults,
+        "unknown provenance kinds report defaults"
+    );
+}
+
 }
 
 int main() {
@@ -585,6 +643,7 @@ int main() {
         check_out_of_range_reads_fall_back_to_first_default();
         check_presets_resolve_their_palettes();
         check_apply_overlays_set_tokens();
+        check_provenance();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
