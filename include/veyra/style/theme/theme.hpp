@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 namespace veyra {
 
@@ -123,6 +124,22 @@ struct TokenProvenance {
     ThemeLayer layer{ThemeLayer::defaults};
     std::uint32_t line{};
 };
+
+constexpr std::string_view theme_layer_name(ThemeLayer layer) noexcept {
+    switch (layer) {
+    case ThemeLayer::defaults:
+        return "defaults";
+    case ThemeLayer::preset:
+        return "preset";
+    case ThemeLayer::file:
+        return "file";
+    case ThemeLayer::override:
+        return "override";
+    }
+    return "?";
+}
+
+std::string_view token_name(TokenKind kind, std::uint8_t token) noexcept;
 
 class Theme {
   public:

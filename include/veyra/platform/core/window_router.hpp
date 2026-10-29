@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 namespace veyra {
 
@@ -41,6 +42,20 @@ enum class WindowRouteResult : std::uint8_t {
     unknown_window,
     invalid_geometry,
 };
+
+constexpr std::string_view window_route_result_name(WindowRouteResult result) noexcept {
+    switch (result) {
+    case WindowRouteResult::routed:
+        return "OK";
+    case WindowRouteResult::invalid_window:
+        return "BAD";
+    case WindowRouteResult::unknown_window:
+        return "UNK";
+    case WindowRouteResult::invalid_geometry:
+        return "GEOM";
+    }
+    return "?";
+}
 
 using RouteObserver =
     void (*)(void* user, const WindowEvent& event, WindowRouteResult result) noexcept;

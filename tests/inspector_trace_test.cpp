@@ -246,7 +246,7 @@ void check_route_and_provenance() {
     veyra::TraceRecorder recorder(storage);
     recorder.set_enabled(true);
 
-    require_recorded(recorder.record_route(10, 6, 0, 42), "route event records");
+    require_recorded(recorder.record_route(10, 6, 0, 42, 640, 480), "route event records");
     require_recorded(recorder.record_provenance(11, 0, 2, 2, 9), "provenance event records");
     require(recorder.count(veyra::TraceEventKind::route) == 1, "route kind counts");
     require(recorder.count(veyra::TraceEventKind::provenance) == 1, "provenance kind counts");
@@ -255,6 +255,8 @@ void check_route_and_provenance() {
     require(events[0].payload.route.event_kind == 6, "route keeps the event kind");
     require(events[0].payload.route.route_result == 0, "route keeps the result");
     require(events[0].payload.route.window == 42, "route keeps the window");
+    require(events[0].payload.route.data1 == 640, "route keeps the first payload word");
+    require(events[0].payload.route.data2 == 480, "route keeps the second payload word");
     require(events[1].payload.provenance.token_kind == 0, "provenance keeps the token kind");
     require(events[1].payload.provenance.token == 2, "provenance keeps the token");
     require(events[1].payload.provenance.layer == 2, "provenance keeps the layer");

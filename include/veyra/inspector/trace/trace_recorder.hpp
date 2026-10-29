@@ -62,6 +62,8 @@ struct TraceRoutePayload {
     std::uint8_t event_kind{};
     std::uint8_t route_result{};
     std::uint64_t window{};
+    std::uint32_t data1{};
+    std::uint32_t data2{};
 };
 
 struct TraceProvenancePayload {
@@ -141,7 +143,9 @@ class TraceRecorder {
         std::uint64_t time_ms,
         std::uint8_t event_kind,
         std::uint8_t route_result,
-        std::uint64_t window
+        std::uint64_t window,
+        std::uint32_t data1 = 0,
+        std::uint32_t data2 = 0
     ) noexcept;
 
     TraceRecordResult record_provenance(

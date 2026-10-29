@@ -222,7 +222,9 @@ TraceRecordResult TraceRecorder::record_route(
     std::uint64_t time_ms,
     std::uint8_t event_kind,
     std::uint8_t route_result,
-    std::uint64_t window
+    std::uint64_t window,
+    std::uint32_t data1,
+    std::uint32_t data2
 ) noexcept {
     TraceEvent event{};
     event.kind = TraceEventKind::route;
@@ -230,6 +232,8 @@ TraceRecordResult TraceRecorder::record_route(
     event.payload.route.event_kind = event_kind;
     event.payload.route.route_result = route_result;
     event.payload.route.window = window;
+    event.payload.route.data1 = data1;
+    event.payload.route.data2 = data2;
 
     return push(event);
 }

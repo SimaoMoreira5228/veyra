@@ -1,24 +1,36 @@
 #ifndef VEYRA_EXAMPLES_INSPECTOR_RENDER_HPP
 #define VEYRA_EXAMPLES_INSPECTOR_RENDER_HPP
 
+#include "debug_text.hpp"
 #include "veyra/core/semantics/semantics.hpp"
 #include "veyra/inspector/trace/trace_recorder.hpp"
+#include "veyra/platform/core/window.hpp"
+#include "veyra/platform/core/window_router.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/style/theme/theme.hpp"
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <system_error>
 
 namespace veyra {
 
 struct InspectorView {
     std::span<const SemanticNode> nodes;
     std::span<const TraceEvent> trace{};
+    std::span<const TokenProvenance> provenance{};
     NodeId focused{};
     bool window_focused{};
+};
+
+struct InspectorDisplay {
+    std::array<DisplayCommand, 512> commands{};
+    std::size_t count{};
+    bool overflowed{};
 };
 
 inline Srgba8 trace_color(const Theme& theme, TraceEventKind kind) noexcept {
@@ -43,11 +55,82 @@ inline Srgba8 trace_color(const Theme& theme, TraceEventKind kind) noexcept {
     return theme.color(tokens::color_text_disabled);
 }
 
-struct InspectorDisplay {
-    std::array<DisplayCommand, 96> commands{};
-    std::size_t count{};
-    bool overflowed{};
-};
+inline Srgba8 provenance_layer_color(const Theme& theme, ThemeLayer layer) noexcept {
+    switch (layer) {
+    case ThemeLayer::defaults:
+        return theme.color(tokens::color_action_disabled);
+    case ThemeLayer::preset:
+        return theme.color(tokens::color_text_disabled);
+    case ThemeLayer::file:
+        return theme.color(tokens::color_action_primary);
+    case ThemeLayer::override:
+        return theme.color(tokens::color_action_hovered);
+    }
+    return theme.color(tokens::color_text_disabled);
+}
+
+inline Srgba8 token_fill(const Theme& theme, const TokenProvenance& provenance) noexcept {
+    switch (provenance.kind) {
+    case TokenKind::color:
+        return theme.color(static_cast<ColorToken>(provenance.token));
+    case TokenKind::space: {
+        const auto value = theme.space(static_cast<SpaceToken>(provenance.token)).value;
+        const auto shade =
+            static_cast<std::uint8_t>(std::clamp(value / 24.0F * 255.0F, 0.0F, 255.0F));
+        return {.red = shade, .green = shade, .blue = shade};
+    }
+    case TokenKind::radius: {
+        const auto value = theme.radius(static_cast<RadiusToken>(provenance.token)).value;
+        const auto shade =
+            static_cast<std::uint8_t>(std::clamp(value / 8.0F * 255.0F, 0.0F, 255.0F));
+        return {.red = shade, .green = shade, .blue = shade};
+    }
+    case TokenKind::motion: {
+        const auto value = theme.motion(static_cast<MotionToken>(provenance.token)).value;
+        const auto shade = static_cast<std::uint8_t>(
+            std::clamp(static_cast<float>(value) / 300.0F * 255.0F, 0.0F, 255.0F)
+        );
+        return {.red = shade, .green = shade, .blue = shade};
+    }
+    }
+    return theme.color(tokens::color_surface);
+}
+
+inline std::size_t
+frame_durations(std::span<const TraceEvent> trace, std::span<std::uint32_t> output) noexcept {
+    auto count = std::size_t{};
+    auto pending = false;
+    auto pending_frame = std::uint64_t{};
+    auto start = std::uint64_t{};
+
+    for (const auto& event : trace) {
+        if (event.kind == TraceEventKind::frame_begin) {
+            pending = true;
+            pending_frame = event.payload.frame.frame;
+            start = event.time_ms;
+            continue;
+        }
+        if (event.kind != TraceEventKind::frame_end || !pending ||
+            event.payload.frame.frame != pending_frame) {
+            continue;
+        }
+
+        const auto duration =
+            event.time_ms > start ? static_cast<std::uint32_t>(event.time_ms - start) : 0;
+        if (count < output.size()) {
+            output[count] = duration;
+            ++count;
+        } else {
+            for (auto index = std::size_t{1}; index < output.size(); ++index) {
+                output[index - 1] = output[index];
+            }
+            output[output.size() - 1] = duration;
+        }
+        pending = false;
+    }
+
+    return count;
+}
 
 inline InspectorDisplay build_inspector_display(
     const Theme& theme,
@@ -60,8 +143,14 @@ inline InspectorDisplay build_inspector_display(
         return display;
     }
 
-    constexpr auto header_height = 24.0F;
-    constexpr auto trace_height = 18.0F;
+    constexpr auto header_height = 20.0F;
+    const auto content_top = header_height;
+    const auto content_height = static_cast<float>(height) - header_height;
+    const auto tree_height = content_height * 0.40F;
+    const auto provenance_height = content_height * 0.24F;
+    const auto event_height = content_height * 0.20F;
+    const auto timing_height = content_height - tree_height - provenance_height - event_height;
+
     auto& commands = display.commands;
     auto placed = std::size_t{};
     auto push = [&](DisplayCommand command) noexcept {
@@ -72,109 +161,299 @@ inline InspectorDisplay build_inspector_display(
         }
         display.overflowed = true;
     };
+    auto fill = [&](LayoutRect bounds, Srgba8 color) noexcept {
+        push(FillRect{.bounds = bounds, .color = color});
+    };
+    auto stroke = [&](LayoutRect bounds, float thickness, Srgba8 color) noexcept {
+        push(StrokeRect{.bounds = bounds, .thickness = thickness, .color = color});
+    };
 
-    push(
-        FillRect{
-            .bounds = {.width = static_cast<float>(width), .height = static_cast<float>(height)},
-            .color = theme.color(tokens::color_surface),
-        }
+    fill(
+        {.width = static_cast<float>(width), .height = static_cast<float>(height)},
+        theme.color(tokens::color_surface)
     );
-    push(
-        FillRect{
-            .bounds = {.width = static_cast<float>(width), .height = header_height},
-            .color = theme.color(tokens::color_action_primary),
-        }
+    fill(
+        {.width = static_cast<float>(width), .height = header_height},
+        theme.color(tokens::color_action_primary)
     );
-    push(
-        StrokeRect{
-            .bounds =
-                {.x = 0.5F,
-                 .y = 0.5F,
-                 .width = static_cast<float>(width) - 1.0F,
-                 .height = static_cast<float>(height) - 1.0F},
-            .thickness = 1.0F,
-            .color = view.window_focused ? theme.color(tokens::color_action_hovered)
-                                         : theme.color(tokens::color_action_disabled),
-        }
-    );
-
-    const auto trace_top = static_cast<float>(height) - trace_height;
-    push(
-        FillRect{
-            .bounds = {.y = trace_top, .width = static_cast<float>(width), .height = 1.0F},
-            .color = theme.color(tokens::color_action_disabled),
-        }
+    stroke(
+        {.x = 0.5F,
+         .y = 0.5F,
+         .width = static_cast<float>(width) - 1.0F,
+         .height = static_cast<float>(height) - 1.0F},
+        1.0F,
+        view.window_focused ? theme.color(tokens::color_action_hovered)
+                            : theme.color(tokens::color_action_disabled)
     );
 
-    constexpr auto block_width = 5.0F;
-    constexpr auto block_gap = 1.0F;
-    const auto trace_events = view.trace;
-    for (auto index = std::size_t{}; index < trace_events.size(); ++index) {
-        const auto x = 4.0F + static_cast<float>(index) * (block_width + block_gap);
-        if (x + block_width > static_cast<float>(width)) {
-            break;
-        }
-        push(
-            FillRect{
-                .bounds = {.x = x, .y = trace_top + 5.0F, .width = block_width, .height = 8.0F},
-                .color = trace_color(theme, trace_events[index].kind),
-            }
-        );
-    }
+    const auto section_top = content_top + tree_height;
+    const auto event_top = section_top + provenance_height;
+    const auto timing_top = event_top + event_height;
+    const auto separator = theme.color(tokens::color_action_disabled);
+    fill({.y = section_top, .width = static_cast<float>(width), .height = 1.0F}, separator);
+    fill({.y = event_top, .width = static_cast<float>(width), .height = 1.0F}, separator);
+    fill({.y = timing_top, .width = static_cast<float>(width), .height = 1.0F}, separator);
 
-    if (view.nodes.empty()) {
-        display.count = placed;
-        return display;
-    }
+    if (!view.nodes.empty()) {
+        const auto& root = view.nodes.front();
+        if (root.bounds.width > 0.0F && root.bounds.height > 0.0F) {
+            const auto scale = std::min(
+                static_cast<float>(width) / root.bounds.width,
+                tree_height / root.bounds.height
+            );
+            for (const auto& node : view.nodes) {
+                if (node.bounds.width <= 0.0F || node.bounds.height <= 0.0F) {
+                    continue;
+                }
 
-    const auto& root = view.nodes.front();
-    if (root.bounds.width <= 0.0F || root.bounds.height <= 0.0F) {
-        display.count = placed;
-        return display;
-    }
+                const auto x = (node.bounds.x - root.bounds.x) * scale;
+                const auto y = content_top + (node.bounds.y - root.bounds.y) * scale;
+                const auto node_width =
+                    std::min(node.bounds.width * scale, static_cast<float>(width) - x);
+                const auto node_height =
+                    std::min(node.bounds.height * scale, content_top + tree_height - y);
+                if (node_width <= 0.0F || node_height <= 0.0F) {
+                    continue;
+                }
 
-    const auto content_height = static_cast<float>(height) - header_height - trace_height;
-    const auto scale = std::min(
-        static_cast<float>(width) / root.bounds.width,
-        content_height / root.bounds.height
-    );
-
-    for (const auto& node : view.nodes) {
-        if (node.bounds.width <= 0.0F || node.bounds.height <= 0.0F) {
-            continue;
-        }
-
-        const auto x = (node.bounds.x - root.bounds.x) * scale;
-        const auto y = header_height + (node.bounds.y - root.bounds.y) * scale;
-        const auto node_width = std::min(node.bounds.width * scale, static_cast<float>(width) - x);
-        const auto node_height =
-            std::min(node.bounds.height * scale, header_height + content_height - y);
-        if (node_width <= 0.0F || node_height <= 0.0F) {
-            continue;
-        }
-
-        const auto focused = node.id == view.focused;
-        push(
-            StrokeRect{
-                .bounds = {.x = x, .y = y, .width = node_width, .height = node_height},
-                .thickness = 1.0F,
-                .color = focused ? theme.color(tokens::color_action_hovered)
-                                 : theme.color(tokens::color_action_disabled),
-            }
-        );
-        if (node.id != root.id) {
-            constexpr auto inset = 2.0F;
-            push(
-                FillRect{
-                    .bounds =
+                const auto focused = node.id == view.focused;
+                const auto bounds =
+                    LayoutRect{.x = x, .y = y, .width = node_width, .height = node_height};
+                stroke(
+                    bounds,
+                    1.0F,
+                    focused ? theme.color(tokens::color_action_hovered)
+                            : theme.color(tokens::color_action_disabled)
+                );
+                if (node.id != root.id) {
+                    constexpr auto inset = 2.0F;
+                    fill(
                         {.x = x + inset,
                          .y = y + inset,
                          .width = std::max(0.0F, node_width - inset * 2.0F),
                          .height = std::max(0.0F, node_height - inset * 2.0F)},
-                    .color = focused ? theme.color(tokens::color_action_primary)
-                                     : theme.color(tokens::color_text_disabled),
+                        focused ? theme.color(tokens::color_action_primary)
+                                : theme.color(tokens::color_text_disabled)
+                    );
                 }
+            }
+        }
+    }
+
+    auto text = [&](std::string_view value, float x, float y, Srgba8 color) noexcept {
+        draw_debug_text(value, x, y, color, push);
+    };
+    auto number = [&](std::uint64_t value, float x, float y, Srgba8 color) noexcept {
+        auto buffer = std::array<char, 20>{};
+        const auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
+        if (result.ec == std::errc{}) {
+            text(
+                std::string_view(
+                    buffer.data(),
+                    static_cast<std::size_t>(result.ptr - buffer.data())
+                ),
+                x,
+                y,
+                color
             );
+        }
+    };
+
+    constexpr auto provenance_row = 14.0F;
+    const auto provenance_rows = std::max(
+        std::size_t{1},
+        static_cast<std::size_t>((provenance_height - 4.0F) / provenance_row)
+    );
+    const auto shown_provenance = std::min(view.provenance.size(), provenance_rows);
+    for (auto index = std::size_t{}; index < shown_provenance; ++index) {
+        const auto y = section_top + 2.0F + static_cast<float>(index) * provenance_row;
+        const auto& entry = view.provenance[index];
+        const auto layer_color = provenance_layer_color(theme, entry.layer);
+        fill({.x = 5.0F, .y = y + 1.0F, .width = 8.0F, .height = 8.0F}, token_fill(theme, entry));
+        stroke({.x = 4.0F, .y = y, .width = 10.0F, .height = 10.0F}, 1.0F, layer_color);
+
+        const auto name = token_name(entry.kind, entry.token);
+        const auto layer = theme_layer_name(entry.layer).substr(0, 3);
+        const auto text_x = 18.0F;
+        if (text_x + debug_text_width(name) + 4.0F + debug_text_width(layer) <=
+            static_cast<float>(width)) {
+            text(name, text_x, y, theme.color(tokens::color_text_primary));
+            text(layer, text_x + debug_text_width(name) + 4.0F, y, layer_color);
+        }
+    }
+
+    const TraceEvent* last_route = nullptr;
+    for (const auto& event : view.trace) {
+        if (event.kind == TraceEventKind::route) {
+            last_route = &event;
+        }
+    }
+    const auto label_y = event_top + 1.0F;
+    if (last_route != nullptr) {
+        auto x = 4.0F;
+        text("LAST", x, label_y, theme.color(tokens::color_text_disabled));
+        x += debug_text_width("LAST") + 4.0F;
+        const auto event_name = window_event_kind_name(
+            static_cast<WindowEventKind>(last_route->payload.route.event_kind)
+        );
+        text(event_name, x, label_y, theme.color(tokens::color_text_primary));
+        x += debug_text_width(event_name) + 4.0F;
+        const auto result_name = window_route_result_name(
+            static_cast<WindowRouteResult>(last_route->payload.route.route_result)
+        );
+        text(
+            result_name,
+            x,
+            label_y,
+            last_route->payload.route.route_result == 0 ? theme.color(tokens::color_action_primary)
+                                                        : theme.color(tokens::color_error)
+        );
+        x += debug_text_width(result_name) + 4.0F;
+        text("W", x, label_y, theme.color(tokens::color_text_disabled));
+        number(
+            last_route->payload.route.window,
+            x + debug_text_width("W"),
+            label_y,
+            theme.color(tokens::color_text_disabled)
+        );
+
+        if (event_height > 40.0F) {
+            const auto detail_y = label_y + 15.0F;
+            auto detail_x = 4.0F;
+            const auto color = theme.color(tokens::color_text_primary);
+            const auto label = [&](std::string_view value) noexcept {
+                text(value, detail_x, detail_y, color);
+                detail_x += debug_text_width(value);
+            };
+            const auto value = [&](std::uint32_t number_value) noexcept {
+                number(number_value, detail_x, detail_y, color);
+                detail_x += 12.0F * 6.0F;
+            };
+            const auto signed_value = [&](std::uint32_t bits) noexcept {
+                const auto as_signed = static_cast<std::int32_t>(bits);
+                if (as_signed < 0) {
+                    const auto magnitude =
+                        static_cast<std::uint32_t>(-static_cast<std::int64_t>(as_signed));
+                    text("-", detail_x, detail_y, color);
+                    detail_x += debug_text_width("-");
+                    number(magnitude, detail_x, detail_y, color);
+                } else {
+                    number(static_cast<std::uint32_t>(as_signed), detail_x, detail_y, color);
+                }
+                detail_x += 12.0F * 6.0F;
+            };
+
+            switch (static_cast<WindowEventKind>(last_route->payload.route.event_kind)) {
+            case WindowEventKind::resize:
+                label("W");
+                value(last_route->payload.route.data1);
+                label("H");
+                value(last_route->payload.route.data2);
+                break;
+            case WindowEventKind::scale_change:
+                label("SX");
+                value(last_route->payload.route.data1);
+                label("SY");
+                value(last_route->payload.route.data2);
+                break;
+            case WindowEventKind::pointer_down:
+            case WindowEventKind::pointer_up:
+            case WindowEventKind::pointer_move:
+            case WindowEventKind::pointer_cancel:
+                label("X");
+                signed_value(last_route->payload.route.data1);
+                label("Y");
+                signed_value(last_route->payload.route.data2);
+                break;
+            case WindowEventKind::wheel:
+                label("DX");
+                signed_value(last_route->payload.route.data1);
+                label("DY");
+                signed_value(last_route->payload.route.data2);
+                break;
+            case WindowEventKind::key_down:
+            case WindowEventKind::key_up:
+                label("K");
+                value(last_route->payload.route.data1);
+                label("M");
+                value(last_route->payload.route.data2);
+                break;
+            case WindowEventKind::state_change:
+                label("ST");
+                value(last_route->payload.route.data1);
+                break;
+            case WindowEventKind::text_commit:
+            case WindowEventKind::text_editing:
+                label("N");
+                value(last_route->payload.route.data1);
+                break;
+            default:
+                break;
+            }
+        }
+    } else {
+        text("NO EVENTS", 4.0F, label_y, theme.color(tokens::color_text_disabled));
+    }
+
+    if (event_height > 40.0F) {
+        auto route_index = std::size_t{};
+        for (const auto& event : view.trace) {
+            if (event.kind != TraceEventKind::route) {
+                continue;
+            }
+
+            const auto x = 4.0F + static_cast<float>(route_index) * 5.0F;
+            if (x + 4.0F > static_cast<float>(width)) {
+                break;
+            }
+            const auto row = static_cast<float>(event.payload.route.window % 2U);
+            const auto bar_height = 3.0F + static_cast<float>(event.payload.route.event_kind % 6U);
+            const auto y = event_top + 32.0F + row * 7.0F + (7.0F - bar_height);
+            fill(
+                {.x = x, .y = y, .width = 4.0F, .height = bar_height},
+                event.payload.route.route_result == 0 ? theme.color(tokens::color_action_primary)
+                                                      : theme.color(tokens::color_error)
+            );
+            ++route_index;
+        }
+    }
+
+    auto durations = std::array<std::uint32_t, 8>{};
+    const auto duration_count = frame_durations(view.trace, durations);
+    auto longest = std::uint32_t{1};
+    for (auto index = std::size_t{}; index < duration_count; ++index) {
+        longest = std::max(longest, durations[index]);
+    }
+    text(
+        "MS",
+        static_cast<float>(width) - 24.0F,
+        timing_top + 1.0F,
+        theme.color(tokens::color_text_disabled)
+    );
+    if (duration_count == 0) {
+        text("NO FRAMES", 4.0F, timing_top + 1.0F, theme.color(tokens::color_text_disabled));
+    } else {
+        const auto bar_width = (static_cast<float>(width) - 8.0F) / 8.0F;
+        const auto bar_area = std::max(1.0F, timing_height - 18.0F);
+        for (auto index = std::size_t{}; index < duration_count; ++index) {
+            const auto ratio = static_cast<float>(durations[index]) / static_cast<float>(longest);
+            const auto bar_height = std::max(1.0F, bar_area * ratio);
+            const auto x = 4.0F + static_cast<float>(index) * bar_width;
+            fill(
+                {.x = x,
+                 .y = timing_top + timing_height - bar_height,
+                 .width = std::max(1.0F, bar_width - 2.0F),
+                 .height = bar_height},
+                theme.color(tokens::color_action_primary)
+            );
+            if (bar_width >= 24.0F) {
+                number(
+                    durations[index],
+                    x + 1.0F,
+                    timing_top + 1.0F,
+                    theme.color(tokens::color_text_disabled)
+                );
+            }
         }
     }
 

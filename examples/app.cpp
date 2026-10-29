@@ -35,6 +35,54 @@ struct Options {
     bool has_frames{};
 };
 
+struct RoutePayload {
+    std::uint32_t first{};
+    std::uint32_t second{};
+};
+
+RoutePayload route_payload(const veyra::WindowEvent& event) noexcept {
+    const auto signed_bits = [](float value) noexcept {
+        return static_cast<std::uint32_t>(static_cast<std::int32_t>(value));
+    };
+
+    switch (event.kind) {
+    case veyra::WindowEventKind::resize:
+        return {
+            .first = static_cast<std::uint32_t>(event.data.resize.width),
+            .second = static_cast<std::uint32_t>(event.data.resize.height),
+        };
+    case veyra::WindowEventKind::scale_change:
+        return {
+            .first = static_cast<std::uint32_t>(event.data.scale.x * 100.0F),
+            .second = static_cast<std::uint32_t>(event.data.scale.y * 100.0F),
+        };
+    case veyra::WindowEventKind::pointer_down:
+    case veyra::WindowEventKind::pointer_up:
+    case veyra::WindowEventKind::pointer_move:
+    case veyra::WindowEventKind::pointer_cancel:
+        return {
+            .first = signed_bits(event.data.pointer.position.x),
+            .second = signed_bits(event.data.pointer.position.y),
+        };
+    case veyra::WindowEventKind::wheel:
+        return {
+            .first = signed_bits(event.data.wheel.delta_x * 100.0F),
+            .second = signed_bits(event.data.wheel.delta_y * 100.0F),
+        };
+    case veyra::WindowEventKind::key_down:
+    case veyra::WindowEventKind::key_up:
+        return {.first = event.data.key.code, .second = event.data.key.modifiers};
+    case veyra::WindowEventKind::state_change:
+        return {.first = static_cast<std::uint32_t>(event.data.state)};
+    case veyra::WindowEventKind::text_commit:
+        return {.first = event.data.commit.length};
+    case veyra::WindowEventKind::text_editing:
+        return {.first = event.data.editing.length};
+    default:
+        return {};
+    }
+}
+
 std::uint64_t parse_count(const char* value) {
     const std::string_view text(value);
     std::uint64_t parsed = 0;
@@ -208,11 +256,14 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                                  std::chrono::steady_clock::now().time_since_epoch()
             )
                                  .count();
+            const auto payload = route_payload(event);
             state->recorder->record_route(
                 static_cast<std::uint64_t>(now),
                 static_cast<std::uint8_t>(event.kind),
                 static_cast<std::uint8_t>(result),
-                event.window
+                event.window,
+                payload.first,
+                payload.second
             );
         },
         &route_trace
@@ -225,7 +276,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         std::cerr << "sdl window failed to open\n";
         return 1;
     }
-    if (app.create("veyra inspector", 240, 160, {.owner = main_window}, inspector) !=
+    if (app.create("veyra inspector", 400, 300, {.owner = main_window}, inspector) !=
         veyra::WindowSetResult::ok) {
         std::cerr << "sdl inspector failed to open\n";
         return 1;
@@ -249,31 +300,38 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     app.set_focused_node(main_window, semantics.focus_node(model.focused()));
     app.set_focused_node(inspector, semantics.inspector_root);
 
-    const auto record_provenance = [&](veyra::TokenKind kind, std::size_t count) noexcept {
-        for (auto index = std::size_t{}; index < count; ++index) {
-            const auto provenance =
-                model.theme().provenance(kind, static_cast<std::uint8_t>(index));
-            if (provenance.layer != veyra::ThemeLayer::defaults) {
-                trace.record_provenance(
-                    0,
-                    static_cast<std::uint8_t>(kind),
-                    provenance.token,
-                    static_cast<std::uint8_t>(provenance.layer),
-                    provenance.line
-                );
+    auto provenance_storage = std::array<veyra::TokenProvenance, 32>{};
+    auto provenance_count = std::size_t{};
+    const auto collect_provenance = [&]() noexcept {
+        provenance_count = 0;
+        const auto add = [&](veyra::TokenKind kind, std::size_t count) noexcept {
+            for (auto index = std::size_t{}; index < count; ++index) {
+                const auto provenance =
+                    model.theme().provenance(kind, static_cast<std::uint8_t>(index));
+                if (provenance.layer == veyra::ThemeLayer::defaults ||
+                    provenance_count == provenance_storage.size()) {
+                    continue;
+                }
+                provenance_storage[provenance_count] = provenance;
+                ++provenance_count;
             }
-        }
+        };
+        add(veyra::TokenKind::color, static_cast<std::size_t>(veyra::ColorToken::count));
+        add(veyra::TokenKind::space, static_cast<std::size_t>(veyra::SpaceToken::count));
+        add(veyra::TokenKind::radius, static_cast<std::size_t>(veyra::RadiusToken::count));
+        add(veyra::TokenKind::motion, static_cast<std::size_t>(veyra::MotionToken::count));
     };
-    record_provenance(veyra::TokenKind::color, static_cast<std::size_t>(veyra::ColorToken::count));
-    record_provenance(veyra::TokenKind::space, static_cast<std::size_t>(veyra::SpaceToken::count));
-    record_provenance(
-        veyra::TokenKind::radius,
-        static_cast<std::size_t>(veyra::RadiusToken::count)
-    );
-    record_provenance(
-        veyra::TokenKind::motion,
-        static_cast<std::size_t>(veyra::MotionToken::count)
-    );
+    collect_provenance();
+    for (auto index = std::size_t{}; index < provenance_count; ++index) {
+        const auto& provenance = provenance_storage[index];
+        trace.record_provenance(
+            0,
+            static_cast<std::uint8_t>(provenance.kind),
+            provenance.token,
+            static_cast<std::uint8_t>(provenance.layer),
+            provenance.line
+        );
+    }
 
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight> backing{};
     static std::array<veyra::SoftwarePixel, veyra::kAppWidth * veyra::kAppHeight>
@@ -288,6 +346,14 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         std::cerr << "sdl surface size failed\n";
         return 1;
     }
+
+    auto frame_id = std::uint64_t{};
+    const auto now_ms = []() noexcept -> std::uint64_t {
+        return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                              std::chrono::steady_clock::now().time_since_epoch()
+        )
+                                              .count());
+    };
 
     auto on_event = [&](veyra::WindowId window, veyra::WindowEvent& event) noexcept {
         if (event.kind == veyra::WindowEventKind::close_request) {
@@ -337,7 +403,12 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     };
 
     auto on_frame = [&](veyra::WindowId window, bool) noexcept -> veyra::FrameAction {
+        const auto frame = ++frame_id;
+        const auto frame_start = now_ms();
+        trace.record_frame_begin(frame_start, frame);
+
         if (window == inspector) {
+            collect_provenance();
             auto nodes = std::array<veyra::SemanticNode, 32>{};
             auto node_count = std::size_t{};
             if (semantics.snapshot(app.windows(), main_window, nodes, node_count) !=
@@ -348,6 +419,10 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             const auto view = veyra::InspectorView{
                 .nodes = std::span<const veyra::SemanticNode>(nodes.data(), node_count),
                 .trace = trace.events(),
+                .provenance = std::span<const veyra::TokenProvenance>(
+                    provenance_storage.data(),
+                    provenance_count
+                ),
                 .focused = app.windows().focused_node(main_window),
                 .window_focused = app.windows().focused_node(inspector) == semantics.inspector_root,
             };
@@ -369,6 +444,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                 )) {
                 return {.failed = true};
             }
+            trace.record_frame_end(now_ms(), frame);
             return {.rendered = true};
         }
 
@@ -389,6 +465,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             )) {
             return {.failed = true};
         }
+        trace.record_frame_end(now_ms(), frame);
         return {.rendered = true, .quit = model.quit_requested()};
     };
 

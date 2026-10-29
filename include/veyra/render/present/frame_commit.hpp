@@ -13,7 +13,7 @@ namespace veyra {
 // NOTE: commands borrow path, glyph, mask, and image resources. The caller keeps
 // them alive until the commit is presented.
 struct FrameCommit {
-    static constexpr std::size_t kCommandCapacity = 256;
+    static constexpr std::size_t kCommandCapacity = 512;
 
     std::array<DisplayCommand, kCommandCapacity> commands{};
     std::size_t command_count{};

@@ -176,6 +176,67 @@ TokenProvenance Theme::provenance(TokenKind kind, std::uint8_t token) const noex
     return {.kind = kind, .token = token};
 }
 
+std::string_view token_name(TokenKind kind, std::uint8_t token) noexcept {
+    constexpr std::array<std::string_view, 11> colors{
+        "color_surface",
+        "color_text_primary",
+        "color_action_primary",
+        "color_action_on_primary",
+        "color_action_hovered",
+        "color_action_pressed",
+        "color_action_disabled",
+        "color_text_disabled",
+        "color_toggle_checked",
+        "color_toggle_on_checked",
+        "color_error",
+    };
+    constexpr std::array<std::string_view, 6> spaces{
+        "space_none",
+        "space_extra_small",
+        "space_small",
+        "space_medium",
+        "space_large",
+        "space_extra_large",
+    };
+    constexpr std::array<std::string_view, 4> radii{
+        "radius_none",
+        "radius_small",
+        "radius_medium",
+        "radius_large",
+    };
+    constexpr std::array<std::string_view, 4> motions{
+        "motion_instant",
+        "motion_fast",
+        "motion_normal",
+        "motion_slow",
+    };
+
+    const auto index = static_cast<std::size_t>(token);
+    switch (kind) {
+    case TokenKind::color:
+        if (index < colors.size()) {
+            return colors[index];
+        }
+        break;
+    case TokenKind::space:
+        if (index < spaces.size()) {
+            return spaces[index];
+        }
+        break;
+    case TokenKind::radius:
+        if (index < radii.size()) {
+            return radii[index];
+        }
+        break;
+    case TokenKind::motion:
+        if (index < motions.size()) {
+            return motions[index];
+        }
+        break;
+    }
+    return "unknown";
+}
+
 Srgba8 Theme::color(ColorToken token) const noexcept {
     return resolve(token, default_colors, colors_);
 }

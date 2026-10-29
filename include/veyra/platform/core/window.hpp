@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <type_traits>
 
 namespace veyra {
@@ -168,6 +169,51 @@ enum class WindowEventKind : std::uint8_t {
     gamepad_added,
     gamepad_removed,
 };
+
+constexpr std::string_view window_event_kind_name(WindowEventKind kind) noexcept {
+    switch (kind) {
+    case WindowEventKind::close_request:
+        return "close";
+    case WindowEventKind::resize:
+        return "resize";
+    case WindowEventKind::scale_change:
+        return "scale";
+    case WindowEventKind::state_change:
+        return "state";
+    case WindowEventKind::device_lost:
+        return "lost";
+    case WindowEventKind::pointer_down:
+        return "down";
+    case WindowEventKind::pointer_up:
+        return "up";
+    case WindowEventKind::pointer_move:
+        return "move";
+    case WindowEventKind::pointer_cancel:
+        return "cancel";
+    case WindowEventKind::wheel:
+        return "wheel";
+    case WindowEventKind::key_down:
+    case WindowEventKind::key_up:
+        return "key";
+    case WindowEventKind::text_commit:
+        return "text";
+    case WindowEventKind::text_editing:
+        return "edit";
+    case WindowEventKind::focus_gained:
+        return "focus";
+    case WindowEventKind::focus_lost:
+        return "blur";
+    case WindowEventKind::gamepad_axis:
+        return "axis";
+    case WindowEventKind::gamepad_button:
+        return "button";
+    case WindowEventKind::gamepad_added:
+        return "add";
+    case WindowEventKind::gamepad_removed:
+        return "remove";
+    }
+    return "?";
+}
 
 struct WindowResize {
     float width{};
