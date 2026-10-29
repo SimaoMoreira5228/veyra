@@ -4,8 +4,8 @@
 #include "app_model.hpp"
 #include "veyra/behaviors/control/pressable.hpp"
 #include "veyra/core/schedule/frame_scheduler.hpp"
-#include "veyra/platform/headless/null_window.hpp"
 #include "veyra/platform/core/run_loop.hpp"
+#include "veyra/platform/headless/null_window.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
 #include "veyra/widgets/basic/button.hpp"
 #include "veyra/widgets/basic/textfield.hpp"
@@ -30,24 +30,29 @@ inline std::uint64_t app_checksum(std::span<const SoftwarePixel> pixels) noexcep
     return hash;
 }
 
-inline SoftwareRenderResult render_app(
-    const AppModel& model,
-    std::span<SoftwarePixel> pixels,
-    std::size_t width,
-    std::size_t height
-) noexcept {
-    if (pixels.size() < width * height || width != kAppWidth || height != kAppHeight) {
-        return SoftwareRenderResult::invalid_surface;
+struct AppDisplay {
+    std::array<DisplayCommand, 256> commands{};
+    std::size_t count{};
+    bool overflowed{};
+};
+
+inline AppDisplay
+build_app_display(const AppModel& model, std::size_t width, std::size_t height) noexcept {
+    auto display = AppDisplay{};
+    if (width != kAppWidth || height != kAppHeight) {
+        return display;
     }
 
     const Theme& theme = model.theme_;
-    std::array<DisplayCommand, 256> commands{};
+    auto& commands = display.commands;
     std::size_t placed = 0;
     auto push = [&](DisplayCommand command) noexcept {
         if (placed < commands.size()) {
             commands[placed] = command;
             ++placed;
+            return;
         }
+        display.overflowed = true;
     };
 
     push(
@@ -241,6 +246,25 @@ inline SoftwareRenderResult render_app(
         }
     }
 
+    display.count = placed;
+    return display;
+}
+
+inline SoftwareRenderResult render_app(
+    const AppModel& model,
+    std::span<SoftwarePixel> pixels,
+    std::size_t width,
+    std::size_t height
+) noexcept {
+    if (pixels.size() < width * height || width != kAppWidth || height != kAppHeight) {
+        return SoftwareRenderResult::invalid_surface;
+    }
+
+    const auto display = build_app_display(model, width, height);
+    if (display.count == 0 || display.overflowed) {
+        return SoftwareRenderResult::invalid_input;
+    }
+
     std::array<SoftwareClipRect, 8> clips{};
     std::array<LayoutPoint, 8> translations{};
     const SoftwareSurface surface{
@@ -254,7 +278,7 @@ inline SoftwareRenderResult render_app(
         .translations = translations,
     };
     return render_software(
-        std::span<const DisplayCommand>(commands.data(), placed),
+        std::span<const DisplayCommand>(display.commands.data(), display.count),
         surface,
         workspace
     );

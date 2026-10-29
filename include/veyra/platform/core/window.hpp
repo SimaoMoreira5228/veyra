@@ -151,6 +151,7 @@ enum class WindowEventKind : std::uint8_t {
     resize,
     scale_change,
     state_change,
+    device_lost,
     pointer_down,
     pointer_up,
     pointer_move,
@@ -285,6 +286,8 @@ concept WindowBackend = requires(
     { observer.scale_y() } noexcept -> std::same_as<float>;
     { observer.surface_generation() } noexcept -> std::same_as<std::uint64_t>;
     { observer.capabilities() } noexcept -> std::same_as<WindowCapabilities>;
+    { observer.window_state() } noexcept -> std::same_as<WindowState>;
+    { backend.set_state(WindowState::normal) } noexcept -> std::same_as<WindowResult>;
     { backend.poll_event(event) } noexcept -> std::same_as<bool>;
     { observer.gamepad_count() } noexcept -> std::same_as<std::uint32_t>;
     { backend.start_text_input() } noexcept -> std::same_as<WindowResult>;

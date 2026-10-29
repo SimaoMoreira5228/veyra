@@ -1,8 +1,8 @@
 #ifndef VEYRA_EXAMPLES_APP_MODEL_HPP
 #define VEYRA_EXAMPLES_APP_MODEL_HPP
 
-#include "veyra/behaviors/navigation/command_palette.hpp"
 #include "veyra/behaviors/input/editable_text.hpp"
+#include "veyra/behaviors/navigation/command_palette.hpp"
 #include "veyra/behaviors/navigation/focus_chain.hpp"
 #include "veyra/behaviors/overlay/overlay.hpp"
 #include "veyra/core/input/shortcut_map.hpp"
@@ -53,6 +53,8 @@ enum class AppFontSource : std::uint8_t {
     system,
     testdata,
 };
+
+struct AppDisplay;
 
 class AppModel {
   public:
@@ -134,12 +136,8 @@ class AppModel {
     std::size_t font_count_{};
     bool quit_{};
 
-    friend SoftwareRenderResult render_app(
-        const AppModel& model,
-        std::span<SoftwarePixel> pixels,
-        std::size_t width,
-        std::size_t height
-    ) noexcept;
+    friend AppDisplay
+    build_app_display(const AppModel& model, std::size_t width, std::size_t height) noexcept;
 };
 
 inline NodeId AppModel::node_for(std::uint64_t id) noexcept {

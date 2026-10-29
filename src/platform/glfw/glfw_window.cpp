@@ -116,6 +116,8 @@ GlfwWindow::GlfwWindow(
     glfwSetKeyCallback(window_.get(), on_key);
     glfwSetCharCallback(window_.get(), on_character);
     glfwSetWindowFocusCallback(window_.get(), on_focus);
+    glfwSetWindowIconifyCallback(window_.get(), on_iconify);
+    glfwSetWindowMaximizeCallback(window_.get(), on_maximize);
 
     int logical_width = 0;
     int logical_height = 0;
@@ -196,6 +198,85 @@ WindowCapabilities GlfwWindow::capabilities() const noexcept {
 
 std::uint64_t GlfwWindow::dropped_events() const noexcept {
     return dropped_events_;
+}
+
+WindowResult GlfwWindow::set_state(WindowState state) noexcept {
+    if (creation_result_ != WindowResult::ready) {
+        return creation_result_;
+    }
+    if (!valid_window_state(state)) {
+        return WindowResult::invalid_input;
+    }
+
+    if (state != WindowState::fullscreen && glfwGetWindowMonitor(window_.get()) != nullptr) {
+        glfwSetWindowMonitor(
+            window_.get(),
+            nullptr,
+            windowed_x_,
+            windowed_y_,
+            windowed_width_,
+            windowed_height_,
+            0
+        );
+    }
+
+    switch (state) {
+    case WindowState::normal:
+        glfwRestoreWindow(window_.get());
+        break;
+    case WindowState::minimized:
+        glfwIconifyWindow(window_.get());
+        break;
+    case WindowState::maximized:
+        glfwMaximizeWindow(window_.get());
+        break;
+    case WindowState::fullscreen: {
+        if (glfwGetWindowMonitor(window_.get()) != nullptr) {
+            break;
+        }
+        auto* monitor = glfwGetPrimaryMonitor();
+        if (monitor == nullptr) {
+            return WindowResult::unsupported;
+        }
+        const auto* mode = glfwGetVideoMode(monitor);
+        if (mode == nullptr) {
+            return WindowResult::presentation_failed;
+        }
+
+        glfwGetWindowPos(window_.get(), &windowed_x_, &windowed_y_);
+        glfwGetWindowSize(window_.get(), &windowed_width_, &windowed_height_);
+        glfwSetWindowMonitor(
+            window_.get(),
+            monitor,
+            0,
+            0,
+            mode->width,
+            mode->height,
+            mode->refreshRate
+        );
+        break;
+    }
+    }
+
+    apply_state(state);
+    return WindowResult::ready;
+}
+
+WindowState GlfwWindow::window_state() const noexcept {
+    if (window_ == nullptr) {
+        return WindowState::normal;
+    }
+    if (glfwGetWindowMonitor(window_.get()) != nullptr) {
+        return WindowState::fullscreen;
+    }
+    if (glfwGetWindowAttrib(window_.get(), GLFW_ICONIFIED) == GLFW_TRUE) {
+        return WindowState::minimized;
+    }
+    if (glfwGetWindowAttrib(window_.get(), GLFW_MAXIMIZED) == GLFW_TRUE) {
+        return WindowState::maximized;
+    }
+
+    return WindowState::normal;
 }
 
 bool GlfwWindow::should_close() const noexcept {
@@ -310,6 +391,18 @@ void GlfwWindow::enqueue(WindowEvent event) noexcept {
     const auto index = (event_head_ + event_count_) % kEventCapacity;
     events_[index] = event;
     ++event_count_;
+}
+
+void GlfwWindow::apply_state(WindowState state) noexcept {
+    if (window_state_ == state) {
+        return;
+    }
+
+    window_state_ = state;
+    WindowEvent event{};
+    event.kind = WindowEventKind::state_change;
+    event.data.state = state;
+    enqueue(event);
 }
 
 bool GlfwWindow::dequeue(WindowEvent& event) noexcept {
@@ -513,6 +606,20 @@ void GlfwWindow::on_focus(GLFWwindow* window, int focused) noexcept {
     WindowEvent event{};
     event.kind = focused == GLFW_TRUE ? WindowEventKind::focus_gained : WindowEventKind::focus_lost;
     self(window)->enqueue(event);
+}
+
+void GlfwWindow::on_iconify(GLFWwindow* window, int iconified) noexcept {
+    auto* instance = self(window);
+    instance->apply_state(
+        iconified == GLFW_TRUE ? WindowState::minimized : instance->window_state()
+    );
+}
+
+void GlfwWindow::on_maximize(GLFWwindow* window, int maximized) noexcept {
+    auto* instance = self(window);
+    instance->apply_state(
+        maximized == GLFW_TRUE ? WindowState::maximized : instance->window_state()
+    );
 }
 
 void GlfwWindow::on_joystick(int id, int action) noexcept {

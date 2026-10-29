@@ -43,9 +43,11 @@ add_library(veyra_render STATIC
  src/render/display/display_command_hash.cpp
  src/render/display/display_equivalence.cpp
  src/render/present/present_choice.cpp
+ src/render/present/frame_commit.cpp
+ src/render/present/render_worker.cpp
  src/render/cpu/software_renderer.cpp
 )
-target_link_libraries(veyra_render PUBLIC veyra_foundation veyra_layout)
+target_link_libraries(veyra_render PUBLIC veyra_foundation veyra_layout Threads::Threads)
 target_include_directories(veyra_render PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>)
 target_compile_features(veyra_render PUBLIC cxx_std_23)
 

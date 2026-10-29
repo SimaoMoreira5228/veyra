@@ -3,10 +3,12 @@
 
 #include <SDL3/SDL.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 
 namespace {
 
@@ -21,6 +23,11 @@ void require(bool condition, std::string_view message) {
 int main() {
     try {
         auto host = veyra::app::sdl3::Sdl3WindowHost{};
+        require(host.render_thread_active(), "the host starts a render worker");
+        require(
+            host.render_thread_id() != std::this_thread::get_id(),
+            "the render worker runs on its own thread"
+        );
 
         auto owner = veyra::WindowId{};
         auto child = veyra::WindowId{};
@@ -51,8 +58,88 @@ int main() {
             host.show(child) == veyra::WindowSetResult::owner_not_visible,
             "child waits for its owner"
         );
+
+        auto backing = std::array<veyra::SoftwarePixel, std::size_t{160} * 120>{};
+        auto command = veyra::DisplayCommand{veyra::FillRect{
+            .bounds = {.width = 160.0F, .height = 120.0F},
+            .color = {.red = 20, .green = 40, .blue = 60},
+        }};
+        auto display = std::array<veyra::DisplayCommand, 1>{command};
+        require(!host.backend(owner)->visible(), "new windows start hidden");
+        require(
+            host.commit(owner, display, 160, 120) == veyra::WindowSetResult::ok,
+            "a frame commits"
+        );
         require(host.show(owner) == veyra::WindowSetResult::ok, "owner shows");
+        require(!host.backend(owner)->visible(), "the first frame is presented before showing");
+        const auto presents_before = host.render_thread_presents();
+        require(
+            host.present(owner, backing) == veyra::WindowSetResult::ok,
+            "the committed frame presents"
+        );
+        require(
+            host.render_thread_presents() == presents_before + 1,
+            "presentation runs on the render thread"
+        );
+        require(host.backend(owner)->visible(), "presenting the first frame shows the window");
         require(host.show(child) == veyra::WindowSetResult::ok, "child shows");
+        require(
+            host.present(owner, backing) == veyra::WindowSetResult::stale_frame,
+            "a consumed commit is not presented twice"
+        );
+
+        auto too_many =
+            std::array<veyra::DisplayCommand, veyra::FrameCommit::kCommandCapacity + 1>{};
+        require(
+            host.commit(owner, too_many, 160, 120) == veyra::WindowSetResult::capacity,
+            "commit capacity is enforced"
+        );
+        require(
+            host.commit(owner, display, 0, 120) == veyra::WindowSetResult::invalid_geometry,
+            "zero-width frames are rejected"
+        );
+        require(
+            host.commit(veyra::kInvalidWindowId, display, 160, 120) ==
+                veyra::WindowSetResult::invalid_window,
+            "unknown windows reject commits"
+        );
+        require(
+            host.present(veyra::kInvalidWindowId, backing) ==
+                veyra::WindowSetResult::invalid_window,
+            "unknown windows reject presentation"
+        );
+
+        require(
+            host.backend(owner)->resize(200, 150) == veyra::WindowResult::ready,
+            "owner resizes"
+        );
+        require(
+            host.commit(owner, display, 160, 120) == veyra::WindowSetResult::ok,
+            "old-size frame commits"
+        );
+        auto larger_backing = std::array<veyra::SoftwarePixel, std::size_t{200} * 150>{};
+        require(
+            host.present(owner, larger_backing) == veyra::WindowSetResult::stale_frame,
+            "a frame from the old size is not presented after resize"
+        );
+        require(
+            host.commit(owner, display, 200, 150) == veyra::WindowSetResult::ok,
+            "resized frame commits"
+        );
+        require(
+            host.present(owner, larger_backing) == veyra::WindowSetResult::ok,
+            "the resized frame presents"
+        );
+
+        auto short_backing = std::array<veyra::SoftwarePixel, 4>{};
+        require(
+            host.commit(owner, display, 200, 150) == veyra::WindowSetResult::ok,
+            "frame recommits"
+        );
+        require(
+            host.present(owner, short_backing) == veyra::WindowSetResult::presentation_failed,
+            "a short backing buffer fails presentation"
+        );
         require(host.router().mark_presented(owner), "owner is marked presented");
         require(
             host.set_state(veyra::kInvalidWindowId, veyra::WindowState::minimized) ==
@@ -113,6 +200,24 @@ int main() {
             veyra::WindowState::normal,
             "restore state reaches the window record"
         );
+
+        native_event = {};
+        native_event.type = SDL_EVENT_RENDER_DEVICE_LOST;
+        native_event.render.windowID = static_cast<Uint32>(host.backend(owner)->window_id());
+        require(SDL_PushEvent(&native_event), "device loss queues");
+        auto lost = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(state_event, state_window)) {
+                break;
+            }
+            if (state_window == owner && state_event.kind == veyra::WindowEventKind::device_lost) {
+                lost = true;
+                break;
+            }
+        }
+        require(lost, "device loss reaches the window");
+        require(host.take_device_lost(owner), "device loss is reported");
+        require(!host.take_device_lost(owner), "device loss is consumed once");
 
         auto tree = veyra::NodeTree{};
         tree.reserve(2);

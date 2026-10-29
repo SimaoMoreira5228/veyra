@@ -41,6 +41,8 @@ enum class WindowSetResult : std::uint8_t {
     creation_failed,
     invalid_root,
     invalid_geometry,
+    stale_frame,
+    presentation_failed,
     cancelled,
     not_dialog,
     invalid_state,

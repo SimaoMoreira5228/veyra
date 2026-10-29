@@ -92,7 +92,7 @@ void Sdl3Window::route_event(const SDL_Event& event) noexcept {
     }
 }
 
-Sdl3Window::Sdl3Window(const char* title, int width, int height) noexcept {
+Sdl3Window::Sdl3Window(const char* title, int width, int height, bool visible) noexcept {
     if (title == nullptr || width <= 0 || height <= 0) {
         creation_result_ = WindowResult::invalid_input;
         return;
@@ -108,7 +108,10 @@ Sdl3Window::Sdl3Window(const char* title, int width, int height) noexcept {
 
     SDL_Window* native_window = nullptr;
     SDL_Renderer* native_renderer = nullptr;
-    const auto flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    auto flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    if (!visible) {
+        flags |= SDL_WINDOW_HIDDEN;
+    }
     if (!SDL_CreateWindowAndRenderer(
             title,
             width,
@@ -180,6 +183,33 @@ WindowResult Sdl3Window::show() noexcept {
     }
 
     return SDL_ShowWindow(window_.get()) ? WindowResult::ready : WindowResult::presentation_failed;
+}
+
+WindowResult Sdl3Window::resize(int width, int height) noexcept {
+    if (width <= 0 || height <= 0) {
+        return WindowResult::invalid_input;
+    }
+    if (!window_) {
+        return WindowResult::invalid_state;
+    }
+    if (!SDL_SetWindowSize(window_.get(), width, height)) {
+        return WindowResult::presentation_failed;
+    }
+
+    refresh_geometry();
+    return WindowResult::ready;
+}
+
+bool Sdl3Window::visible() const noexcept {
+    return window_ != nullptr && (SDL_GetWindowFlags(window_.get()) & SDL_WINDOW_HIDDEN) == 0;
+}
+
+std::uint32_t Sdl3Window::pixel_width() const noexcept {
+    return pixel_width_ > 0 ? static_cast<std::uint32_t>(pixel_width_) : 0;
+}
+
+std::uint32_t Sdl3Window::pixel_height() const noexcept {
+    return pixel_height_ > 0 ? static_cast<std::uint32_t>(pixel_height_) : 0;
 }
 
 WindowResult Sdl3Window::set_state(WindowState state) noexcept {
@@ -361,6 +391,11 @@ Sdl3Window::acquire_surface(SoftwareSurface& surface, std::span<SoftwarePixel> b
     acquired_pixels_ = surface.pixels;
     frame_acquired_ = true;
     return WindowResult::ready;
+}
+
+void Sdl3Window::discard_frame() noexcept {
+    frame_acquired_ = false;
+    acquired_pixels_ = {};
 }
 
 WindowResult Sdl3Window::present() noexcept {

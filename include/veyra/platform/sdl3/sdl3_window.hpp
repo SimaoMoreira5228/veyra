@@ -20,7 +20,7 @@ class Sdl3Window {
   public:
     static constexpr std::size_t kEventCapacity = 32;
 
-    Sdl3Window(const char* title, int width, int height) noexcept;
+    Sdl3Window(const char* title, int width, int height, bool visible = true) noexcept;
     ~Sdl3Window();
 
     Sdl3Window(const Sdl3Window&) = delete;
@@ -32,6 +32,10 @@ class Sdl3Window {
     WindowResult show() noexcept;
     WindowResult set_state(WindowState state) noexcept;
     WindowState window_state() const noexcept;
+    WindowResult resize(int width, int height) noexcept;
+    bool visible() const noexcept;
+    std::uint32_t pixel_width() const noexcept;
+    std::uint32_t pixel_height() const noexcept;
     WindowId window_id() const noexcept;
     float logical_width() const noexcept;
     float logical_height() const noexcept;
@@ -45,6 +49,7 @@ class Sdl3Window {
     WindowResult
     acquire_surface(SoftwareSurface& surface, std::span<SoftwarePixel> backing) noexcept;
     WindowResult present() noexcept;
+    void discard_frame() noexcept;
     WindowResult start_text_input() noexcept;
     WindowResult stop_text_input() noexcept;
     WindowResult set_text_input_area(TextInputArea area) noexcept;

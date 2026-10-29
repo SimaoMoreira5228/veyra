@@ -349,6 +349,10 @@ bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out)
     case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
         handled = translate_state(WindowState::normal, mapped);
         break;
+    case SDL_EVENT_RENDER_DEVICE_LOST:
+        mapped.kind = WindowEventKind::device_lost;
+        handled = true;
+        break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
         handled = translate_mouse_button(in.button, mapped);

@@ -249,11 +249,8 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
         }
 
         if (window == inspector) {
-            auto surface = veyra::SoftwareSurface{};
-            if (backend->acquire_surface(surface, inspector_backing) !=
-                veyra::WindowResult::ready) {
-                return {.failed = true};
-            }
+            const auto width = backend->pixel_width();
+            const auto height = backend->pixel_height();
 
             auto nodes = std::array<veyra::SemanticNode, 32>{};
             auto node_count = std::size_t{};
@@ -267,16 +264,19 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                 .focused = app.windows().focused_node(main_window),
                 .window_focused = app.windows().focused_node(inspector) == semantics.inspector_root,
             };
-            if (render_inspector(
-                    model.theme(),
-                    view,
-                    surface.pixels,
-                    surface.width,
-                    surface.height
-                ) != veyra::SoftwareRenderResult::complete) {
+            const auto display = veyra::build_inspector_display(model.theme(), view, width, height);
+            if (display.count == 0) {
                 return {.failed = true};
             }
-            if (backend->present() != veyra::WindowResult::ready) {
+            if (app.commit(
+                    inspector,
+                    std::span<const veyra::DisplayCommand>(display.commands.data(), display.count),
+                    width,
+                    height
+                ) != veyra::WindowSetResult::ok) {
+                return {.failed = true};
+            }
+            if (app.present(inspector, inspector_backing) != veyra::WindowSetResult::ok) {
                 return {.failed = true};
             }
             return {.rendered = true};
@@ -286,15 +286,21 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             return {};
         }
 
-        auto surface = veyra::SoftwareSurface{};
-        if (backend->acquire_surface(surface, backing) != veyra::WindowResult::ready) {
+        const auto width = backend->pixel_width();
+        const auto height = backend->pixel_height();
+        const auto display = veyra::build_app_display(model, width, height);
+        if (display.count == 0) {
             return {.failed = true};
         }
-        if (render_app(model, surface.pixels, surface.width, surface.height) !=
-            veyra::SoftwareRenderResult::complete) {
+        if (app.commit(
+                main_window,
+                std::span<const veyra::DisplayCommand>(display.commands.data(), display.count),
+                width,
+                height
+            ) != veyra::WindowSetResult::ok) {
             return {.failed = true};
         }
-        if (backend->present() != veyra::WindowResult::ready) {
+        if (app.present(main_window, backing) != veyra::WindowSetResult::ok) {
             return {.failed = true};
         }
         return {.rendered = true, .quit = model.quit_requested()};

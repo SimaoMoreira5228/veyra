@@ -89,6 +89,12 @@ void check_close_and_focus() {
     );
 
     in = {};
+    in.type = SDL_EVENT_RENDER_DEVICE_LOST;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "device loss translates");
+    require(out.kind == veyra::WindowEventKind::device_lost, "device loss keeps its own kind");
+
+    in = {};
     in.type = SDL_EVENT_WINDOW_RESIZED;
     in.window.data1 = 160;
     in.window.data2 = 120;

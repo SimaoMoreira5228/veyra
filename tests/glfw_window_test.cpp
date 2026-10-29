@@ -120,6 +120,46 @@ int main() {
             main_window.stop_text_input() == veyra::WindowResult::unsupported,
             "unavailable platform text input remains explicit"
         );
+
+        require(
+            main_window.window_state() == veyra::WindowState::normal,
+            "GLFW windows start normal"
+        );
+        const auto check_state = [&](veyra::WindowState target, std::string_view message) {
+            require(main_window.set_state(target) == veyra::WindowResult::ready, message);
+            require(main_window.window_state() == target, "the state query follows the request");
+
+            auto event = veyra::WindowEvent{};
+            auto found = false;
+            for (auto count = std::size_t{}; count < veyra::GlfwWindow::kEventCapacity; ++count) {
+                if (!main_window.poll_event(event)) {
+                    break;
+                }
+                if (event.kind == veyra::WindowEventKind::state_change &&
+                    event.data.state == target) {
+                    found = true;
+                    break;
+                }
+            }
+            require(found, "a state change event reports the new state");
+        };
+
+        check_state(veyra::WindowState::minimized, "GLFW minimizes");
+        check_state(veyra::WindowState::normal, "GLFW restores from minimize");
+        check_state(veyra::WindowState::maximized, "GLFW maximizes");
+        check_state(veyra::WindowState::normal, "GLFW restores from maximize");
+        check_state(veyra::WindowState::fullscreen, "GLFW enters fullscreen");
+        check_state(veyra::WindowState::normal, "GLFW leaves fullscreen");
+        require(
+            main_window.logical_width() == 640.0F && main_window.logical_height() == 480.0F,
+            "leaving fullscreen restores the windowed size"
+        );
+        require(
+            main_window.set_state(static_cast<veyra::WindowState>(99)) ==
+                veyra::WindowResult::invalid_input,
+            "GLFW rejects unknown states"
+        );
+
         require(drain_events(main_window), "main events carry the main window id");
         require(drain_events(inspector), "inspector events carry the inspector id");
         check_no_gamepads(main_window);

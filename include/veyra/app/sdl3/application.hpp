@@ -67,6 +67,23 @@ class Sdl3Application {
         return result;
     }
 
+    WindowSetResult commit(
+        WindowId window,
+        std::span<const DisplayCommand> commands,
+        std::uint32_t width,
+        std::uint32_t height
+    ) noexcept {
+        const auto result = host_.commit(window, commands, width, height);
+        if (result == WindowSetResult::ok) {
+            scheduler_.request_immediate();
+        }
+        return result;
+    }
+
+    WindowSetResult present(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+        return host_.present(window, backing);
+    }
+
     bool bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
         const auto result = host_.bind_semantics(window, tree, root);
         if (result) {

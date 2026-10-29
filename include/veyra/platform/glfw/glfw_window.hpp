@@ -34,6 +34,8 @@ class GlfwWindow {
     std::uint64_t surface_generation() const noexcept;
     WindowCapabilities capabilities() const noexcept;
     std::uint64_t dropped_events() const noexcept;
+    WindowResult set_state(WindowState state) noexcept;
+    WindowState window_state() const noexcept;
     bool should_close() const noexcept;
     void cancel_close_request() noexcept;
 
@@ -65,6 +67,11 @@ class GlfwWindow {
     std::uint64_t dropped_events_{};
     std::uint32_t buttons_{};
     std::uint32_t modifiers_{};
+    WindowState window_state_{WindowState::normal};
+    int windowed_x_{};
+    int windowed_y_{};
+    int windowed_width_{};
+    int windowed_height_{};
     std::array<WindowEvent, kEventCapacity> events_{};
     std::size_t event_head_{};
     std::size_t event_count_{};
@@ -80,6 +87,7 @@ class GlfwWindow {
 
     void enqueue(WindowEvent event) noexcept;
     bool dequeue(WindowEvent& event) noexcept;
+    void apply_state(WindowState state) noexcept;
     void poll_gamepads() noexcept;
 
     static GlfwWindow* self(GLFWwindow* window) noexcept;
@@ -95,6 +103,8 @@ class GlfwWindow {
     on_key(GLFWwindow* window, int key, int scancode, int action, int modifiers) noexcept;
     static void on_character(GLFWwindow* window, unsigned int codepoint) noexcept;
     static void on_focus(GLFWwindow* window, int focused) noexcept;
+    static void on_iconify(GLFWwindow* window, int iconified) noexcept;
+    static void on_maximize(GLFWwindow* window, int maximized) noexcept;
     static void on_joystick(int id, int action) noexcept;
 };
 

@@ -19,45 +19,33 @@ struct InspectorView {
     bool window_focused{};
 };
 
-inline SoftwareRenderResult render_inspector(
+struct InspectorDisplay {
+    std::array<DisplayCommand, 96> commands{};
+    std::size_t count{};
+    bool overflowed{};
+};
+
+inline InspectorDisplay build_inspector_display(
     const Theme& theme,
     const InspectorView& view,
-    std::span<SoftwarePixel> pixels,
     std::size_t width,
     std::size_t height
 ) noexcept {
-    if (pixels.size() < width * height || width == 0 || height == 0) {
-        return SoftwareRenderResult::invalid_surface;
+    auto display = InspectorDisplay{};
+    if (width == 0 || height == 0) {
+        return display;
     }
 
     constexpr auto header_height = 24.0F;
-    auto commands = std::array<DisplayCommand, 96>{};
+    auto& commands = display.commands;
     auto placed = std::size_t{};
     auto push = [&](DisplayCommand command) noexcept {
         if (placed < commands.size()) {
             commands[placed] = command;
             ++placed;
+            return;
         }
-    };
-
-    auto clips = std::array<SoftwareClipRect, 1>{};
-    auto translations = std::array<LayoutPoint, 1>{};
-    auto flush = [&]() noexcept {
-        const SoftwareSurface surface{
-            .width = width,
-            .height = height,
-            .stride = width,
-            .pixels = pixels,
-        };
-        const SoftwareRenderWorkspace workspace{
-            .clips = clips,
-            .translations = translations,
-        };
-        return render_software(
-            std::span<const DisplayCommand>(commands.data(), placed),
-            surface,
-            workspace
-        );
+        display.overflowed = true;
     };
 
     push(
@@ -86,12 +74,14 @@ inline SoftwareRenderResult render_inspector(
     );
 
     if (view.nodes.empty()) {
-        return flush();
+        display.count = placed;
+        return display;
     }
 
     const auto& root = view.nodes.front();
     if (root.bounds.width <= 0.0F || root.bounds.height <= 0.0F) {
-        return flush();
+        display.count = placed;
+        return display;
     }
 
     const auto content_height = static_cast<float>(height) - header_height;
@@ -139,7 +129,43 @@ inline SoftwareRenderResult render_inspector(
         }
     }
 
-    return flush();
+    display.count = placed;
+    return display;
+}
+
+inline SoftwareRenderResult render_inspector(
+    const Theme& theme,
+    const InspectorView& view,
+    std::span<SoftwarePixel> pixels,
+    std::size_t width,
+    std::size_t height
+) noexcept {
+    if (pixels.size() < width * height || width == 0 || height == 0) {
+        return SoftwareRenderResult::invalid_surface;
+    }
+
+    const auto display = build_inspector_display(theme, view, width, height);
+    if (display.count == 0 || display.overflowed) {
+        return SoftwareRenderResult::invalid_input;
+    }
+
+    auto clips = std::array<SoftwareClipRect, 1>{};
+    auto translations = std::array<LayoutPoint, 1>{};
+    const SoftwareSurface surface{
+        .width = width,
+        .height = height,
+        .stride = width,
+        .pixels = pixels,
+    };
+    const SoftwareRenderWorkspace workspace{
+        .clips = clips,
+        .translations = translations,
+    };
+    return render_software(
+        std::span<const DisplayCommand>(display.commands.data(), display.count),
+        surface,
+        workspace
+    );
 }
 
 }

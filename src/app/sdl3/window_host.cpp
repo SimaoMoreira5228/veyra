@@ -1,6 +1,16 @@
 #include "veyra/app/sdl3/window_host.hpp"
 
 namespace veyra::app::sdl3 {
+namespace {
+
+struct PresentTask {
+    Sdl3WindowHost* host{};
+    WindowId window{kInvalidWindowId};
+    std::span<SoftwarePixel> backing{};
+    WindowSetResult result{WindowSetResult::presentation_failed};
+};
+
+}
 
 WindowSetResult Sdl3WindowHost::create(
     const char* title,
@@ -22,7 +32,8 @@ WindowSetResult Sdl3WindowHost::create(
     }
 
     auto& backend = backends_[index];
-    backend.emplace(title, width, height);
+    present_[index] = {};
+    backend.emplace(title, width, height, false);
     if (backend->creation_result() != WindowResult::ready) {
         backend.reset();
         windows_.destroy(logical);
@@ -71,10 +82,19 @@ WindowSetResult Sdl3WindowHost::show(WindowId window) noexcept {
     }
 
     auto& backend = backends_[index];
-    if (!backend.has_value() || backend->show() != WindowResult::ready) {
-        windows_.destroy(window);
-        sync_backends();
-        return WindowSetResult::invalid_state;
+    if (!backend.has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& present = present_[index];
+    if (present.presented) {
+        if (backend->show() != WindowResult::ready) {
+            windows_.destroy(window);
+            sync_backends();
+            return WindowSetResult::invalid_state;
+        }
+    } else {
+        present.show_pending = true;
     }
 
     router_.mark_damaged(window);
@@ -110,6 +130,150 @@ bool Sdl3WindowHost::set_focused_node(WindowId window, NodeId node) noexcept {
 
 bool Sdl3WindowHost::bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept {
     return windows_.bind_semantics(window, tree, root) == WindowSetResult::ok;
+}
+
+WindowSetResult Sdl3WindowHost::commit(
+    WindowId window,
+    std::span<const DisplayCommand> commands,
+    std::uint32_t width,
+    std::uint32_t height
+) noexcept {
+    const auto index = slot_for(window);
+    if (index == kCapacity || !backends_[index].has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& present = present_[index];
+    const auto result =
+        commit_frame(commands, width, height, present.commit.sequence + 1, present.commit);
+    if (result == FrameCommitResult::insufficient_capacity) {
+        return WindowSetResult::capacity;
+    }
+    if (result == FrameCommitResult::invalid_size) {
+        return WindowSetResult::invalid_geometry;
+    }
+
+    present.has_commit = true;
+    router_.mark_damaged(window);
+    return WindowSetResult::ok;
+}
+
+WindowSetResult
+Sdl3WindowHost::present(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+    if (!render_worker_.running()) {
+        return present_now(window, backing);
+    }
+
+    auto task = PresentTask{
+        .host = this,
+        .window = window,
+        .backing = backing,
+    };
+    if (!render_worker_.run(&Sdl3WindowHost::run_present_task, &task)) {
+        return WindowSetResult::presentation_failed;
+    }
+
+    return task.result;
+}
+
+bool Sdl3WindowHost::take_device_lost(WindowId window) noexcept {
+    const auto index = slot_for(window);
+    if (index == kCapacity) {
+        return false;
+    }
+
+    const auto lost = present_[index].device_lost;
+    present_[index].device_lost = false;
+    return lost;
+}
+
+bool Sdl3WindowHost::render_thread_active() const noexcept {
+    return render_worker_.running();
+}
+
+std::thread::id Sdl3WindowHost::render_thread_id() const noexcept {
+    return render_worker_.thread_id();
+}
+
+std::uint64_t Sdl3WindowHost::render_thread_presents() const noexcept {
+    return render_thread_presents_;
+}
+
+void Sdl3WindowHost::run_present_task(void* context) noexcept {
+    auto* task = static_cast<PresentTask*>(context);
+    task->result = task->host->present_now(task->window, task->backing);
+}
+
+WindowSetResult
+Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept {
+    if (render_worker_.is_worker_thread()) {
+        ++render_thread_presents_;
+    }
+
+    const auto index = slot_for(window);
+    if (index == kCapacity) {
+        return WindowSetResult::invalid_window;
+    }
+
+    auto& optional = backends_[index];
+    if (!optional.has_value()) {
+        return WindowSetResult::invalid_window;
+    }
+    auto* backend = &*optional;
+    auto& present = present_[index];
+    if (!present.has_commit) {
+        return WindowSetResult::stale_frame;
+    }
+    if (present.commit.width != backend->pixel_width() ||
+        present.commit.height != backend->pixel_height()) {
+        return WindowSetResult::stale_frame;
+    }
+
+    auto surface = SoftwareSurface{};
+    if (backend->acquire_surface(surface, backing) != WindowResult::ready) {
+        return WindowSetResult::presentation_failed;
+    }
+    if (surface.width != present.commit.width || surface.height != present.commit.height) {
+        backend->discard_frame();
+        return WindowSetResult::stale_frame;
+    }
+
+    const SoftwareRenderWorkspace workspace{
+        .clips = present.clips,
+        .translations = present.translations,
+        .path_intersections = present.path_intersections,
+        .path_windings = present.path_windings,
+    };
+    if (render_software(
+            std::span<const DisplayCommand>(
+                present.commit.commands.data(),
+                present.commit.command_count
+            ),
+            surface,
+            workspace
+        ) != SoftwareRenderResult::complete) {
+        backend->discard_frame();
+        return WindowSetResult::presentation_failed;
+    }
+    if (backend->present() != WindowResult::ready) {
+        return WindowSetResult::presentation_failed;
+    }
+
+    present.has_commit = false;
+    present.presented = true;
+    router_.mark_presented(window);
+    if (present.show_pending) {
+        if (backend->show() != WindowResult::ready) {
+            return WindowSetResult::presentation_failed;
+        }
+        present.show_pending = false;
+    }
+
+    return WindowSetResult::ok;
+}
+
+Sdl3WindowHost::~Sdl3WindowHost() {
+    render_worker_.stop();
 }
 
 WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) noexcept {
@@ -160,6 +324,13 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
             router_.route(event);
             if (event.kind == WindowEventKind::state_change) {
                 windows_.set_state(logical, event.data.state);
+                router_.mark_damaged(logical);
+            }
+            if (event.kind == WindowEventKind::device_lost) {
+                const auto index = slot_for(logical);
+                if (index != kCapacity) {
+                    present_[index].device_lost = true;
+                }
                 router_.mark_damaged(logical);
             }
             const auto* state = router_.find(logical);
@@ -248,6 +419,7 @@ void Sdl3WindowHost::sync_backends() noexcept {
     for (auto index = std::size_t{}; index < kCapacity; ++index) {
         if (backends_[index].has_value() && !windows_.is_open(slots_[index].id)) {
             router_.detach(slots_[index].id);
+            present_[index] = {};
             backends_[index].reset();
             sdl_ids_[index] = kInvalidWindowId;
         }
