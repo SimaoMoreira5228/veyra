@@ -23,6 +23,7 @@ struct InspectorView {
     std::span<const SemanticNode> nodes;
     std::span<const TraceEvent> trace{};
     std::span<const TokenProvenance> provenance{};
+    std::size_t event_scroll{};
     NodeId focused{};
     bool window_focused{};
 };
@@ -260,10 +261,9 @@ inline InspectorDisplay build_inspector_display(
     };
 
     constexpr auto provenance_row = 14.0F;
-    const auto provenance_rows = std::max(
-        std::size_t{1},
-        static_cast<std::size_t>((provenance_height - 4.0F) / provenance_row)
-    );
+    const auto provenance_space = provenance_height > 4.0F ? provenance_height - 4.0F : 0.0F;
+    const auto provenance_rows =
+        std::max(std::size_t{1}, static_cast<std::size_t>(provenance_space / provenance_row));
     const auto shown_provenance = std::min(view.provenance.size(), provenance_rows);
     for (auto index = std::size_t{}; index < shown_provenance; ++index) {
         const auto y = section_top + 2.0F + static_cast<float>(index) * provenance_row;
@@ -282,140 +282,175 @@ inline InspectorDisplay build_inspector_display(
         }
     }
 
-    const TraceEvent* last_route = nullptr;
+    auto digit_count = [](std::uint32_t value) noexcept {
+        auto digits = std::size_t{1};
+        while (value >= 10) {
+            value /= 10;
+            ++digits;
+        }
+        return digits;
+    };
+
+    auto route_total = std::size_t{};
     for (const auto& event : view.trace) {
         if (event.kind == TraceEventKind::route) {
-            last_route = &event;
+            ++route_total;
         }
     }
-    const auto label_y = event_top + 1.0F;
-    if (last_route != nullptr) {
+
+    const auto visible_rows =
+        std::max(std::size_t{1}, static_cast<std::size_t>((event_height - 18.0F) / 14.0F));
+    const auto max_scroll = route_total > visible_rows ? route_total - visible_rows : 0;
+    const auto scroll = std::min(view.event_scroll, max_scroll);
+    const auto route_end = route_total - scroll;
+    const auto route_start = route_end > visible_rows ? route_end - visible_rows : 0;
+
+    auto header_x = 4.0F;
+    text("EVENTS", header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+    header_x += debug_text_width("EVENTS") + 4.0F;
+    number(route_start + 1, header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+    header_x +=
+        12.0F * static_cast<float>(digit_count(static_cast<std::uint32_t>(route_start + 1)));
+    text("-", header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+    header_x += debug_text_width("-");
+    number(route_end, header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+    header_x += 12.0F * static_cast<float>(digit_count(static_cast<std::uint32_t>(route_end)));
+    text("/", header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+    header_x += debug_text_width("/");
+    number(route_total, header_x, event_top + 1.0F, theme.color(tokens::color_text_disabled));
+
+    auto route_index = std::size_t{};
+    auto row = std::size_t{};
+    for (const auto& event : view.trace) {
+        if (event.kind != TraceEventKind::route) {
+            continue;
+        }
+        const auto current = route_index;
+        ++route_index;
+        if (current < route_start || current >= route_end) {
+            continue;
+        }
+
+        const auto y = event_top + 17.0F + static_cast<float>(row) * 14.0F;
+        ++row;
         auto x = 4.0F;
-        text("LAST", x, label_y, theme.color(tokens::color_text_disabled));
-        x += debug_text_width("LAST") + 4.0F;
-        const auto event_name = window_event_kind_name(
-            static_cast<WindowEventKind>(last_route->payload.route.event_kind)
-        );
-        text(event_name, x, label_y, theme.color(tokens::color_text_primary));
-        x += debug_text_width(event_name) + 4.0F;
+        const auto kind_color = theme.color(tokens::color_action_primary);
+        const auto result_color = event.payload.route.route_result == 0
+            ? theme.color(tokens::color_text_primary)
+            : theme.color(tokens::color_error);
+        const auto detail_color = theme.color(tokens::color_text_disabled);
+
+        const auto kind_name =
+            window_event_kind_name(static_cast<WindowEventKind>(event.payload.route.event_kind));
+        text(kind_name, x, y, kind_color);
+        x += debug_text_width(kind_name) + 4.0F;
+
         const auto result_name = window_route_result_name(
-            static_cast<WindowRouteResult>(last_route->payload.route.route_result)
+            static_cast<WindowRouteResult>(event.payload.route.route_result)
         );
-        text(
-            result_name,
-            x,
-            label_y,
-            last_route->payload.route.route_result == 0 ? theme.color(tokens::color_action_primary)
-                                                        : theme.color(tokens::color_error)
-        );
+        text(result_name, x, y, result_color);
         x += debug_text_width(result_name) + 4.0F;
-        text("W", x, label_y, theme.color(tokens::color_text_disabled));
-        number(
-            last_route->payload.route.window,
-            x + debug_text_width("W"),
-            label_y,
-            theme.color(tokens::color_text_disabled)
-        );
 
-        if (event_height > 40.0F) {
-            const auto detail_y = label_y + 15.0F;
-            auto detail_x = 4.0F;
-            const auto color = theme.color(tokens::color_text_primary);
-            const auto label = [&](std::string_view value) noexcept {
-                text(value, detail_x, detail_y, color);
-                detail_x += debug_text_width(value);
-            };
-            const auto value = [&](std::uint32_t number_value) noexcept {
-                number(number_value, detail_x, detail_y, color);
-                detail_x += 12.0F * 6.0F;
-            };
-            const auto signed_value = [&](std::uint32_t bits) noexcept {
-                const auto as_signed = static_cast<std::int32_t>(bits);
-                if (as_signed < 0) {
-                    const auto magnitude =
-                        static_cast<std::uint32_t>(-static_cast<std::int64_t>(as_signed));
-                    text("-", detail_x, detail_y, color);
-                    detail_x += debug_text_width("-");
-                    number(magnitude, detail_x, detail_y, color);
-                } else {
-                    number(static_cast<std::uint32_t>(as_signed), detail_x, detail_y, color);
-                }
-                detail_x += 12.0F * 6.0F;
-            };
+        text("W", x, y, detail_color);
+        x += debug_text_width("W");
+        number(event.payload.route.window, x, y, detail_color);
+        x += 12.0F *
+            static_cast<float>(digit_count(static_cast<std::uint32_t>(event.payload.route.window)));
+        x += 4.0F;
 
-            switch (static_cast<WindowEventKind>(last_route->payload.route.event_kind)) {
-            case WindowEventKind::resize:
-                label("W");
-                value(last_route->payload.route.data1);
-                label("H");
-                value(last_route->payload.route.data2);
-                break;
-            case WindowEventKind::scale_change:
-                label("SX");
-                value(last_route->payload.route.data1);
-                label("SY");
-                value(last_route->payload.route.data2);
-                break;
-            case WindowEventKind::pointer_down:
-            case WindowEventKind::pointer_up:
-            case WindowEventKind::pointer_move:
-            case WindowEventKind::pointer_cancel:
-                label("X");
-                signed_value(last_route->payload.route.data1);
-                label("Y");
-                signed_value(last_route->payload.route.data2);
-                break;
-            case WindowEventKind::wheel:
-                label("DX");
-                signed_value(last_route->payload.route.data1);
-                label("DY");
-                signed_value(last_route->payload.route.data2);
-                break;
-            case WindowEventKind::key_down:
-            case WindowEventKind::key_up:
-                label("K");
-                value(last_route->payload.route.data1);
-                label("M");
-                value(last_route->payload.route.data2);
-                break;
-            case WindowEventKind::state_change:
-                label("ST");
-                value(last_route->payload.route.data1);
-                break;
-            case WindowEventKind::text_commit:
-            case WindowEventKind::text_editing:
-                label("N");
-                value(last_route->payload.route.data1);
-                break;
-            default:
-                break;
+        const auto add_label = [&](std::string_view value) noexcept {
+            text(value, x, y, detail_color);
+            x += debug_text_width(value);
+        };
+        const auto add_value = [&](std::uint32_t value) noexcept {
+            number(value, x, y, detail_color);
+            x += 12.0F * static_cast<float>(digit_count(value));
+        };
+        const auto add_signed = [&](std::uint32_t bits) noexcept {
+            const auto as_signed = static_cast<std::int32_t>(bits);
+            if (as_signed < 0) {
+                text("-", x, y, detail_color);
+                x += debug_text_width("-");
+                add_value(static_cast<std::uint32_t>(-static_cast<std::int64_t>(as_signed)));
+            } else {
+                add_value(static_cast<std::uint32_t>(as_signed));
             }
+        };
+
+        switch (static_cast<WindowEventKind>(event.payload.route.event_kind)) {
+        case WindowEventKind::resize:
+            add_label("W");
+            add_value(event.payload.route.data1);
+            add_label("H");
+            add_value(event.payload.route.data2);
+            break;
+        case WindowEventKind::scale_change:
+            add_label("SX");
+            add_value(event.payload.route.data1);
+            add_label("SY");
+            add_value(event.payload.route.data2);
+            break;
+        case WindowEventKind::pointer_down:
+        case WindowEventKind::pointer_up:
+        case WindowEventKind::pointer_move:
+        case WindowEventKind::pointer_cancel:
+            add_label("X");
+            add_signed(event.payload.route.data1);
+            add_label("Y");
+            add_signed(event.payload.route.data2);
+            break;
+        case WindowEventKind::wheel:
+            add_label("DX");
+            add_signed(event.payload.route.data1);
+            add_label("DY");
+            add_signed(event.payload.route.data2);
+            break;
+        case WindowEventKind::key_down:
+        case WindowEventKind::key_up:
+            add_label("K");
+            add_value(event.payload.route.data1);
+            add_label("M");
+            add_value(event.payload.route.data2);
+            break;
+        case WindowEventKind::state_change:
+            add_label("ST");
+            add_value(event.payload.route.data1);
+            break;
+        case WindowEventKind::text_commit:
+        case WindowEventKind::text_editing:
+            add_label("N");
+            add_value(event.payload.route.data1);
+            break;
+        default:
+            break;
         }
-    } else {
-        text("NO EVENTS", 4.0F, label_y, theme.color(tokens::color_text_disabled));
     }
 
-    if (event_height > 40.0F) {
-        auto route_index = std::size_t{};
-        for (const auto& event : view.trace) {
-            if (event.kind != TraceEventKind::route) {
-                continue;
-            }
+    if (route_total == 0) {
+        text("NO EVENTS", 4.0F, event_top + 17.0F, theme.color(tokens::color_text_disabled));
+    }
 
-            const auto x = 4.0F + static_cast<float>(route_index) * 5.0F;
-            if (x + 4.0F > static_cast<float>(width)) {
-                break;
-            }
-            const auto row = static_cast<float>(event.payload.route.window % 2U);
-            const auto bar_height = 3.0F + static_cast<float>(event.payload.route.event_kind % 6U);
-            const auto y = event_top + 32.0F + row * 7.0F + (7.0F - bar_height);
-            fill(
-                {.x = x, .y = y, .width = 4.0F, .height = bar_height},
-                event.payload.route.route_result == 0 ? theme.color(tokens::color_action_primary)
-                                                      : theme.color(tokens::color_error)
-            );
-            ++route_index;
-        }
+    if (max_scroll > 0) {
+        const auto track_x = static_cast<float>(width) - 4.0F;
+        const auto track_top = event_top + 17.0F;
+        const auto track_height = std::max(4.0F, event_height - 20.0F);
+        fill(
+            {.x = track_x, .y = track_top, .width = 2.0F, .height = track_height},
+            theme.color(tokens::color_action_disabled)
+        );
+        const auto thumb_height = std::max(
+            4.0F,
+            track_height * static_cast<float>(visible_rows) / static_cast<float>(route_total)
+        );
+        const auto thumb_ratio =
+            static_cast<float>(max_scroll - scroll) / static_cast<float>(max_scroll);
+        fill(
+            {.x = track_x,
+             .y = track_top + (track_height - thumb_height) * thumb_ratio,
+             .width = 2.0F,
+             .height = thumb_height},
+            theme.color(tokens::color_action_primary)
+        );
     }
 
     auto durations = std::array<std::uint32_t, 8>{};

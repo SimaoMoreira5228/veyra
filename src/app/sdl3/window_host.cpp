@@ -269,6 +269,30 @@ void Sdl3WindowHost::set_route_observer(RouteObserver observer, void* user) noex
     router_.set_observer(observer, user);
 }
 
+bool Sdl3WindowHost::capture_pointer(
+    WindowId window,
+    std::uint32_t pointer,
+    NodeId target
+) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return router_.capture_pointer(window, pointer, target);
+}
+
+bool Sdl3WindowHost::release_pointer(WindowId window, std::uint32_t pointer) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return router_.release_pointer(window, pointer);
+}
+
+bool Sdl3WindowHost::set_hover(WindowId window, NodeId node) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return router_.set_hover(window, node);
+}
+
+bool Sdl3WindowHost::clear_hover(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return router_.clear_hover(window);
+}
+
 bool Sdl3WindowHost::surface_size(
     WindowId window,
     std::uint32_t& width,

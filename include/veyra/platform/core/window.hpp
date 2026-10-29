@@ -157,6 +157,7 @@ enum class WindowEventKind : std::uint8_t {
     pointer_up,
     pointer_move,
     pointer_cancel,
+    pointer_leave,
     wheel,
     key_down,
     key_up,
@@ -190,6 +191,8 @@ constexpr std::string_view window_event_kind_name(WindowEventKind kind) noexcept
         return "move";
     case WindowEventKind::pointer_cancel:
         return "cancel";
+    case WindowEventKind::pointer_leave:
+        return "leave";
     case WindowEventKind::wheel:
         return "wheel";
     case WindowEventKind::key_down:

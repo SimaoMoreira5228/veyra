@@ -353,6 +353,10 @@ bool translate_sdl_event(const SDL_Event& in, WindowId window, WindowEvent& out)
         mapped.kind = WindowEventKind::device_lost;
         handled = true;
         break;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+        mapped.kind = WindowEventKind::pointer_leave;
+        handled = true;
+        break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
         handled = translate_mouse_button(in.button, mapped);

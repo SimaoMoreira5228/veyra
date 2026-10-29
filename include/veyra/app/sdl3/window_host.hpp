@@ -60,6 +60,10 @@ class Sdl3WindowHost {
     // It must not call back into the host.
     void set_present_observer(PresentObserver observer, void* user) noexcept;
     void set_route_observer(RouteObserver observer, void* user) noexcept;
+    bool capture_pointer(WindowId window, std::uint32_t pointer, NodeId target) noexcept;
+    bool release_pointer(WindowId window, std::uint32_t pointer) noexcept;
+    bool set_hover(WindowId window, NodeId node) noexcept;
+    bool clear_hover(WindowId window) noexcept;
     bool surface_size(WindowId window, std::uint32_t& width, std::uint32_t& height) noexcept;
     bool take_device_lost(WindowId window) noexcept;
     bool render_thread_active() const noexcept;

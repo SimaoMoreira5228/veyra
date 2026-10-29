@@ -179,7 +179,47 @@ int main() {
         require(checksum(pixels) != list_focused, "route payloads change the inspector frame");
 
         trace[0].payload.route.data1 = 640;
+
+        auto history = std::array<veyra::TraceEvent, 8>{};
+        for (auto index = std::size_t{}; index < history.size(); ++index) {
+            history[index].kind = veyra::TraceEventKind::route;
+            history[index].payload.route = {
+                .event_kind = 1,
+                .route_result = 0,
+                .window = 1,
+                .data1 = static_cast<std::uint32_t>(100 + index),
+                .data2 = 80,
+            };
+        }
+
+        view.trace = history;
+        view.event_scroll = 0;
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders the latest event rows"
+        );
+        const auto latest_events = checksum(pixels);
+
+        view.event_scroll = 2;
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders older event rows"
+        );
+        require(checksum(pixels) != latest_events, "event scrolling changes the inspector frame");
+
+        view.event_scroll = 0;
+        history[7].payload.route.data1 = 999;
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders a changed event payload"
+        );
+        require(checksum(pixels) != latest_events, "event payloads change the inspector frame");
+
         view.trace = trace;
+        view.event_scroll = 0;
         view.focused = field;
         require(
             veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==

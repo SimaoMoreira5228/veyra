@@ -35,6 +35,9 @@ struct Options {
     bool has_frames{};
 };
 
+constexpr std::uint32_t kKeyPageUp = 0x40000055U;
+constexpr std::uint32_t kKeyPageDown = 0x40000056U;
+
 struct RoutePayload {
     std::uint32_t first{};
     std::uint32_t second{};
@@ -348,6 +351,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     }
 
     auto frame_id = std::uint64_t{};
+    auto inspector_scroll = std::size_t{};
     const auto now_ms = []() noexcept -> std::uint64_t {
         return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                               std::chrono::steady_clock::now().time_since_epoch()
@@ -367,6 +371,28 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             } else if (window == inspector) {
                 app.surface_size(inspector, inspector_width, inspector_height);
             }
+        }
+        if (window == inspector) {
+            if (event.kind == veyra::WindowEventKind::key_down) {
+                if (event.data.key.code == kKeyPageUp || event.data.key.code == veyra::kAppKeyUp) {
+                    ++inspector_scroll;
+                } else if (
+                    (event.data.key.code == kKeyPageDown ||
+                     event.data.key.code == veyra::kAppKeyDown) &&
+                    inspector_scroll > 0
+                ) {
+                    --inspector_scroll;
+                }
+                app.scheduler().request_immediate();
+            } else if (event.kind == veyra::WindowEventKind::wheel) {
+                if (event.data.wheel.delta_y > 0.0F && inspector_scroll > 0) {
+                    --inspector_scroll;
+                } else if (event.data.wheel.delta_y < 0.0F) {
+                    ++inspector_scroll;
+                }
+                app.scheduler().request_immediate();
+            }
+            return false;
         }
         if (window == main_window) {
             const bool quit = model.handle_event(event);

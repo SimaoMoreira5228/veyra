@@ -19,8 +19,16 @@ struct WindowRouteState {
     float scale_x() const noexcept;
     float scale_y() const noexcept;
     std::uint64_t scale_generation() const noexcept;
+    static constexpr std::size_t kPointerCaptureCapacity = 4;
+
     bool focused() const noexcept;
     bool damaged() const noexcept;
+    std::size_t capture_count() const noexcept;
+    std::uint32_t captured_pointer(std::size_t index) const noexcept;
+    NodeId capture_target(std::size_t index) const noexcept;
+    bool pointer_captured(std::uint32_t pointer) const noexcept;
+    NodeId capture_target_for(std::uint32_t pointer) const noexcept;
+    NodeId hovered_node() const noexcept;
 
   private:
     friend class WindowRouter;
@@ -32,6 +40,13 @@ struct WindowRouteState {
     float scale_x_{1.0F};
     float scale_y_{1.0F};
     std::uint64_t scale_generation_{};
+    struct Capture {
+        std::uint32_t pointer{};
+        NodeId target{};
+    };
+    std::array<Capture, kPointerCaptureCapacity> captures_{};
+    std::size_t capture_count_{};
+    NodeId hovered_node_{};
     bool focused_{};
     bool damaged_{true};
 };
@@ -78,6 +93,10 @@ class WindowRouter {
     WindowRouteResult route(const WindowEvent& event) noexcept;
     void set_observer(RouteObserver observer, void* user) noexcept;
     bool set_focused_node(WindowId id, NodeId node) noexcept;
+    bool capture_pointer(WindowId id, std::uint32_t pointer, NodeId target) noexcept;
+    bool release_pointer(WindowId id, std::uint32_t pointer) noexcept;
+    bool set_hover(WindowId id, NodeId node) noexcept;
+    bool clear_hover(WindowId id) noexcept;
     bool mark_damaged(WindowId id) noexcept;
     bool mark_presented(WindowId id) noexcept;
 

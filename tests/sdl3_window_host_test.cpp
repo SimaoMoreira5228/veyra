@@ -380,6 +380,52 @@ int main() {
         );
         require(host.router().find(owner)->focused(), "router tracks activation");
 
+        require(host.capture_pointer(owner, 7, focus_node), "host captures the pointer");
+        require(host.capture_pointer(owner, 8, focus_node), "host captures a second pointer");
+        require(host.set_hover(owner, focus_node), "host sets the hover target");
+        auto mouse_native = SDL_Event{};
+        mouse_native.type = SDL_EVENT_WINDOW_MOUSE_LEAVE;
+        mouse_native.window.windowID = static_cast<Uint32>(host.backend(owner)->window_id());
+        require(SDL_PushEvent(&mouse_native), "mouse leave queues");
+
+        auto pointer_event = veyra::WindowEvent{};
+        auto pointer_window = veyra::WindowId{};
+        auto leave_seen = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(pointer_event, pointer_window)) {
+                break;
+            }
+            if (pointer_window == owner &&
+                pointer_event.kind == veyra::WindowEventKind::pointer_leave) {
+                leave_seen = true;
+                break;
+            }
+        }
+        require(leave_seen, "mouse leave reaches the window");
+        require(host.router().find(owner)->hovered_node().is_null(), "mouse leave clears hover");
+        require(host.router().find(owner)->capture_count() == 2, "mouse leave keeps both captures");
+        require(host.router().find(owner)->pointer_captured(7), "first capture survives leave");
+        require(host.router().find(owner)->pointer_captured(8), "second capture survives leave");
+
+        mouse_native = {};
+        mouse_native.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+        mouse_native.window.windowID = static_cast<Uint32>(host.backend(owner)->window_id());
+        require(SDL_PushEvent(&mouse_native), "focus loss queues");
+        auto focus_seen = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(pointer_event, pointer_window)) {
+                break;
+            }
+            if (pointer_window == owner &&
+                pointer_event.kind == veyra::WindowEventKind::focus_lost) {
+                focus_seen = true;
+                break;
+            }
+        }
+        require(focus_seen, "focus loss reaches the window");
+        require(host.router().find(owner)->capture_count() == 0, "focus loss drops every capture");
+        require(host.router().find(owner)->hovered_node().is_null(), "focus loss drops hover");
+
         require(
             host.create(
                 "dialog",

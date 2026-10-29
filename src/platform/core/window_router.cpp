@@ -43,6 +43,46 @@ bool WindowRouteState::damaged() const noexcept {
     return damaged_;
 }
 
+std::size_t WindowRouteState::capture_count() const noexcept {
+    return capture_count_;
+}
+
+std::uint32_t WindowRouteState::captured_pointer(std::size_t index) const noexcept {
+    return index < capture_count_ ? captures_[index].pointer : 0;
+}
+
+NodeId WindowRouteState::capture_target(std::size_t index) const noexcept {
+    return index < capture_count_ ? captures_[index].target : NodeId{};
+}
+
+bool WindowRouteState::pointer_captured(std::uint32_t pointer) const noexcept {
+    if (pointer == 0) {
+        return false;
+    }
+    for (auto index = std::size_t{}; index < capture_count_; ++index) {
+        if (captures_[index].pointer == pointer) {
+            return true;
+        }
+    }
+    return false;
+}
+
+NodeId WindowRouteState::capture_target_for(std::uint32_t pointer) const noexcept {
+    if (pointer == 0) {
+        return {};
+    }
+    for (auto index = std::size_t{}; index < capture_count_; ++index) {
+        if (captures_[index].pointer == pointer) {
+            return captures_[index].target;
+        }
+    }
+    return {};
+}
+
+NodeId WindowRouteState::hovered_node() const noexcept {
+    return hovered_node_;
+}
+
 WindowRouteState* WindowRouter::attach(
     WindowId id,
     float logical_width,
@@ -170,10 +210,33 @@ WindowRouteResult WindowRouter::route_event(const WindowEvent& event) noexcept {
             state->focused_ = true;
             state->damaged_ = true;
         }
-    } else if (event.kind == WindowEventKind::focus_lost) {
-        if (state->focused_) {
+    } else if (
+        event.kind == WindowEventKind::focus_lost || event.kind == WindowEventKind::pointer_cancel
+    ) {
+        if (event.kind == WindowEventKind::focus_lost && state->focused_) {
             state->focused_ = false;
             state->damaged_ = true;
+        }
+        if (state->capture_count_ != 0 || !state->hovered_node_.is_null()) {
+            state->capture_count_ = 0;
+            state->hovered_node_ = {};
+            state->damaged_ = true;
+        }
+    } else if (event.kind == WindowEventKind::pointer_leave) {
+        if (!state->hovered_node_.is_null()) {
+            state->hovered_node_ = {};
+            state->damaged_ = true;
+        }
+    } else if (event.kind == WindowEventKind::pointer_up) {
+        const auto pointer = event.data.pointer.pointer;
+        for (auto index = std::size_t{}; index < state->capture_count_; ++index) {
+            if (state->captures_[index].pointer != pointer) {
+                continue;
+            }
+            state->captures_[index] = state->captures_[state->capture_count_ - 1];
+            --state->capture_count_;
+            state->damaged_ = true;
+            break;
         }
     }
 
@@ -191,6 +254,63 @@ bool WindowRouter::set_focused_node(WindowId id, NodeId node) noexcept {
         state->damaged_ = true;
     }
     return true;
+}
+
+bool WindowRouter::capture_pointer(WindowId id, std::uint32_t pointer, NodeId target) noexcept {
+    auto* state = find_mutable(id);
+    if (state == nullptr || pointer == 0) {
+        return false;
+    }
+
+    for (auto index = std::size_t{}; index < state->capture_count_; ++index) {
+        if (state->captures_[index].pointer == pointer) {
+            state->captures_[index].target = target;
+            state->damaged_ = true;
+            return true;
+        }
+    }
+    if (state->capture_count_ == WindowRouteState::kPointerCaptureCapacity) {
+        return false;
+    }
+
+    state->captures_[state->capture_count_] = {.pointer = pointer, .target = target};
+    ++state->capture_count_;
+    state->damaged_ = true;
+    return true;
+}
+
+bool WindowRouter::release_pointer(WindowId id, std::uint32_t pointer) noexcept {
+    auto* state = find_mutable(id);
+    if (state == nullptr || pointer == 0) {
+        return false;
+    }
+
+    for (auto index = std::size_t{}; index < state->capture_count_; ++index) {
+        if (state->captures_[index].pointer != pointer) {
+            continue;
+        }
+        state->captures_[index] = state->captures_[state->capture_count_ - 1];
+        --state->capture_count_;
+        state->damaged_ = true;
+        return true;
+    }
+    return false;
+}
+
+bool WindowRouter::set_hover(WindowId id, NodeId node) noexcept {
+    auto* state = find_mutable(id);
+    if (state == nullptr) {
+        return false;
+    }
+    if (state->hovered_node_ != node) {
+        state->hovered_node_ = node;
+        state->damaged_ = true;
+    }
+    return true;
+}
+
+bool WindowRouter::clear_hover(WindowId id) noexcept {
+    return set_hover(id, {});
 }
 
 bool WindowRouter::mark_damaged(WindowId id) noexcept {

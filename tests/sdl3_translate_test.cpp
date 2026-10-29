@@ -89,6 +89,12 @@ void check_close_and_focus() {
     );
 
     in = {};
+    in.type = SDL_EVENT_WINDOW_MOUSE_LEAVE;
+
+    require(veyra::translate_sdl_event(in, kWindow, out), "mouse leave translates");
+    require(out.kind == veyra::WindowEventKind::pointer_leave, "mouse leave becomes pointer leave");
+
+    in = {};
     in.type = SDL_EVENT_RENDER_DEVICE_LOST;
 
     require(veyra::translate_sdl_event(in, kWindow, out), "device loss translates");
