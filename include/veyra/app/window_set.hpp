@@ -1,6 +1,7 @@
 #ifndef VEYRA_APP_WINDOW_SET_HPP
 #define VEYRA_APP_WINDOW_SET_HPP
 
+#include "veyra/behaviors/navigation/focus_chain.hpp"
 #include "veyra/core/event/hit_test.hpp"
 #include "veyra/core/tree/node_id_pool.hpp"
 #include "veyra/platform/core/window.hpp"
@@ -80,6 +81,7 @@ struct WindowSlot {
     float scale_x{1.0F};
     float scale_y{1.0F};
     std::uint64_t scale_generation{};
+    FocusChain focus{};
     Theme theme{};
 };
 
@@ -132,6 +134,13 @@ class WindowSet {
     set_geometry(WindowId window, float width, float height, float scale_x, float scale_y) noexcept;
     WindowSetResult set_state(WindowId window, WindowState state) noexcept;
     WindowSetResult bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept;
+    bool register_focus(WindowId window, std::uint64_t id, bool enabled = true) noexcept;
+    bool unregister_focus(WindowId window, std::uint64_t id) noexcept;
+    bool focus_control(WindowId window, std::uint64_t id) noexcept;
+    bool focus_next(WindowId window) noexcept;
+    bool focus_prev(WindowId window) noexcept;
+    std::uint64_t focused_control(WindowId window) const noexcept;
+    std::size_t focus_count(WindowId window) const noexcept;
     HitTestResult hit_test_logical(
         WindowId window,
         LayoutPoint point,
@@ -164,6 +173,8 @@ class WindowSet {
   private:
     WindowSlot* find_slot(WindowId window) noexcept;
     const WindowSlot* find_slot(WindowId window) const noexcept;
+    FocusChain* find_focus(WindowId window) noexcept;
+    const FocusChain* find_focus(WindowId window) const noexcept;
     WindowSlot* find_reusable() noexcept;
     bool approve_subtree(WindowSlot& slot, CloseReason reason) noexcept;
     void close_children(WindowSlot& slot) noexcept;

@@ -98,6 +98,7 @@ add_library(veyra_behaviors STATIC src/behaviors/control/pressable.cpp src/behav
 target_include_directories(veyra_behaviors PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_link_libraries(veyra_behaviors PUBLIC veyra_foundation veyra_layout veyra_render veyra_text veyra_media)
 target_compile_features(veyra_behaviors PUBLIC cxx_std_23)
+target_link_libraries(veyra_app PUBLIC veyra_behaviors)
 
 add_library(veyra_panels STATIC src/layout/panels/dock.cpp)
 target_link_libraries(veyra_panels PUBLIC veyra_layout veyra_behaviors)

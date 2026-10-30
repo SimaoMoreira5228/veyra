@@ -253,6 +253,41 @@ bool WindowSet::set_focused_node(WindowId window, NodeId node) noexcept {
     return true;
 }
 
+bool WindowSet::register_focus(WindowId window, std::uint64_t id, bool enabled) noexcept {
+    auto* focus = find_focus(window);
+    return focus != nullptr && focus->register_item(id, enabled);
+}
+
+bool WindowSet::unregister_focus(WindowId window, std::uint64_t id) noexcept {
+    auto* focus = find_focus(window);
+    return focus != nullptr && focus->unregister(id);
+}
+
+bool WindowSet::focus_control(WindowId window, std::uint64_t id) noexcept {
+    auto* focus = find_focus(window);
+    return focus != nullptr && focus->focus(id);
+}
+
+bool WindowSet::focus_next(WindowId window) noexcept {
+    auto* focus = find_focus(window);
+    return focus != nullptr && focus->focus_next();
+}
+
+bool WindowSet::focus_prev(WindowId window) noexcept {
+    auto* focus = find_focus(window);
+    return focus != nullptr && focus->focus_prev();
+}
+
+std::uint64_t WindowSet::focused_control(WindowId window) const noexcept {
+    const auto* focus = find_focus(window);
+    return focus != nullptr ? focus->focused() : 0;
+}
+
+std::size_t WindowSet::focus_count(WindowId window) const noexcept {
+    const auto* focus = find_focus(window);
+    return focus != nullptr ? focus->count() : 0;
+}
+
 HitTestResult WindowSet::hit_test_logical(
     WindowId window,
     LayoutPoint point,
@@ -431,6 +466,16 @@ const WindowSlot* WindowSet::find_slot(WindowId window) const noexcept {
     }
 
     return nullptr;
+}
+
+FocusChain* WindowSet::find_focus(WindowId window) noexcept {
+    auto* slot = find_slot(window);
+    return slot != nullptr && slot->state == WindowSlotState::open ? &slot->focus : nullptr;
+}
+
+const FocusChain* WindowSet::find_focus(WindowId window) const noexcept {
+    const auto* slot = find_slot(window);
+    return slot != nullptr && slot->state == WindowSlotState::open ? &slot->focus : nullptr;
 }
 
 WindowSlot* WindowSet::find_reusable() noexcept {

@@ -1,4 +1,6 @@
+#include "veyra/platform/core/run_loop.hpp"
 #include "veyra/platform/headless/fake_services.hpp"
+#include "veyra/platform/headless/null_window.hpp"
 
 #include <array>
 #include <cstddef>
@@ -201,6 +203,64 @@ void check_reset_clears_dialogs() {
     require(services.dialog_scripted_count() == 0, "reset clears queued scripts");
 }
 
+veyra::WindowEvent make_bare(veyra::WindowEventKind kind) {
+    veyra::WindowEvent event{};
+    event.kind = kind;
+    return event;
+}
+
+void check_dialog_does_not_block_loop() {
+    veyra::FakeServices services{};
+    const veyra::DialogOpen open = services.dialog_open(veyra::DialogKind::confirm);
+    require(open.result == veyra::ServiceResult::ok, "loop dialog opens");
+    require(open.handle != 0, "loop dialog has a handle");
+
+    veyra::NullWindow window("dialog loop", 320, 240);
+    veyra::FrameScheduler scheduler;
+    auto frames = 0;
+    auto pending_polls = 0;
+    auto events = 0;
+    auto answered = false;
+
+    auto on_event = [&](veyra::WindowEvent& event) noexcept {
+        ++events;
+        return event.kind == veyra::WindowEventKind::close_request;
+    };
+    auto on_frame = [&](bool) noexcept {
+        ++frames;
+        const auto poll = services.dialog_poll(open.handle);
+        if (poll.result == veyra::ServiceResult::pending) {
+            ++pending_polls;
+        }
+        if (poll.result == veyra::ServiceResult::ok) {
+            answered = true;
+        }
+        if (frames == 3) {
+            services.dialog_answer_pending({.choice = 1, .cancelled = false});
+        }
+        if (frames == 2) {
+            window.push_event(make_bare(veyra::WindowEventKind::key_down));
+        }
+        scheduler.request_immediate();
+        return veyra::FrameAction{.rendered = true};
+    };
+
+    veyra::RunLoopConfig config{window, scheduler, on_event, on_frame, nullptr};
+    config.frame_cap = 5;
+    require(window.push_event(make_bare(veyra::WindowEventKind::key_down)), "loop event queues");
+    scheduler.request_immediate();
+
+    require(
+        veyra::run_until_quit(config) == veyra::LoopResult::capped,
+        "the loop runs to its frame cap while the dialog is pending"
+    );
+    require(frames == 5, "frames keep pumping during the dialog");
+    require(pending_polls == 3, "the dialog polls pending for three frames");
+    require(answered, "the late answer arrives through polling");
+    require(events == 2, "events keep pumping during the dialog");
+    require(services.dialog_pending_count() == 0, "the dialog resolves without a nested loop");
+}
+
 }
 
 int main() {
@@ -209,6 +269,7 @@ int main() {
         check_dialog_pending_shape();
         check_dialog_limits();
         check_reset_clears_dialogs();
+        check_dialog_does_not_block_loop();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

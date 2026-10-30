@@ -603,6 +603,60 @@ int main() {
         );
         require(host.show(dialog) == veyra::WindowSetResult::ok, "dialog shows");
         require(host.windows().blocks_interaction(owner), "dialog blocks its owner");
+
+        auto push_mouse_down = [&](veyra::WindowId window) noexcept {
+            auto native = SDL_Event{};
+            native.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+            native.button.windowID = static_cast<Uint32>(host.backend(window)->window_id());
+            native.button.button = SDL_BUTTON_LEFT;
+            native.button.down = true;
+            native.button.clicks = 1;
+            native.button.x = 10.0F;
+            native.button.y = 10.0F;
+            return SDL_PushEvent(&native);
+        };
+
+        while (host.poll_event(pointer_event, pointer_window)) {
+        }
+        require(push_mouse_down(owner), "blocked pointer queues");
+        auto blocked_seen = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(pointer_event, pointer_window)) {
+                break;
+            }
+            if (pointer_window == owner &&
+                pointer_event.kind == veyra::WindowEventKind::pointer_down) {
+                blocked_seen = true;
+            }
+        }
+        require(!blocked_seen, "a modal dialog blocks owner pointer input");
+
+        require(push_mouse_down(child), "unrelated child pointer queues");
+        auto child_seen = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(pointer_event, pointer_window)) {
+                break;
+            }
+            if (pointer_window == child &&
+                pointer_event.kind == veyra::WindowEventKind::pointer_down) {
+                child_seen = true;
+            }
+        }
+        require(child_seen, "a modal dialog leaves unrelated windows interactive");
+
+        require(push_mouse_down(dialog), "dialog pointer queues");
+        auto dialog_seen = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(pointer_event, pointer_window)) {
+                break;
+            }
+            if (pointer_window == dialog &&
+                pointer_event.kind == veyra::WindowEventKind::pointer_down) {
+                dialog_seen = true;
+            }
+        }
+        require(dialog_seen, "the modal dialog receives its own pointer input");
+
         require(
             host.close_with_result(dialog, true, 7) == veyra::WindowSetResult::ok,
             "dialog closes with a result"

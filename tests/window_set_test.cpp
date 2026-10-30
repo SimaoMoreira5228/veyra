@@ -301,6 +301,45 @@ void check_window_contexts() {
     );
 }
 
+void check_focus_scope_isolation() {
+    auto slots = std::array<veyra::WindowSlot, 2>{};
+    auto windows = veyra::WindowSet(slots);
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(windows.create({}, first) == veyra::WindowSetResult::ok, "first focus window creates");
+    require(
+        windows.create({}, second) == veyra::WindowSetResult::ok,
+        "second focus window creates"
+    );
+
+    require(windows.register_focus(first, 10), "first focus item registers");
+    require(windows.register_focus(first, 11), "second focus item registers");
+    require(windows.register_focus(second, 20), "third focus item registers");
+    require(windows.register_focus(second, 21), "fourth focus item registers");
+    require(windows.focus_count(first) == 2, "first window counts its own items");
+    require(windows.focus_count(second) == 2, "second window counts its own items");
+
+    require(windows.focus_control(first, 10), "first control takes focus");
+    require(windows.focus_next(first), "first window tabs forward");
+    require(windows.focused_control(first) == 11, "first window tabs to its second item");
+    require(windows.focus_next(first), "first window wraps forward");
+    require(windows.focused_control(first) == 10, "first window wraps inside itself");
+
+    require(windows.focus_control(second, 20), "second window takes focus independently");
+    require(windows.focus_next(second), "second window tabs forward");
+    require(windows.focused_control(second) == 21, "second window tabs to its second item");
+    require(windows.focused_control(first) == 10, "second window tabbing leaves the first alone");
+    require(windows.focus_prev(second), "second window tabs backward");
+    require(windows.focused_control(second) == 20, "second window tabs back to its first item");
+
+    require(!windows.focus_control(first, 99), "unregistered controls are rejected");
+    require(!windows.focus_next(veyra::kInvalidWindowId), "unknown windows have no tab order");
+    require(windows.focused_control(veyra::kInvalidWindowId) == 0, "unknown focus is zero");
+    require(windows.unregister_focus(first, 10), "focus items unregister");
+    require(windows.focus_count(first) == 1, "unregistering shrinks the first window scope");
+    require(windows.focus_count(second) == 2, "the second window scope is unaffected");
+}
+
 void check_scaled_hit_testing() {
     auto slots = std::array<veyra::WindowSlot, 2>{};
     auto windows = veyra::WindowSet(slots);
@@ -510,6 +549,7 @@ int main() {
         check_shutdown_modes();
         check_capacity_and_stale_ids();
         check_window_contexts();
+        check_focus_scope_isolation();
         check_scaled_hit_testing();
         check_geometry_and_state();
     } catch (const std::exception& error) {

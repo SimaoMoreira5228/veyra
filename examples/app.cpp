@@ -302,6 +302,10 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
     );
     app.set_focused_node(main_window, semantics.focus_node(model.focused()));
     app.set_focused_node(inspector, semantics.inspector_root);
+    for (std::uint64_t id = 1; id <= 3; ++id) {
+        app.windows().register_focus(main_window, id);
+    }
+    app.windows().focus_control(main_window, model.focused());
 
     auto provenance_storage = std::array<veyra::TokenProvenance, 32>{};
     auto provenance_count = std::size_t{};
@@ -395,6 +399,14 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             return false;
         }
         if (window == main_window) {
+            if (event.kind == veyra::WindowEventKind::key_down &&
+                event.data.key.code == veyra::kAppKeyTab) {
+                if (veyra::has_modifier(event.data.key.modifiers, veyra::ShortcutModifier::shift)) {
+                    app.windows().focus_prev(main_window);
+                } else {
+                    app.windows().focus_next(main_window);
+                }
+            }
             if (event.kind == veyra::WindowEventKind::pointer_down) {
                 auto target = veyra::NodeId{};
                 app.press_pointer(

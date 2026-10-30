@@ -1,6 +1,26 @@
 #include "veyra/app/sdl3/window_host.hpp"
 
 namespace veyra::app::sdl3 {
+namespace {
+
+bool blocked_input(WindowEventKind kind) noexcept {
+    switch (kind) {
+    case WindowEventKind::pointer_down:
+    case WindowEventKind::pointer_up:
+    case WindowEventKind::pointer_move:
+    case WindowEventKind::pointer_cancel:
+    case WindowEventKind::wheel:
+    case WindowEventKind::key_down:
+    case WindowEventKind::key_up:
+    case WindowEventKind::text_commit:
+    case WindowEventKind::text_editing:
+        return true;
+    default:
+        return false;
+    }
+}
+
+}
 
 WindowSetResult Sdl3WindowHost::create(
     const char* title,
@@ -640,6 +660,9 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
             }
 
             event.window = logical;
+            if (blocked_input(event.kind) && windows_.blocks_interaction(logical)) {
+                continue;
+            }
             router_.route(event);
             if (event.kind == WindowEventKind::state_change) {
                 windows_.set_state(logical, event.data.state);
