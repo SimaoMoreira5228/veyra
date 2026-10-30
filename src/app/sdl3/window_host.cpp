@@ -95,8 +95,16 @@ WindowSetResult Sdl3WindowHost::show(WindowId window) noexcept {
 
 WindowSetResult Sdl3WindowHost::request_close(WindowId window, CloseReason reason) noexcept {
     std::lock_guard lock(state_mutex_);
+    auto before = std::array<WindowId, kCapacity>{};
+    const auto before_count = windows_.open_windows(before);
     const auto result = windows_.request_close(window, reason);
     if (result == WindowSetResult::ok) {
+        for (auto index = std::size_t{}; index < before_count && index < before.size(); ++index) {
+            if (!windows_.is_open(before[index])) {
+                decodes_.discard_window(before[index]);
+                decoder_.cancel_window(before[index]);
+            }
+        }
         sync_backends();
     }
 
@@ -106,8 +114,16 @@ WindowSetResult Sdl3WindowHost::request_close(WindowId window, CloseReason reaso
 WindowSetResult
 Sdl3WindowHost::close_with_result(WindowId window, bool accepted, std::uint64_t value) noexcept {
     std::lock_guard lock(state_mutex_);
+    auto before = std::array<WindowId, kCapacity>{};
+    const auto before_count = windows_.open_windows(before);
     const auto result = windows_.close_with_result(window, accepted, value);
     if (result == WindowSetResult::ok) {
+        for (auto index = std::size_t{}; index < before_count && index < before.size(); ++index) {
+            if (!windows_.is_open(before[index])) {
+                decodes_.discard_window(before[index]);
+                decoder_.cancel_window(before[index]);
+            }
+        }
         sync_backends();
     }
 
@@ -318,6 +334,73 @@ HitTestResult Sdl3WindowHost::hit_test_hover_locked(
     return result;
 }
 
+bool Sdl3WindowHost::begin_decode(
+    WindowId window,
+    std::uint64_t request,
+    std::span<const std::uint8_t> bytes,
+    const ImageDecodeBudget& budget,
+    std::span<ImageFrameTarget> frames,
+    std::span<std::uint32_t> delays_ms,
+    DecodeFunction decode
+) noexcept {
+    std::lock_guard lock(state_mutex_);
+    if (!windows_.is_open(window) || !decodes_.begin(window, request)) {
+        return false;
+    }
+    if (!decoder_.submit(window, request, bytes, budget, frames, delays_ms, decode)) {
+        decodes_.take(request);
+        return false;
+    }
+    return true;
+}
+
+bool Sdl3WindowHost::poll_decode(AsyncDecodeResult& out) noexcept {
+    std::lock_guard lock(state_mutex_);
+    if (!decoder_.poll(out)) {
+        return false;
+    }
+    out.cancelled = out.cancelled || decodes_.discarded(out.request);
+    if (!out.cancelled) {
+        decodes_.complete(out.request);
+    }
+    return true;
+}
+
+bool Sdl3WindowHost::wait_decode(AsyncDecodeResult& out, unsigned timeout_ms) noexcept {
+    std::lock_guard lock(state_mutex_);
+    if (!decoder_.wait(out, timeout_ms)) {
+        return false;
+    }
+    out.cancelled = out.cancelled || decodes_.discarded(out.request);
+    if (!out.cancelled) {
+        decodes_.complete(out.request);
+    }
+    return true;
+}
+
+bool Sdl3WindowHost::begin_decode(WindowId window, std::uint64_t request) noexcept {
+    std::lock_guard lock(state_mutex_);
+    if (!windows_.is_open(window)) {
+        return false;
+    }
+    return decodes_.begin(window, request);
+}
+
+bool Sdl3WindowHost::complete_decode(std::uint64_t request) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return decodes_.complete(request);
+}
+
+bool Sdl3WindowHost::take_decode(std::uint64_t request) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return decodes_.take(request);
+}
+
+bool Sdl3WindowHost::decode_discarded(std::uint64_t request) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return decodes_.discarded(request);
+}
+
 bool Sdl3WindowHost::capture_pointer(
     WindowId window,
     std::uint32_t pointer,
@@ -475,7 +558,30 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
 }
 
 Sdl3WindowHost::~Sdl3WindowHost() {
+    decoder_.stop();
+    notify_teardown(TeardownStage::decoders);
     render_worker_.stop();
+    notify_teardown(TeardownStage::renderers);
+    for (auto& backend : backends_) {
+        backend.reset();
+    }
+    for (auto& id : sdl_ids_) {
+        id = kInvalidWindowId;
+    }
+    present_ = {};
+    notify_teardown(TeardownStage::windows);
+}
+
+void Sdl3WindowHost::notify_teardown(TeardownStage stage) noexcept {
+    if (teardown_observer_ != nullptr) {
+        teardown_observer_(teardown_observer_user_, stage);
+    }
+}
+
+void Sdl3WindowHost::set_teardown_observer(TeardownObserver observer, void* user) noexcept {
+    std::lock_guard lock(state_mutex_);
+    teardown_observer_ = observer;
+    teardown_observer_user_ = user;
 }
 
 WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) noexcept {
@@ -503,8 +609,16 @@ WindowSetResult Sdl3WindowHost::set_state(WindowId window, WindowState state) no
 
 WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
     std::lock_guard lock(state_mutex_);
+    auto before = std::array<WindowId, kCapacity>{};
+    const auto before_count = windows_.open_windows(before);
     const auto result = windows_.destroy(window);
     if (result == WindowSetResult::ok) {
+        for (auto index = std::size_t{}; index < before_count && index < before.size(); ++index) {
+            if (!windows_.is_open(before[index])) {
+                decodes_.discard_window(before[index]);
+                decoder_.cancel_window(before[index]);
+            }
+        }
         sync_backends();
     }
 

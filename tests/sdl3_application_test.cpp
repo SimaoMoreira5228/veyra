@@ -1,5 +1,6 @@
 #include "veyra/app/sdl3/application.hpp"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
@@ -11,6 +12,61 @@ void require(bool condition, std::string_view message) {
     if (!condition) {
         throw std::runtime_error(std::string(message));
     }
+}
+
+struct TeardownLog {
+    std::array<veyra::app::sdl3::TeardownStage, 3> stages{};
+    int count{};
+};
+
+void check_teardown_order() {
+    auto log = TeardownLog{};
+    {
+        check_teardown_order();
+        auto app = veyra::app::sdl3::Sdl3Application{};
+        app.host().set_teardown_observer(
+            [](void* user, veyra::app::sdl3::TeardownStage stage) noexcept {
+                auto* value = static_cast<TeardownLog*>(user);
+                if (value->count < static_cast<int>(value->stages.size())) {
+                    value->stages[static_cast<std::size_t>(value->count)] = stage;
+                }
+                ++value->count;
+            },
+            &log
+        );
+
+        auto first = veyra::WindowId{};
+        auto second = veyra::WindowId{};
+        require(
+            app.create("teardown first", 160, 120, {}, first) == veyra::WindowSetResult::ok,
+            "teardown first window creates"
+        );
+        require(
+            app.create("teardown second", 120, 90, {.owner = first}, second) ==
+                veyra::WindowSetResult::ok,
+            "teardown second window creates"
+        );
+        require(app.show(first) == veyra::WindowSetResult::ok, "teardown first shows");
+        require(app.show(second) == veyra::WindowSetResult::ok, "teardown second shows");
+    }
+
+    require(log.count == 3, "teardown reports every stage once");
+    require(log.stages[0] == veyra::app::sdl3::TeardownStage::decoders, "decoders stop first");
+    require(
+        log.stages[1] == veyra::app::sdl3::TeardownStage::renderers,
+        "render workers stop second"
+    );
+    require(
+        log.stages[2] == veyra::app::sdl3::TeardownStage::windows,
+        "window resources release last"
+    );
+
+    auto app = veyra::app::sdl3::Sdl3Application{};
+    auto window = veyra::WindowId{};
+    require(
+        app.create("teardown restart", 160, 120, {}, window) == veyra::WindowSetResult::ok,
+        "a new application creates a window after teardown"
+    );
 }
 
 }

@@ -20,6 +20,132 @@ void require(bool condition, std::string_view message) {
     }
 }
 
+#if defined(VEYRA_TEST_WITH_CODECS)
+void check_async_decode() {
+    constexpr std::array<std::uint8_t, 58> bmp{
+        'B', 'M', 58, 0, 0, 0, 0, 0, 0,  0, 54, 0, 0, 0, 40, 0, 0,   0, 1, 0,
+        0,   0,   1,  0, 0, 0, 1, 0, 24, 0, 0,  0, 0, 0, 4,  0, 0,   0, 0, 0,
+        0,   0,   0,  0, 0, 0, 0, 0, 0,  0, 0,  0, 0, 0, 0,  0, 255, 0,
+    };
+
+    auto info = veyra::ImageDecodeInfo{};
+    require(
+        veyra::probe_image(bmp, {}, info) == veyra::ImageDecodeResult::complete &&
+            info.width == 1 && info.height == 1,
+        "the async test bitmap probes as one pixel"
+    );
+
+    auto host = veyra::app::sdl3::Sdl3WindowHost{};
+    auto window = veyra::WindowId{};
+    require(
+        host.create("async decode", 160, 120, {}, window) == veyra::WindowSetResult::ok,
+        "async decode window creates"
+    );
+
+    auto output = std::array<std::uint8_t, 4>{};
+    auto frames = std::array<veyra::ImageFrameTarget, 1>{
+        veyra::ImageFrameTarget{.pixels = output},
+    };
+    auto delays = std::array<std::uint32_t, 1>{};
+
+    require(
+        host.begin_decode(window, 50, bmp, {}, frames, delays, &veyra::decode_image),
+        "a real decode request starts"
+    );
+    require(
+        host.destroy(window) == veyra::WindowSetResult::ok,
+        "decode window destroys before completion"
+    );
+
+    auto completion = veyra::app::AsyncDecodeResult{};
+    require(host.wait_decode(completion, 2000), "the background decode finishes");
+    require(completion.request == 50, "the completion keeps its request id");
+    require(completion.cancelled, "the closed window discards the completion");
+    require(host.decode_discarded(50), "the tracker keeps the discard report");
+    require(!host.take_decode(50), "a discarded completion cannot be taken");
+
+    auto live = veyra::WindowId{};
+    require(
+        host.create("live decode", 160, 120, {}, live) == veyra::WindowSetResult::ok,
+        "live decode window creates"
+    );
+    auto live_output = std::array<std::uint8_t, 4>{};
+    auto live_frames = std::array<veyra::ImageFrameTarget, 1>{
+        veyra::ImageFrameTarget{.pixels = live_output},
+    };
+    auto live_delays = std::array<std::uint32_t, 1>{};
+    require(
+        host.begin_decode(live, 51, bmp, {}, live_frames, live_delays, &veyra::decode_image),
+        "a live decode request starts"
+    );
+    auto live_completion = veyra::app::AsyncDecodeResult{};
+    require(host.wait_decode(live_completion, 2000), "the live decode finishes");
+    require(!live_completion.cancelled, "a live window keeps its completion");
+    require(
+        live_completion.result == veyra::ImageDecodeResult::complete &&
+            live_completion.decoded_frames == 1,
+        "the live decode completes one frame"
+    );
+    require(host.take_decode(51), "a live completion can be taken");
+}
+
+#endif
+
+void check_decode_completion_discard() {
+    auto host = veyra::app::sdl3::Sdl3WindowHost{};
+    auto owner = veyra::WindowId{};
+    auto child = veyra::WindowId{};
+    require(
+        host.create("decode owner", 160, 120, {}, owner) == veyra::WindowSetResult::ok,
+        "decode owner creates"
+    );
+    require(
+        host.create("decode child", 120, 90, {.owner = owner}, child) == veyra::WindowSetResult::ok,
+        "decode child creates"
+    );
+
+    require(host.begin_decode(owner, 42), "owner decode begins");
+    require(host.begin_decode(child, 43), "child decode begins");
+    require(!host.begin_decode(owner, 42), "duplicate decode requests are rejected");
+    require(!host.begin_decode(veyra::kInvalidWindowId, 44), "unknown windows reject decodes");
+    require(!host.begin_decode(owner, 0), "zero requests are rejected");
+    require(host.complete_decode(42), "owner decode completes");
+    require(host.complete_decode(43), "child decode completes");
+
+    require(host.destroy(child) == veyra::WindowSetResult::ok, "decode child destroys");
+    require(host.decode_discarded(43), "destroyed child discards its completion");
+    require(!host.take_decode(43), "discarded completions cannot be taken");
+    require(host.take_decode(42), "live completions can be taken");
+
+    require(host.begin_decode(owner, 44), "pending owner decode begins");
+    require(
+        host.request_close(owner, veyra::CloseReason::user) == veyra::WindowSetResult::ok,
+        "decode owner closes"
+    );
+    require(host.decode_discarded(44), "closing the owner discards its pending decode");
+    require(!host.take_decode(44), "cancelled pending decode cannot be taken");
+
+    auto cascade_owner = veyra::WindowId{};
+    auto cascade_child = veyra::WindowId{};
+    require(
+        host.create("cascade owner", 160, 120, {}, cascade_owner) == veyra::WindowSetResult::ok,
+        "cascade owner creates"
+    );
+    require(
+        host.create("cascade child", 120, 90, {.owner = cascade_owner}, cascade_child) ==
+            veyra::WindowSetResult::ok,
+        "cascade child creates"
+    );
+    require(host.begin_decode(cascade_child, 45), "cascade child decode begins");
+    require(host.complete_decode(45), "cascade child decode completes");
+    require(
+        host.request_close(cascade_owner, veyra::CloseReason::user) == veyra::WindowSetResult::ok,
+        "cascade owner closes"
+    );
+    require(host.decode_discarded(45), "owner close discards child completions");
+    require(!host.take_decode(45), "cascade completion cannot be taken");
+}
+
 void check_activation_restores_focus() {
     auto tree = veyra::NodeTree{};
     tree.reserve(4);
@@ -503,6 +629,10 @@ int main() {
         auto event = veyra::WindowEvent{};
         auto logical = veyra::WindowId{};
         require(!host.poll_event(event, logical), "closed host has no events");
+#if defined(VEYRA_TEST_WITH_CODECS)
+        check_async_decode();
+#endif
+        check_decode_completion_discard();
         check_activation_restores_focus();
         check_pipelined_present();
     } catch (const std::exception& error) {

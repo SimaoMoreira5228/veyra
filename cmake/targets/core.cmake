@@ -85,7 +85,7 @@ target_link_libraries(veyra_chat PUBLIC veyra_foundation)
 add_library(veyra_inspector STATIC src/inspector/trace/trace_recorder.cpp)
 target_link_libraries(veyra_inspector PUBLIC veyra_foundation)
 
-add_library(veyra_app STATIC src/app/window_set.cpp src/app/window_semantics.cpp)
+add_library(veyra_app STATIC src/app/window_set.cpp src/app/window_semantics.cpp src/app/decode_tracker.cpp src/app/async_image_decode.cpp)
 target_compile_features(veyra_app PUBLIC cxx_std_23)
 
 add_library(veyra INTERFACE)

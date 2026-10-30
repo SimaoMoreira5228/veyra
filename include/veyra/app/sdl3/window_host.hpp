@@ -1,6 +1,8 @@
 #ifndef VEYRA_APP_SDL3_WINDOW_HOST_HPP
 #define VEYRA_APP_SDL3_WINDOW_HOST_HPP
 
+#include "veyra/app/async_image_decode.hpp"
+#include "veyra/app/decode_tracker.hpp"
 #include "veyra/app/window_set.hpp"
 #include "veyra/platform/core/window_router.hpp"
 #include "veyra/platform/sdl3/sdl3_window.hpp"
@@ -16,6 +18,14 @@
 #include <thread>
 
 namespace veyra::app::sdl3 {
+
+enum class TeardownStage : std::uint8_t {
+    decoders,
+    renderers,
+    windows,
+};
+
+using TeardownObserver = void (*)(void* user, TeardownStage stage) noexcept;
 
 class Sdl3WindowHost {
   public:
@@ -60,6 +70,7 @@ class Sdl3WindowHost {
     // It must not call back into the host.
     void set_present_observer(PresentObserver observer, void* user) noexcept;
     void set_route_observer(RouteObserver observer, void* user) noexcept;
+    void set_teardown_observer(TeardownObserver observer, void* user) noexcept;
     NodeId activate(WindowId window) noexcept;
     HitTestResult hit_test_and_hover(
         WindowId window,
@@ -74,6 +85,21 @@ class Sdl3WindowHost {
         std::span<const LayoutRect> bounds_by_node_index,
         NodeId& target
     ) noexcept;
+    bool begin_decode(WindowId window, std::uint64_t request) noexcept;
+    bool begin_decode(
+        WindowId window,
+        std::uint64_t request,
+        std::span<const std::uint8_t> bytes,
+        const ImageDecodeBudget& budget,
+        std::span<ImageFrameTarget> frames,
+        std::span<std::uint32_t> delays_ms,
+        DecodeFunction decode
+    ) noexcept;
+    bool poll_decode(AsyncDecodeResult& out) noexcept;
+    bool wait_decode(AsyncDecodeResult& out, unsigned timeout_ms) noexcept;
+    bool complete_decode(std::uint64_t request) noexcept;
+    bool take_decode(std::uint64_t request) noexcept;
+    bool decode_discarded(std::uint64_t request) noexcept;
     bool capture_pointer(WindowId window, std::uint32_t pointer, NodeId target) noexcept;
     bool release_pointer(WindowId window, std::uint32_t pointer) noexcept;
     bool set_hover(WindowId window, NodeId node) noexcept;
@@ -120,6 +146,7 @@ class Sdl3WindowHost {
     };
 
     WindowSetResult present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept;
+    void notify_teardown(TeardownStage stage) noexcept;
     HitTestResult hit_test_hover_locked(
         WindowId window,
         LayoutPoint logical_point,
@@ -135,14 +162,18 @@ class Sdl3WindowHost {
     std::array<std::optional<Sdl3Window>, kCapacity> backends_{};
     std::array<WindowId, kCapacity> sdl_ids_{};
     std::array<PresentSlot, kCapacity> present_{};
+    DecodeTracker decodes_{};
     std::array<WindowRouteState, kCapacity> route_storage_{};
     WindowRouter router_{route_storage_};
     WindowSet windows_{slots_};
     mutable std::mutex state_mutex_;
     PresentObserver present_observer_{};
     void* present_observer_user_{};
+    TeardownObserver teardown_observer_{};
+    void* teardown_observer_user_{};
     std::atomic<std::uint64_t> render_thread_presents_{};
     RenderWorker render_worker_;
+    AsyncImageDecoder decoder_;
 };
 
 }
