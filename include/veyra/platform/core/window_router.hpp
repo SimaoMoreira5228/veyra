@@ -91,6 +91,7 @@ class WindowRouter {
     const WindowRouteState* find(WindowId id) const noexcept;
 
     WindowRouteResult route(const WindowEvent& event) noexcept;
+    bool activate(WindowId id) noexcept;
     void set_observer(RouteObserver observer, void* user) noexcept;
     bool set_focused_node(WindowId id, NodeId node) noexcept;
     bool capture_pointer(WindowId id, std::uint32_t pointer, NodeId target) noexcept;

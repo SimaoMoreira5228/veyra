@@ -253,6 +253,58 @@ bool WindowSet::set_focused_node(WindowId window, NodeId node) noexcept {
     return true;
 }
 
+HitTestResult WindowSet::hit_test_logical(
+    WindowId window,
+    LayoutPoint point,
+    std::span<const LayoutRect> bounds_by_node_index,
+    NodeId& target
+) const noexcept {
+    target = {};
+    const auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open ||
+        slot->semantics_tree == nullptr) {
+        return HitTestResult::invalid_root;
+    }
+
+    return hit_test(
+        *slot->semantics_tree,
+        slot->accessibility_root,
+        point,
+        bounds_by_node_index,
+        target
+    );
+}
+
+HitTestResult WindowSet::hit_test_physical(
+    WindowId window,
+    LayoutPoint point,
+    std::span<const LayoutRect> bounds_by_node_index,
+    NodeId& target
+) const noexcept {
+    target = {};
+    const auto* slot = find_slot(window);
+    if (slot == nullptr || slot->state != WindowSlotState::open ||
+        slot->semantics_tree == nullptr) {
+        return HitTestResult::invalid_root;
+    }
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) || slot->scale_x <= 0.0F ||
+        slot->scale_y <= 0.0F) {
+        return HitTestResult::invalid_point;
+    }
+
+    const auto logical = LayoutPoint{
+        .x = point.x / slot->scale_x,
+        .y = point.y / slot->scale_y,
+    };
+    return hit_test(
+        *slot->semantics_tree,
+        slot->accessibility_root,
+        logical,
+        bounds_by_node_index,
+        target
+    );
+}
+
 NodeId WindowSet::accessibility_root(WindowId window) const noexcept {
     const auto* slot = find_slot(window);
     if (slot == nullptr || slot->state != WindowSlotState::open) {

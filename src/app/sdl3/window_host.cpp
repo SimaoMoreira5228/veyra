@@ -269,6 +269,55 @@ void Sdl3WindowHost::set_route_observer(RouteObserver observer, void* user) noex
     router_.set_observer(observer, user);
 }
 
+NodeId Sdl3WindowHost::activate(WindowId window) noexcept {
+    std::lock_guard lock(state_mutex_);
+    if (!router_.activate(window)) {
+        return {};
+    }
+    return windows_.focused_node(window);
+}
+
+HitTestResult Sdl3WindowHost::hit_test_and_hover(
+    WindowId window,
+    LayoutPoint logical_point,
+    std::span<const LayoutRect> bounds_by_node_index,
+    NodeId& target
+) noexcept {
+    std::lock_guard lock(state_mutex_);
+    return hit_test_hover_locked(window, logical_point, bounds_by_node_index, target);
+}
+
+HitTestResult Sdl3WindowHost::press_pointer(
+    WindowId window,
+    std::uint32_t pointer,
+    LayoutPoint logical_point,
+    std::span<const LayoutRect> bounds_by_node_index,
+    NodeId& target
+) noexcept {
+    std::lock_guard lock(state_mutex_);
+    const auto result = hit_test_hover_locked(window, logical_point, bounds_by_node_index, target);
+    if (result == HitTestResult::hit) {
+        router_.capture_pointer(window, pointer, target);
+    }
+    return result;
+}
+
+HitTestResult Sdl3WindowHost::hit_test_hover_locked(
+    WindowId window,
+    LayoutPoint logical_point,
+    std::span<const LayoutRect> bounds_by_node_index,
+    NodeId& target
+) noexcept {
+    const auto result =
+        windows_.hit_test_logical(window, logical_point, bounds_by_node_index, target);
+    if (result == HitTestResult::hit) {
+        router_.set_hover(window, target);
+    } else {
+        router_.clear_hover(window);
+    }
+    return result;
+}
+
 bool Sdl3WindowHost::capture_pointer(
     WindowId window,
     std::uint32_t pointer,

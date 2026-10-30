@@ -143,6 +143,39 @@ void check_window_state_is_isolated() {
     require(router.find(1)->damaged(), "focus target change schedules a repaint");
 }
 
+void check_activation_restores_focus() {
+    std::array<veyra::WindowRouteState, 2> storage{};
+    veyra::WindowRouter router(storage);
+    require(router.attach(1, 100.0F, 80.0F, 1.0F, 1.0F) != nullptr, "activation first attaches");
+    require(router.attach(2, 100.0F, 80.0F, 2.0F, 2.0F) != nullptr, "activation second attaches");
+
+    const auto first_focus = veyra::NodeId{.index = 11, .generation = 1};
+    const auto second_focus = veyra::NodeId{.index = 22, .generation = 1};
+    require(router.set_focused_node(1, first_focus), "first focus is stored");
+    require(router.set_focused_node(2, second_focus), "second focus is stored");
+
+    require(router.activate(1), "first activation succeeds");
+    require(router.find(1)->focused(), "first window becomes active");
+    require(!router.find(2)->focused(), "second window becomes inactive");
+    require(router.find(1)->focused_node() == first_focus, "first focus is retained");
+
+    require(router.activate(2), "second activation succeeds");
+    require(!router.find(1)->focused(), "first window becomes inactive");
+    require(router.find(2)->focused(), "second window becomes active");
+    require(router.find(2)->focused_node() == second_focus, "second focus is retained");
+
+    require(
+        router.route(make_focus(1, veyra::WindowEventKind::focus_gained)) ==
+            veyra::WindowRouteResult::routed,
+        "focus gained routes"
+    );
+    require(router.find(1)->focused(), "focus gained activates the first window");
+    require(!router.find(2)->focused(), "focus gained deactivates the second window");
+    require(router.find(1)->focused_node() == first_focus, "focus gained keeps the stored target");
+
+    require(!router.activate(3), "unknown windows cannot activate");
+}
+
 void check_pointer_capture_and_hover() {
     std::array<veyra::WindowRouteState, 1> storage{};
     veyra::WindowRouter router(storage);
@@ -197,7 +230,9 @@ void check_pointer_capture_and_hover() {
     require(router.find(1)->capture_count() == 0, "pointer cancel drops capture");
     require(router.find(1)->hovered_node().is_null(), "pointer cancel drops hover");
 
-    require(!router.capture_pointer(1, 0, target), "zero pointer ids are rejected");
+    require(router.capture_pointer(1, 0, target), "mouse pointer zero captures");
+    require(router.find(1)->pointer_captured(0), "mouse pointer zero is queryable");
+    require(router.release_pointer(1, 0), "mouse pointer zero releases");
     require(!router.capture_pointer(2, 7, target), "unknown windows reject capture");
     require(router.clear_hover(1), "clear hover accepts a known window");
 }
@@ -296,6 +331,7 @@ int main() {
     try {
         check_window_state_is_isolated();
         check_route_observer();
+        check_activation_restores_focus();
         check_pointer_capture_and_hover();
         check_multiple_pointer_captures();
         check_capacity_and_invalid_routes();

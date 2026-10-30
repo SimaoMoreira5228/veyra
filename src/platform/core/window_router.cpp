@@ -56,9 +56,6 @@ NodeId WindowRouteState::capture_target(std::size_t index) const noexcept {
 }
 
 bool WindowRouteState::pointer_captured(std::uint32_t pointer) const noexcept {
-    if (pointer == 0) {
-        return false;
-    }
     for (auto index = std::size_t{}; index < capture_count_; ++index) {
         if (captures_[index].pointer == pointer) {
             return true;
@@ -68,9 +65,6 @@ bool WindowRouteState::pointer_captured(std::uint32_t pointer) const noexcept {
 }
 
 NodeId WindowRouteState::capture_target_for(std::uint32_t pointer) const noexcept {
-    if (pointer == 0) {
-        return {};
-    }
     for (auto index = std::size_t{}; index < capture_count_; ++index) {
         if (captures_[index].pointer == pointer) {
             return captures_[index].target;
@@ -167,6 +161,24 @@ WindowRouteResult WindowRouter::route(const WindowEvent& event) noexcept {
     return result;
 }
 
+bool WindowRouter::activate(WindowId id) noexcept {
+    if (find_mutable(id) == nullptr) {
+        return false;
+    }
+
+    for (auto& state : storage_) {
+        if (state.id_ == kInvalidWindowId) {
+            continue;
+        }
+        const auto active = state.id_ == id;
+        if (state.focused_ != active) {
+            state.focused_ = active;
+            state.damaged_ = true;
+        }
+    }
+    return true;
+}
+
 void WindowRouter::set_observer(RouteObserver observer, void* user) noexcept {
     observer_ = observer;
     observer_user_ = user;
@@ -206,10 +218,7 @@ WindowRouteResult WindowRouter::route_event(const WindowEvent& event) noexcept {
             state->damaged_ = true;
         }
     } else if (event.kind == WindowEventKind::focus_gained) {
-        if (!state->focused_) {
-            state->focused_ = true;
-            state->damaged_ = true;
-        }
+        activate(event.window);
     } else if (
         event.kind == WindowEventKind::focus_lost || event.kind == WindowEventKind::pointer_cancel
     ) {
@@ -258,7 +267,7 @@ bool WindowRouter::set_focused_node(WindowId id, NodeId node) noexcept {
 
 bool WindowRouter::capture_pointer(WindowId id, std::uint32_t pointer, NodeId target) noexcept {
     auto* state = find_mutable(id);
-    if (state == nullptr || pointer == 0) {
+    if (state == nullptr) {
         return false;
     }
 
@@ -281,7 +290,7 @@ bool WindowRouter::capture_pointer(WindowId id, std::uint32_t pointer, NodeId ta
 
 bool WindowRouter::release_pointer(WindowId id, std::uint32_t pointer) noexcept {
     auto* state = find_mutable(id);
-    if (state == nullptr || pointer == 0) {
+    if (state == nullptr) {
         return false;
     }
 

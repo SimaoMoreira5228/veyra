@@ -19,6 +19,10 @@ class AppSemantics {
     AppSemantics();
 
     NodeTree& tree() noexcept;
+    std::span<const LayoutRect> bounds() const noexcept {
+        return bounds_;
+    }
+
     NodeId focus_node(std::uint64_t id) const noexcept;
     SemanticSnapshotResult snapshot(
         const WindowSet& windows,

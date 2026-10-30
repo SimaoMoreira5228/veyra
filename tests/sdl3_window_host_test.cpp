@@ -20,6 +20,45 @@ void require(bool condition, std::string_view message) {
     }
 }
 
+void check_activation_restores_focus() {
+    auto tree = veyra::NodeTree{};
+    tree.reserve(4);
+    const auto first_root = tree.create();
+    const auto first_focus = tree.create();
+    const auto second_root = tree.create();
+    const auto second_focus = tree.create();
+    require(tree.append_child(first_root, first_focus), "first activation focus attaches");
+    require(tree.append_child(second_root, second_focus), "second activation focus attaches");
+
+    auto host = veyra::app::sdl3::Sdl3WindowHost{};
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(
+        host.create("first", 160, 120, {}, first) == veyra::WindowSetResult::ok,
+        "first activation window creates"
+    );
+    require(
+        host.create("second", 120, 90, {}, second) == veyra::WindowSetResult::ok,
+        "second activation window creates"
+    );
+    require(host.bind_semantics(first, tree, first_root), "first activation root binds");
+    require(host.bind_semantics(second, tree, second_root), "second activation root binds");
+    require(host.set_focused_node(first, first_focus), "first activation focus is stored");
+    require(host.set_focused_node(second, second_focus), "second activation focus is stored");
+
+    require(host.activate(first) == first_focus, "first activation restores its focus");
+    require(host.router().find(first)->focused(), "first activation is active");
+    require(!host.router().find(second)->focused(), "second activation is inactive");
+
+    require(host.activate(second) == second_focus, "second activation restores its focus");
+    require(!host.router().find(first)->focused(), "first activation becomes inactive");
+    require(host.router().find(second)->focused(), "second activation is active");
+
+    require(host.activate(first) == first_focus, "reactivation restores the first focus");
+    require(host.router().find(first)->focused(), "reactivation makes the first window active");
+    require(host.activate(veyra::kInvalidWindowId).is_null(), "unknown windows cannot activate");
+}
+
 void check_pipelined_present() {
     auto host = veyra::app::sdl3::Sdl3WindowHost{};
     auto wake_scheduler = veyra::FrameScheduler{};
@@ -464,6 +503,7 @@ int main() {
         auto event = veyra::WindowEvent{};
         auto logical = veyra::WindowId{};
         require(!host.poll_event(event, logical), "closed host has no events");
+        check_activation_restores_focus();
         check_pipelined_present();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

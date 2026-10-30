@@ -1,6 +1,7 @@
 #ifndef VEYRA_APP_WINDOW_SET_HPP
 #define VEYRA_APP_WINDOW_SET_HPP
 
+#include "veyra/core/event/hit_test.hpp"
 #include "veyra/core/tree/node_id_pool.hpp"
 #include "veyra/platform/core/window.hpp"
 #include "veyra/style/theme/theme.hpp"
@@ -131,6 +132,18 @@ class WindowSet {
     set_geometry(WindowId window, float width, float height, float scale_x, float scale_y) noexcept;
     WindowSetResult set_state(WindowId window, WindowState state) noexcept;
     WindowSetResult bind_semantics(WindowId window, NodeTree& tree, NodeId root) noexcept;
+    HitTestResult hit_test_logical(
+        WindowId window,
+        LayoutPoint point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) const noexcept;
+    HitTestResult hit_test_physical(
+        WindowId window,
+        LayoutPoint point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) const noexcept;
     bool set_focused_node(WindowId window, NodeId node) noexcept;
     NodeId focused_node(WindowId window) const noexcept;
     NodeId accessibility_root(WindowId window) const noexcept;

@@ -108,6 +108,36 @@ class Sdl3Application {
         return host_.surface_size(window, width, height);
     }
 
+    NodeId activate(WindowId window) noexcept {
+        const auto node = host_.activate(window);
+        scheduler_.request_immediate();
+        return node;
+    }
+
+    HitTestResult hit_test_and_hover(
+        WindowId window,
+        LayoutPoint point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept {
+        const auto result = host_.hit_test_and_hover(window, point, bounds_by_node_index, target);
+        scheduler_.request_immediate();
+        return result;
+    }
+
+    HitTestResult press_pointer(
+        WindowId window,
+        std::uint32_t pointer,
+        LayoutPoint point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept {
+        const auto result =
+            host_.press_pointer(window, pointer, point, bounds_by_node_index, target);
+        scheduler_.request_immediate();
+        return result;
+    }
+
     void set_route_observer(RouteObserver observer, void* user) noexcept {
         host_.set_route_observer(observer, user);
     }

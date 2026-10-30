@@ -395,6 +395,27 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
             return false;
         }
         if (window == main_window) {
+            if (event.kind == veyra::WindowEventKind::pointer_down) {
+                auto target = veyra::NodeId{};
+                app.press_pointer(
+                    main_window,
+                    event.data.pointer.pointer,
+                    event.data.pointer.position,
+                    semantics.bounds(),
+                    target
+                );
+            } else if (
+                event.kind == veyra::WindowEventKind::pointer_move ||
+                event.kind == veyra::WindowEventKind::pointer_up
+            ) {
+                auto target = veyra::NodeId{};
+                app.hit_test_and_hover(
+                    main_window,
+                    event.data.pointer.position,
+                    semantics.bounds(),
+                    target
+                );
+            }
             const bool quit = model.handle_event(event);
             app.set_focused_node(main_window, semantics.focus_node(model.focused()));
             app.scheduler().request_immediate();

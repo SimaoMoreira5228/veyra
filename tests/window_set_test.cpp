@@ -301,6 +301,111 @@ void check_window_contexts() {
     );
 }
 
+void check_scaled_hit_testing() {
+    auto slots = std::array<veyra::WindowSlot, 2>{};
+    auto windows = veyra::WindowSet(slots);
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(windows.create({}, first) == veyra::WindowSetResult::ok, "first hit window creates");
+    require(windows.create({}, second) == veyra::WindowSetResult::ok, "second hit window creates");
+
+    auto tree = veyra::NodeTree{};
+    tree.reserve(4);
+    const auto first_root = tree.create();
+    const auto first_child = tree.create();
+    const auto second_root = tree.create();
+    const auto second_child = tree.create();
+    require(tree.append_child(first_root, first_child), "first hit child attaches");
+    require(tree.append_child(second_root, second_child), "second hit child attaches");
+
+    const std::array bounds{
+        veyra::LayoutRect{.width = 100.0F, .height = 100.0F},
+        veyra::LayoutRect{.x = 10.0F, .y = 10.0F, .width = 40.0F, .height = 40.0F},
+        veyra::LayoutRect{.width = 100.0F, .height = 100.0F},
+        veyra::LayoutRect{.x = 30.0F, .y = 30.0F, .width = 40.0F, .height = 40.0F},
+    };
+
+    require(
+        windows.bind_semantics(first, tree, first_root) == veyra::WindowSetResult::ok,
+        "first hit root binds"
+    );
+    require(
+        windows.bind_semantics(second, tree, second_root) == veyra::WindowSetResult::ok,
+        "second hit root binds"
+    );
+    require(
+        windows.set_geometry(first, 100.0F, 100.0F, 1.0F, 1.0F) == veyra::WindowSetResult::ok,
+        "first hit scale is set"
+    );
+    require(
+        windows.set_geometry(second, 100.0F, 100.0F, 2.0F, 2.0F) == veyra::WindowSetResult::ok,
+        "second hit scale is set"
+    );
+
+    auto target = veyra::NodeId{};
+    require(
+        windows.hit_test_logical(first, {.x = 20.0F, .y = 20.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == first_child,
+        "logical hit picks the first child"
+    );
+    require(
+        windows.hit_test_logical(second, {.x = 40.0F, .y = 40.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == second_child,
+        "logical hit picks the second child"
+    );
+
+    require(
+        windows.hit_test_physical(first, {.x = 40.0F, .y = 40.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == first_child,
+        "scale one maps a physical point to the first child"
+    );
+    require(
+        windows.hit_test_physical(second, {.x = 40.0F, .y = 40.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == second_root,
+        "scale two maps the same physical point onto the second root"
+    );
+    require(
+        windows.hit_test_physical(first, {.x = 80.0F, .y = 80.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == first_root,
+        "scale one misses the first child outside its bounds"
+    );
+    require(
+        windows.hit_test_physical(second, {.x = 80.0F, .y = 80.0F}, bounds, target) ==
+                veyra::HitTestResult::hit &&
+            target == second_child,
+        "scale two reaches the second child at the same physical point"
+    );
+
+    require(
+        windows.hit_test_physical(
+            veyra::kInvalidWindowId,
+            {.x = 1.0F, .y = 1.0F},
+            bounds,
+            target
+        ) == veyra::HitTestResult::invalid_root,
+        "unknown windows have no hit-test root"
+    );
+    require(
+        windows.hit_test_physical(
+            first,
+            {.x = std::numeric_limits<float>::infinity(), .y = 1.0F},
+            bounds,
+            target
+        ) == veyra::HitTestResult::invalid_point,
+        "non-finite points are rejected"
+    );
+    require(
+        windows.hit_test_logical(first, {.x = 1.0F, .y = 1.0F}, {}, target) ==
+            veyra::HitTestResult::insufficient_bounds,
+        "missing bounds are reported"
+    );
+}
+
 void check_geometry_and_state() {
     auto slots = std::array<veyra::WindowSlot, 2>{};
     auto windows = veyra::WindowSet(slots);
@@ -405,6 +510,7 @@ int main() {
         check_shutdown_modes();
         check_capacity_and_stale_ids();
         check_window_contexts();
+        check_scaled_hit_testing();
         check_geometry_and_state();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

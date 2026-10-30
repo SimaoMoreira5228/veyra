@@ -60,6 +60,20 @@ class Sdl3WindowHost {
     // It must not call back into the host.
     void set_present_observer(PresentObserver observer, void* user) noexcept;
     void set_route_observer(RouteObserver observer, void* user) noexcept;
+    NodeId activate(WindowId window) noexcept;
+    HitTestResult hit_test_and_hover(
+        WindowId window,
+        LayoutPoint logical_point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept;
+    HitTestResult press_pointer(
+        WindowId window,
+        std::uint32_t pointer,
+        LayoutPoint logical_point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept;
     bool capture_pointer(WindowId window, std::uint32_t pointer, NodeId target) noexcept;
     bool release_pointer(WindowId window, std::uint32_t pointer) noexcept;
     bool set_hover(WindowId window, NodeId node) noexcept;
@@ -106,6 +120,12 @@ class Sdl3WindowHost {
     };
 
     WindowSetResult present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept;
+    HitTestResult hit_test_hover_locked(
+        WindowId window,
+        LayoutPoint logical_point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept;
     static void run_present_task(void* context) noexcept;
     std::size_t slot_for(WindowId window) const noexcept;
     WindowId logical_for_sdl(WindowId sdl_window) const noexcept;
