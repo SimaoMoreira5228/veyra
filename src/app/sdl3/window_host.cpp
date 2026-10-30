@@ -76,6 +76,13 @@ WindowSetResult Sdl3WindowHost::create(
         return WindowSetResult::creation_failed;
     }
 
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    if (want_gpu_ && !enable_gpu(index)) {
+        gpu_fallback_ = true;
+        backend->recreate_renderer();
+    }
+#endif
+
     sdl_ids_[index] = backend->window_id();
     out_window = logical;
     return WindowSetResult::ok;
@@ -123,6 +130,7 @@ WindowSetResult Sdl3WindowHost::request_close(WindowId window, CloseReason reaso
             if (!windows_.is_open(before[index])) {
                 decodes_.discard_window(before[index]);
                 decoder_.cancel_window(before[index]);
+                discard_dialogs(before[index]);
             }
         }
         sync_backends();
@@ -142,6 +150,7 @@ Sdl3WindowHost::close_with_result(WindowId window, bool accepted, std::uint64_t 
             if (!windows_.is_open(before[index])) {
                 decodes_.discard_window(before[index]);
                 decoder_.cancel_window(before[index]);
+                discard_dialogs(before[index]);
             }
         }
         sync_backends();
@@ -305,144 +314,22 @@ void Sdl3WindowHost::set_route_observer(RouteObserver observer, void* user) noex
     router_.set_observer(observer, user);
 }
 
-NodeId Sdl3WindowHost::activate(WindowId window) noexcept {
+bool Sdl3WindowHost::needs_frame(WindowId window) const noexcept {
     std::lock_guard lock(state_mutex_);
-    if (!router_.activate(window)) {
-        return {};
-    }
-    return windows_.focused_node(window);
-}
-
-HitTestResult Sdl3WindowHost::hit_test_and_hover(
-    WindowId window,
-    LayoutPoint logical_point,
-    std::span<const LayoutRect> bounds_by_node_index,
-    NodeId& target
-) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return hit_test_hover_locked(window, logical_point, bounds_by_node_index, target);
-}
-
-HitTestResult Sdl3WindowHost::press_pointer(
-    WindowId window,
-    std::uint32_t pointer,
-    LayoutPoint logical_point,
-    std::span<const LayoutRect> bounds_by_node_index,
-    NodeId& target
-) noexcept {
-    std::lock_guard lock(state_mutex_);
-    const auto result = hit_test_hover_locked(window, logical_point, bounds_by_node_index, target);
-    if (result == HitTestResult::hit) {
-        router_.capture_pointer(window, pointer, target);
-    }
-    return result;
-}
-
-HitTestResult Sdl3WindowHost::hit_test_hover_locked(
-    WindowId window,
-    LayoutPoint logical_point,
-    std::span<const LayoutRect> bounds_by_node_index,
-    NodeId& target
-) noexcept {
-    const auto result =
-        windows_.hit_test_logical(window, logical_point, bounds_by_node_index, target);
-    if (result == HitTestResult::hit) {
-        router_.set_hover(window, target);
-    } else {
-        router_.clear_hover(window);
-    }
-    return result;
-}
-
-bool Sdl3WindowHost::begin_decode(
-    WindowId window,
-    std::uint64_t request,
-    std::span<const std::uint8_t> bytes,
-    const ImageDecodeBudget& budget,
-    std::span<ImageFrameTarget> frames,
-    std::span<std::uint32_t> delays_ms,
-    DecodeFunction decode
-) noexcept {
-    std::lock_guard lock(state_mutex_);
-    if (!windows_.is_open(window) || !decodes_.begin(window, request)) {
+    const auto index = slot_for(window);
+    if (index == kCapacity || !backends_[index].has_value()) {
         return false;
     }
-    if (!decoder_.submit(window, request, bytes, budget, frames, delays_ms, decode)) {
-        decodes_.take(request);
+    auto info = WindowInfo{};
+    if (!windows_.info(window, info) || !info.shown) {
         return false;
     }
-    return true;
-}
-
-bool Sdl3WindowHost::poll_decode(AsyncDecodeResult& out) noexcept {
-    std::lock_guard lock(state_mutex_);
-    if (!decoder_.poll(out)) {
-        return false;
+    if (!present_[index].presented) {
+        return true;
     }
-    out.cancelled = out.cancelled || decodes_.discarded(out.request);
-    if (!out.cancelled) {
-        decodes_.complete(out.request);
-    }
-    return true;
-}
 
-bool Sdl3WindowHost::wait_decode(AsyncDecodeResult& out, unsigned timeout_ms) noexcept {
-    std::lock_guard lock(state_mutex_);
-    if (!decoder_.wait(out, timeout_ms)) {
-        return false;
-    }
-    out.cancelled = out.cancelled || decodes_.discarded(out.request);
-    if (!out.cancelled) {
-        decodes_.complete(out.request);
-    }
-    return true;
-}
-
-bool Sdl3WindowHost::begin_decode(WindowId window, std::uint64_t request) noexcept {
-    std::lock_guard lock(state_mutex_);
-    if (!windows_.is_open(window)) {
-        return false;
-    }
-    return decodes_.begin(window, request);
-}
-
-bool Sdl3WindowHost::complete_decode(std::uint64_t request) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return decodes_.complete(request);
-}
-
-bool Sdl3WindowHost::take_decode(std::uint64_t request) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return decodes_.take(request);
-}
-
-bool Sdl3WindowHost::decode_discarded(std::uint64_t request) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return decodes_.discarded(request);
-}
-
-bool Sdl3WindowHost::capture_pointer(
-    WindowId window,
-    std::uint32_t pointer,
-    NodeId target
-) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return router_.capture_pointer(window, pointer, target);
-}
-
-bool Sdl3WindowHost::release_pointer(WindowId window, std::uint32_t pointer) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return router_.release_pointer(window, pointer);
-}
-
-bool Sdl3WindowHost::set_hover(WindowId window, NodeId node) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return router_.set_hover(window, node);
-}
-
-bool Sdl3WindowHost::clear_hover(WindowId window) noexcept {
-    std::lock_guard lock(state_mutex_);
-    return router_.clear_hover(window);
+    const auto* state = router_.find(window);
+    return state != nullptr && state->damaged();
 }
 
 bool Sdl3WindowHost::surface_size(
@@ -534,6 +421,35 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
         return finish(WindowSetResult::stale_frame);
     }
 
+    auto present_done = [&]() noexcept -> WindowSetResult {
+        present.has_commit = false;
+        present.presented = true;
+        router_.mark_presented(window);
+        if (present.show_pending) {
+            if (backend->show() != WindowResult::ready) {
+                return finish(WindowSetResult::presentation_failed);
+            }
+            present.show_pending = false;
+        }
+        return finish(WindowSetResult::ok);
+    };
+
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    if (want_gpu_ &&
+        gpu_present_locked(
+            index,
+            backing,
+            std::span<const DisplayCommand>(
+                present.commit.commands.data(),
+                present.commit.command_count
+            ),
+            present.commit.width,
+            present.commit.height
+        )) {
+        return present_done();
+    }
+#endif
+
     auto surface = SoftwareSurface{};
     if (backend->acquire_surface(surface, backing) != WindowResult::ready) {
         return finish(WindowSetResult::presentation_failed);
@@ -564,20 +480,15 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
         return finish(WindowSetResult::presentation_failed);
     }
 
-    present.has_commit = false;
-    present.presented = true;
-    router_.mark_presented(window);
-    if (present.show_pending) {
-        if (backend->show() != WindowResult::ready) {
-            return finish(WindowSetResult::presentation_failed);
-        }
-        present.show_pending = false;
-    }
-
-    return finish(WindowSetResult::ok);
+    return present_done();
 }
 
 Sdl3WindowHost::~Sdl3WindowHost() {
+    for (const auto& entry : pending_dialogs_) {
+        if (entry.owner != kInvalidWindowId && dialog_service_ != nullptr) {
+            dialog_service_->dialog_close(entry.handle);
+        }
+    }
     decoder_.stop();
     notify_teardown(TeardownStage::decoders);
     render_worker_.stop();
@@ -588,6 +499,11 @@ Sdl3WindowHost::~Sdl3WindowHost() {
     for (auto& id : sdl_ids_) {
         id = kInvalidWindowId;
     }
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    for (auto& gpu : gpu_) {
+        gpu.reset();
+    }
+#endif
     present_ = {};
     notify_teardown(TeardownStage::windows);
 }
@@ -637,6 +553,7 @@ WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
             if (!windows_.is_open(before[index])) {
                 decodes_.discard_window(before[index]);
                 decoder_.cancel_window(before[index]);
+                discard_dialogs(before[index]);
             }
         }
         sync_backends();
@@ -647,6 +564,9 @@ WindowSetResult Sdl3WindowHost::destroy(WindowId window) noexcept {
 
 bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) noexcept {
     std::lock_guard lock(state_mutex_);
+    if (poll_service_dialog(event, logical_window)) {
+        return true;
+    }
     for (auto& optional : backends_) {
         if (!optional.has_value()) {
             continue;
@@ -660,10 +580,12 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
             }
 
             event.window = logical;
-            if (blocked_input(event.kind) && windows_.blocks_interaction(logical)) {
+            if (blocked_input(event.kind) &&
+                (windows_.blocks_interaction(logical) || has_pending_dialog_locked(logical))) {
                 continue;
             }
             router_.route(event);
+            router_.mark_damaged(logical);
             if (event.kind == WindowEventKind::state_change) {
                 windows_.set_state(logical, event.data.state);
                 router_.mark_damaged(logical);
@@ -763,6 +685,9 @@ void Sdl3WindowHost::sync_backends() noexcept {
         if (backends_[index].has_value() && !windows_.is_open(slots_[index].id)) {
             router_.detach(slots_[index].id);
             present_[index] = {};
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+            gpu_[index].reset();
+#endif
             backends_[index].reset();
             sdl_ids_[index] = kInvalidWindowId;
         }

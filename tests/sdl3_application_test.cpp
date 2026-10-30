@@ -1,4 +1,5 @@
 #include "veyra/app/sdl3/application.hpp"
+#include "veyra/platform/headless/fake_services.hpp"
 
 #include <array>
 #include <cstdint>
@@ -22,7 +23,6 @@ struct TeardownLog {
 void check_teardown_order() {
     auto log = TeardownLog{};
     {
-        check_teardown_order();
         auto app = veyra::app::sdl3::Sdl3Application{};
         app.host().set_teardown_observer(
             [](void* user, veyra::app::sdl3::TeardownStage stage) noexcept {
@@ -69,10 +69,52 @@ void check_teardown_order() {
     );
 }
 
+void check_dialog_service_loop() {
+    auto services = veyra::FakeServices{};
+    auto app = veyra::app::sdl3::Sdl3Application{};
+    app.set_dialog_service(&services);
+
+    auto window = veyra::WindowId{};
+    require(
+        app.create("dialog loop", 160, 120, {}, window) == veyra::WindowSetResult::ok,
+        "dialog loop window creates"
+    );
+    require(app.show(window) == veyra::WindowSetResult::ok, "dialog loop window shows");
+    require(
+        app.open_dialog(window, veyra::DialogKind::confirm) == veyra::ServiceResult::ok,
+        "dialog loop request opens"
+    );
+
+    auto completed = false;
+    auto frames = 0;
+    auto on_event = [&](veyra::WindowId target, veyra::WindowEvent& event) noexcept {
+        if (target == window && event.kind == veyra::WindowEventKind::dialog_complete) {
+            completed = true;
+            return true;
+        }
+        return false;
+    };
+    auto on_frame = [&](veyra::WindowId, bool) noexcept {
+        ++frames;
+        if (frames == 2) {
+            services.dialog_answer_pending({.choice = 1, .cancelled = false});
+        }
+        app.scheduler().request_immediate();
+        return veyra::FrameAction{.rendered = true};
+    };
+
+    const auto result = app.run(on_event, on_frame, nullptr, 10);
+    require(result == veyra::LoopResult::quit, "the dialog completion stops the loop");
+    require(completed, "the loop delivered the dialog completion");
+    require(frames >= 2, "frames pumped while the dialog was pending");
+}
+
 }
 
 int main() {
     try {
+        check_dialog_service_loop();
+        check_teardown_order();
         auto app = veyra::app::sdl3::Sdl3Application{};
         auto main_window = veyra::WindowId{};
         auto side_window = veyra::WindowId{};

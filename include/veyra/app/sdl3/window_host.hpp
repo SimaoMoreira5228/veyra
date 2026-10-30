@@ -4,9 +4,11 @@
 #include "veyra/app/async_image_decode.hpp"
 #include "veyra/app/decode_tracker.hpp"
 #include "veyra/app/window_set.hpp"
+#include "veyra/platform/core/dialog.hpp"
 #include "veyra/platform/core/window_router.hpp"
 #include "veyra/platform/sdl3/sdl3_window.hpp"
 #include "veyra/render/present/frame_commit.hpp"
+#include "veyra/render/present/present_choice.hpp"
 #include "veyra/render/present/render_worker.hpp"
 
 #include <array>
@@ -16,6 +18,11 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+#include "veyra/platform/sdl3/sdl3_gpu_present.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
+#endif
 
 namespace veyra::app::sdl3 {
 
@@ -71,6 +78,13 @@ class Sdl3WindowHost {
     void set_present_observer(PresentObserver observer, void* user) noexcept;
     void set_route_observer(RouteObserver observer, void* user) noexcept;
     void set_teardown_observer(TeardownObserver observer, void* user) noexcept;
+    void set_dialog_service(DialogService* service) noexcept;
+    ServiceResult open_dialog(WindowId owner, DialogKind kind) noexcept;
+    bool has_pending_dialog(WindowId owner) const noexcept;
+    bool needs_frame(WindowId window) const noexcept;
+    void set_present_path(PresentPath path) noexcept;
+    bool gpu_active(WindowId window) const noexcept;
+    bool gpu_fallback() const noexcept;
     NodeId activate(WindowId window) noexcept;
     HitTestResult hit_test_and_hover(
         WindowId window,
@@ -122,6 +136,27 @@ class Sdl3WindowHost {
     const WindowRouter& router() const noexcept;
 
   private:
+    struct PendingDialog {
+        WindowId owner{};
+        std::uint64_t handle{};
+    };
+
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    struct GpuSlot {
+        GpuSlot() noexcept = default;
+
+        SdlGpuPresenter presenter{};
+        SdlGpuRenderer renderer{};
+        bool ready{};
+
+        ~GpuSlot() {
+            if (renderer.ready) {
+                destroy_sdl_gpu_renderer(renderer);
+            }
+        }
+    };
+#endif
+
     struct PresentTask {
         Sdl3WindowHost* host{};
         WindowId window{kInvalidWindowId};
@@ -147,6 +182,19 @@ class Sdl3WindowHost {
 
     WindowSetResult present_now(WindowId window, std::span<SoftwarePixel> backing) noexcept;
     void notify_teardown(TeardownStage stage) noexcept;
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    bool enable_gpu(std::size_t index) noexcept;
+    bool gpu_present_locked(
+        std::size_t index,
+        std::span<SoftwarePixel> backing,
+        std::span<const DisplayCommand> commands,
+        std::uint32_t width,
+        std::uint32_t height
+    ) noexcept;
+#endif
+    bool poll_service_dialog(WindowEvent& event, WindowId& logical_window) noexcept;
+    bool has_pending_dialog_locked(WindowId owner) const noexcept;
+    void discard_dialogs(WindowId owner) noexcept;
     HitTestResult hit_test_hover_locked(
         WindowId window,
         LayoutPoint logical_point,
@@ -162,6 +210,13 @@ class Sdl3WindowHost {
     std::array<std::optional<Sdl3Window>, kCapacity> backends_{};
     std::array<WindowId, kCapacity> sdl_ids_{};
     std::array<PresentSlot, kCapacity> present_{};
+#if defined(VEYRA_APP_WITH_SDL_GPU)
+    std::array<std::optional<GpuSlot>, kCapacity> gpu_{};
+    bool want_gpu_{};
+    bool gpu_fallback_{};
+#endif
+    std::array<PendingDialog, 8> pending_dialogs_{};
+    DialogService* dialog_service_{};
     DecodeTracker decodes_{};
     std::array<WindowRouteState, kCapacity> route_storage_{};
     WindowRouter router_{route_storage_};

@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_FAKE_SERVICES_HPP
 #define VEYRA_PLATFORM_FAKE_SERVICES_HPP
 
+#include "veyra/platform/core/dialog.hpp"
 #include "veyra/platform/core/notice.hpp"
 
 #include <array>
@@ -10,39 +11,6 @@
 #include <span>
 
 namespace veyra {
-
-enum class ServiceResult : std::uint8_t {
-    ok,
-    pending,
-    invalid_input,
-    denied,
-    unavailable,
-    insufficient_capacity,
-    overflow,
-    rejected,
-    not_found,
-};
-
-enum class DialogKind : std::uint8_t {
-    alert,
-    confirm,
-    choice,
-};
-
-struct DialogAnswer {
-    std::int32_t choice{};
-    bool cancelled{};
-};
-
-struct DialogOpen {
-    ServiceResult result{ServiceResult::rejected};
-    std::uint64_t handle{};
-};
-
-struct DialogPoll {
-    ServiceResult result{ServiceResult::pending};
-    DialogAnswer answer{};
-};
 
 struct NoticeAsk {
     ServiceResult result{ServiceResult::pending};
@@ -76,7 +44,7 @@ concept NoticeBackend = requires(
 // dialogs, notifications, and power state all run on injected state the test
 // drives; nothing here calls the OS, blocks, or starts a thread. Every answer
 // is observed through polling, so headless CI cannot hang on a modal loop.
-class FakeServices {
+class FakeServices : public DialogService {
   public:
     static constexpr std::size_t kClipboardCapacity = 256;
     static constexpr std::size_t kDialogScripts = 16;
@@ -104,10 +72,10 @@ class FakeServices {
     void set_clipboard_persistent(bool available) noexcept;
 
     ServiceResult dialog_script(DialogAnswer answer) noexcept;
-    DialogOpen dialog_open(DialogKind kind) noexcept;
-    DialogPoll dialog_poll(std::uint64_t handle) const noexcept;
-    ServiceResult dialog_answer_pending(DialogAnswer answer) noexcept;
-    ServiceResult dialog_close(std::uint64_t handle) noexcept;
+    DialogOpen dialog_open(DialogKind kind) noexcept override;
+    DialogPoll dialog_poll(std::uint64_t handle) const noexcept override;
+    ServiceResult dialog_answer_pending(DialogAnswer answer) noexcept override;
+    ServiceResult dialog_close(std::uint64_t handle) noexcept override;
     std::size_t dialog_live_count() const noexcept;
     std::size_t dialog_pending_count() const noexcept;
     std::size_t dialog_requests() const noexcept;

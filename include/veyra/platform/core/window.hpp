@@ -153,6 +153,7 @@ enum class WindowEventKind : std::uint8_t {
     scale_change,
     state_change,
     device_lost,
+    dialog_complete,
     pointer_down,
     pointer_up,
     pointer_move,
@@ -183,6 +184,8 @@ constexpr std::string_view window_event_kind_name(WindowEventKind kind) noexcept
         return "state";
     case WindowEventKind::device_lost:
         return "lost";
+    case WindowEventKind::dialog_complete:
+        return "dialog";
     case WindowEventKind::pointer_down:
         return "down";
     case WindowEventKind::pointer_up:
@@ -282,6 +285,12 @@ struct WindowGamepadDevice {
     std::uint32_t device{};
 };
 
+struct WindowDialogComplete {
+    std::uint64_t handle{};
+    std::int32_t choice{};
+    bool cancelled{};
+};
+
 static_assert(std::is_trivially_copyable_v<WindowGamepadAxis>);
 static_assert(std::is_trivially_copyable_v<WindowGamepadButton>);
 static_assert(std::is_trivially_copyable_v<WindowGamepadDevice>);
@@ -298,6 +307,7 @@ union WindowEventData {
     WindowGamepadAxis gamepad_axis;
     WindowGamepadButton gamepad_button;
     WindowGamepadDevice gamepad_device;
+    WindowDialogComplete dialog;
 
     WindowEventData() noexcept : resize{} {
     }

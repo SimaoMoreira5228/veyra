@@ -104,6 +104,30 @@ class Sdl3Application {
         return host_.recover_device(window);
     }
 
+    void set_present_path(PresentPath path) noexcept {
+        host_.set_present_path(path);
+    }
+
+    bool gpu_active(WindowId window) const noexcept {
+        return host_.gpu_active(window);
+    }
+
+    bool gpu_fallback() const noexcept {
+        return host_.gpu_fallback();
+    }
+
+    void set_dialog_service(DialogService* service) noexcept {
+        host_.set_dialog_service(service);
+    }
+
+    ServiceResult open_dialog(WindowId owner, DialogKind kind) noexcept {
+        const auto result = host_.open_dialog(owner, kind);
+        if (result == ServiceResult::ok) {
+            scheduler_.request_immediate();
+        }
+        return result;
+    }
+
     bool surface_size(WindowId window, std::uint32_t& width, std::uint32_t& height) noexcept {
         return host_.surface_size(window, width, height);
     }

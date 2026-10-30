@@ -21,6 +21,7 @@ template <typename Host>
 concept WindowHost = requires(Host& host, WindowEvent& event, WindowId& window) {
     { host.poll_event(event, window) } noexcept -> std::same_as<bool>;
     { host.windows() } noexcept -> std::same_as<WindowSet&>;
+    { host.needs_frame(window) } noexcept -> std::same_as<bool>;
 };
 
 template <WindowHost Host, typename OnEvent, typename OnFrame> struct WindowLoopConfig {
@@ -63,6 +64,9 @@ pump_once(WindowLoopConfig<Host, OnEvent, OnFrame>& config, FrameScheduler::Dead
     auto rendered = false;
 
     for (auto index = std::size_t{}; index < count && index < windows.size(); ++index) {
+        if (!config.host.needs_frame(windows[index])) {
+            continue;
+        }
         const auto action = config.on_frame(windows[index], false);
         if (action.failed) {
             return LoopResult::failed;

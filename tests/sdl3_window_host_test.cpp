@@ -1,6 +1,7 @@
 #include "veyra/app/sdl3/window_host.hpp"
 #include "veyra/core/schedule/frame_scheduler.hpp"
 #include "veyra/core/tree/node_tree.hpp"
+#include "veyra/platform/headless/fake_services.hpp"
 
 #include <SDL3/SDL.h>
 
@@ -22,11 +23,18 @@ void require(bool condition, std::string_view message) {
 
 #if defined(VEYRA_TEST_WITH_CODECS)
 void check_async_decode() {
-    constexpr std::array<std::uint8_t, 58> bmp{
-        'B', 'M', 58, 0, 0, 0, 0, 0, 0,  0, 54, 0, 0, 0, 40, 0, 0,   0, 1, 0,
-        0,   0,   1,  0, 0, 0, 1, 0, 24, 0, 0,  0, 0, 0, 4,  0, 0,   0, 0, 0,
-        0,   0,   0,  0, 0, 0, 0, 0, 0,  0, 0,  0, 0, 0, 0,  0, 255, 0,
-    };
+    auto bmp = std::array<std::uint8_t, 58>{};
+    bmp[0] = 'B';
+    bmp[1] = 'M';
+    bmp[2] = 58;
+    bmp[10] = 54;
+    bmp[14] = 40;
+    bmp[18] = 1;
+    bmp[22] = 1;
+    bmp[26] = 1;
+    bmp[28] = 24;
+    bmp[34] = 4;
+    bmp[56] = 255;
 
     auto info = veyra::ImageDecodeInfo{};
     require(
@@ -384,6 +392,39 @@ int main() {
             "presentation runs on the render thread"
         );
         require(host.backend(owner)->visible(), "presenting the first frame shows the window");
+        require(!host.needs_frame(owner), "a presented window is clean");
+        require(!host.needs_frame(child), "a window that is not shown does not need a frame");
+
+        auto damage_native = SDL_Event{};
+        damage_native.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+        damage_native.window.windowID = static_cast<Uint32>(host.backend(owner)->window_id());
+        require(SDL_PushEvent(&damage_native), "focus gain queues for damage");
+        auto damage_event = veyra::WindowEvent{};
+        auto damage_window = veyra::WindowId{};
+        auto focus_gained = false;
+        for (auto attempt = 0; attempt < 16; ++attempt) {
+            if (!host.poll_event(damage_event, damage_window)) {
+                break;
+            }
+            if (damage_window == owner &&
+                damage_event.kind == veyra::WindowEventKind::focus_gained) {
+                focus_gained = true;
+                break;
+            }
+        }
+        require(focus_gained, "focus gain reaches the clean window");
+        require(host.needs_frame(owner), "an event marks a presented window dirty");
+        require(
+            host.commit(owner, display, 160, 120) == veyra::WindowSetResult::ok,
+            "damage frame commits"
+        );
+        require(
+            host.present(owner, backing) == veyra::WindowSetResult::ok,
+            "damage frame presents"
+        );
+        require(!host.needs_frame(owner), "presenting clears the dirty state");
+        require(!host.needs_frame(veyra::kInvalidWindowId), "unknown windows never need a frame");
+
         require(host.show(child) == veyra::WindowSetResult::ok, "child shows");
         require(
             host.present(owner, backing) == veyra::WindowSetResult::stale_frame,
