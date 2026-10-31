@@ -24,14 +24,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebp-dev libavif-dev
 
-      - name: Install GLFW
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: '& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install glfw3'
-
-      - name: Install GLFW
-        if: runner.os != 'Windows'
-        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install glfw3"
+      - name: Install Linux window dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxfixes-dev libxkbcommon-dev
 
       - name: Configure
         if: runner.os == 'Windows'
@@ -39,8 +34,9 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_GLFW=ON
+          -DVEYRA_WITH_SDL3=OFF
+          -DVEYRA_GPU_SDL=OFF
           -DVEYRA_BUILD_BENCH=OFF
 
       - name: Configure
@@ -48,8 +44,9 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_GLFW=ON
+          -DVEYRA_WITH_SDL3=OFF
+          -DVEYRA_GPU_SDL=OFF
           -DVEYRA_BUILD_BENCH=OFF
 
       - name: Build

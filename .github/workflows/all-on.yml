@@ -26,20 +26,16 @@ jobs:
       - name: Install system dependencies
         run: >-
           sudo apt-get update &&
-          sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb libwebp-dev libavif-dev
+          sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb libwebp-dev libavif-dev autoconf autoconf-archive automake libtool libx11-dev libxext-dev libxfixes-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev libegl1-mesa-dev libgles2-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev libfribidi-dev libasound2-dev libpulse-dev
         # libwebp-dev/libavif-dev: system-first, faster than FetchContent builds
         # (malformed VEYRA_LIBWEBP_SHA256/VEYRA_LIBAVIF_SHA256 in
         # CMakeLists.txt — see roadmap §2 status), so take the system
         # libraries instead of the FetchContent download path.
 
-      - name: Install libraries
-        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install sdl3 glfw3 freetype harfbuzz icu"
-
       - name: Configure
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_FILESYSTEM=ON
           -DVEYRA_WITH_SDL3=ON
           -DVEYRA_WITH_GLFW=ON

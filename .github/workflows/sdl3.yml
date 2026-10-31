@@ -18,14 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
-      - name: Install SDL3
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: '& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install sdl3'
-
-      - name: Install SDL3
-        if: runner.os != 'Windows'
-        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install sdl3"
+      - name: Install Linux window dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxext-dev libxfixes-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev libegl1-mesa-dev libgles2-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev libfribidi-dev libasound2-dev libpulse-dev
 
       - name: Configure
         if: runner.os == 'Windows'
@@ -33,8 +28,8 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_SDL3=ON
+          -DVEYRA_GPU_SDL=OFF
           -DVEYRA_BUILD_BENCH=OFF
 
       - name: Configure
@@ -42,8 +37,8 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_SDL3=ON
+          -DVEYRA_GPU_SDL=OFF
           -DVEYRA_BUILD_BENCH=OFF
 
       - name: Build

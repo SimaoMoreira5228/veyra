@@ -23,6 +23,9 @@ using veyra::DataGridResult;
 using veyra::DataGridValueKind;
 using veyra::SortDirection;
 
+constexpr std::string_view kGridLabel = "Grid";
+constexpr std::string_view kCellLabel = "Cell";
+
 static_assert(noexcept(veyra::DataGridController{}.column_count()));
 static_assert(
     noexcept(veyra::DataGridController{}.set_columns(std::span<const veyra::DataGridColumn>{}))
@@ -32,7 +35,7 @@ static_assert(noexcept(veyra::DataGridController{}
 static_assert(noexcept(veyra::DataGridController{}.sort_specs(std::span<veyra::SortSpec>{})));
 static_assert(
     noexcept(veyra::DataGridController{}
-                 .write_grid_semantics("Grid", true, std::declval<veyra::SemanticNodeData&>()))
+                 .write_grid_semantics(kGridLabel, true, std::declval<veyra::SemanticNodeData&>()))
 );
 static_assert(
     noexcept(veyra::DataGridController{}
@@ -43,7 +46,7 @@ static_assert(noexcept(veyra::DataGridController{}.write_cell_semantics(
     1,
     0,
     0,
-    "Cell",
+    kCellLabel,
     false,
     false,
     std::declval<veyra::SemanticNodeData&>()

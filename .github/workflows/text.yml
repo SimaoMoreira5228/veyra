@@ -18,33 +18,26 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
-      - name: Install HarfBuzz
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: '& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install harfbuzz'
-
-      - name: Install HarfBuzz
-        if: runner.os != 'Windows'
-        run: "$VCPKG_INSTALLATION_ROOT/vcpkg install harfbuzz"
-
       - name: Configure
         if: runner.os == 'Windows'
         shell: pwsh
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_TEXT=ON
           -DVEYRA_BUILD_BENCH=OFF
+          -DVEYRA_WITH_SDL3=OFF
+          -DVEYRA_GPU_SDL=OFF
 
       - name: Configure
         if: runner.os != 'Windows'
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_TEXT=ON
           -DVEYRA_BUILD_BENCH=OFF
+          -DVEYRA_WITH_SDL3=OFF
+          -DVEYRA_GPU_SDL=OFF
 
       - name: Build
         run: cmake --build build --config Release --parallel
