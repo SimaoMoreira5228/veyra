@@ -178,6 +178,10 @@ function(veyra_dependency_icu)
  set(veyra_icu_source "${icu_SOURCE_DIR}/source")
  file(MAKE_DIRECTORY "${veyra_icu_prefix}/include")
  file(MAKE_DIRECTORY "${veyra_icu_prefix}/lib")
+ set(veyra_icu_jobs "${CMAKE_BUILD_PARALLEL_LEVEL}")
+ if(veyra_icu_jobs STREQUAL "")
+  set(veyra_icu_jobs 4)
+ endif()
  include(ExternalProject)
  ExternalProject_Add(
   veyra_icu_build
@@ -188,7 +192,7 @@ function(veyra_dependency_icu)
    "--prefix=${veyra_icu_prefix}"
    --disable-shared --enable-static --disable-samples --disable-tests --disable-extras
    --with-data-packaging=static
-  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${CMAKE_BUILD_PARALLEL_LEVEL}
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${veyra_icu_jobs}
   INSTALL_COMMAND ${CMAKE_MAKE_PROGRAM} install
   BUILD_BYPRODUCTS
    "${veyra_icu_prefix}/lib/libicuuc.a"

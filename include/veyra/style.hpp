@@ -3,6 +3,7 @@
 
 #include "veyra/style/theme/theme.hpp"
 #include "veyra/style/theme/theme_file.hpp"
+#include "veyra/style/theme/theme_scope.hpp"
 
 namespace veyra::style {}
 namespace veyra::style::theme {}

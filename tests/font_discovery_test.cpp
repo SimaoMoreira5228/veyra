@@ -220,9 +220,10 @@ void check_default_table() {
 #elif defined(_WIN32)
     require(table.count <= 2, "Windows probes at most segoeui then arial");
     for (auto index = std::size_t{}; index < table.count; ++index) {
-        const std::string_view native{output[index].string()};
+        const std::string native = output[index].string();
+        const std::string_view name{native};
         require(
-            native.ends_with("segoeui.ttf") || native.ends_with("arial.ttf"),
+            name.ends_with("segoeui.ttf") || name.ends_with("arial.ttf"),
             "Windows rows stay inside Fonts"
         );
     }

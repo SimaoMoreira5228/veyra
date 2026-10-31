@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -36,7 +37,7 @@ int main() {
     try {
         constexpr auto width = std::size_t{400};
         constexpr auto height = std::size_t{300};
-        auto pixels = std::array<veyra::SoftwarePixel, width * height>{};
+        auto pixels = std::vector<veyra::SoftwarePixel>(width * height);
 
         const auto root = veyra::NodeId{.index = 0, .generation = 1};
         const auto list = veyra::NodeId{.index = 1, .generation = 1};
@@ -277,7 +278,7 @@ int main() {
         }
         require(lit > 20, "the debug glyph paints coverage pixels");
 
-        auto narrow = std::array<veyra::SoftwarePixel, width * height>{};
+        auto narrow = std::vector<veyra::SoftwarePixel>(width * height);
         require(
             veyra::render_inspector(
                 veyra::Theme::dark(),
