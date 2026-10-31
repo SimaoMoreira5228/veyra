@@ -1,7 +1,7 @@
 #include "allocation_counter.hpp"
 #include "veyra/behaviors/input/editable_text.hpp"
-#include "veyra/text/rendering/glyph_mask_cache.hpp"
 #include "veyra/text/editing/text_editor_buffer.hpp"
+#include "veyra/text/rendering/glyph_mask_cache.hpp"
 #ifdef VEYRA_AUDIT_TEXT
 #include "veyra/text/shaping/shaped_run_cache.hpp"
 #endif
@@ -349,6 +349,10 @@ void check_harness_counts_every_form() {
         auto* items = new int[5];
         auto* aligned = new (std::align_val_t{32}) unsigned char[64];
         auto* tolerated = new (std::nothrow) int(9);
+        keep_allocation(scalar);
+        keep_allocation(items);
+        keep_allocation(aligned);
+        keep_allocation(tolerated);
         require(scalar != nullptr && *scalar == 7, "scalar new works while armed");
         require(items != nullptr, "array new works while armed");
         require(

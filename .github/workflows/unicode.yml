@@ -18,12 +18,20 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
+      # ICU has no MSVC build in this repository's dependency set, so the
+      # Windows leg takes the vcpkg port while other features stay hermetic.
+      - name: Install ICU
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install icu'
+
       - name: Configure
         if: runner.os == 'Windows'
         shell: pwsh
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           -DVEYRA_WITH_UNICODE=ON
           -DVEYRA_BUILD_BENCH=OFF
           -DVEYRA_WITH_SDL3=OFF

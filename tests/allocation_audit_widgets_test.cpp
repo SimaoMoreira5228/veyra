@@ -783,6 +783,7 @@ void check_harness_armed_in_this_binary() {
     {
         auto measure = Measure{};
         auto* probe = new int(7);
+        keep_allocation(probe);
         require(probe != nullptr && *probe == 7, "scalar new works while armed");
         counted = measure.count();
         delete probe;

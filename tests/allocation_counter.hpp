@@ -10,6 +10,11 @@
 
 inline std::atomic<std::size_t> g_allocation_count{0};
 inline std::atomic<bool> g_counting{false};
+inline const void* volatile g_allocation_sink{};
+
+inline void keep_allocation(const void* ptr) noexcept {
+    g_allocation_sink = ptr;
+}
 
 inline void note_allocation() noexcept {
     if (g_counting.load(std::memory_order_relaxed)) {
