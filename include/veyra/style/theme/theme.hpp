@@ -102,6 +102,7 @@ enum class ThemeUpdateResult : std::uint8_t {
     changed,
     invalid_token,
     invalid_value,
+    alias_cycle,
 };
 
 enum class ThemeLayer : std::uint8_t {
@@ -175,6 +176,36 @@ class Theme {
         ThemeLayer layer = ThemeLayer::override,
         std::uint32_t line = 0) noexcept;
 
+    ThemeUpdateResult set_alias(
+        ColorToken token,
+        ColorToken source,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0
+    ) noexcept;
+    ThemeUpdateResult set_alias(
+        SpaceToken token,
+        SpaceToken source,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0
+    ) noexcept;
+    ThemeUpdateResult set_alias(
+        RadiusToken token,
+        RadiusToken source,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0
+    ) noexcept;
+    ThemeUpdateResult set_alias(
+        MotionToken token,
+        MotionToken source,
+        ThemeLayer layer = ThemeLayer::override,
+        std::uint32_t line = 0
+    ) noexcept;
+
+    std::optional<ColorToken> alias(ColorToken token) const noexcept;
+    std::optional<SpaceToken> alias(SpaceToken token) const noexcept;
+    std::optional<RadiusToken> alias(RadiusToken token) const noexcept;
+    std::optional<MotionToken> alias(MotionToken token) const noexcept;
+
     ThemeUpdateResult clear(ColorToken token) noexcept;
     ThemeUpdateResult clear(SpaceToken token) noexcept;
     ThemeUpdateResult clear(RadiusToken token) noexcept;
@@ -198,6 +229,10 @@ class Theme {
     std::array<std::optional<Milliseconds>, static_cast<std::size_t>(MotionToken::count)>
         motions_{};
     std::array<ProvenanceEntry, static_cast<std::size_t>(MotionToken::count)> motion_provenance_{};
+    std::array<std::uint8_t, static_cast<std::size_t>(ColorToken::count)> color_aliases_{};
+    std::array<std::uint8_t, static_cast<std::size_t>(SpaceToken::count)> space_aliases_{};
+    std::array<std::uint8_t, static_cast<std::size_t>(RadiusToken::count)> radius_aliases_{};
+    std::array<std::uint8_t, static_cast<std::size_t>(MotionToken::count)> motion_aliases_{};
     std::uint64_t version_{1};
 };
 

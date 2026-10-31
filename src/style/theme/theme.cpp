@@ -44,12 +44,48 @@ constexpr std::array default_motions{
     Milliseconds{300},
 };
 
+template <std::size_t Size>
+std::size_t
+follow_alias(std::size_t index, const std::array<std::uint8_t, Size>& aliases) noexcept {
+    for (auto step = std::size_t{}; step < Size; ++step) {
+        const auto next = aliases[index];
+        if (next == 0) {
+            break;
+        }
+        index = static_cast<std::size_t>(next - 1);
+    }
+    return index;
+}
+
+template <std::size_t Size>
+bool alias_would_cycle(
+    const std::array<std::uint8_t, Size>& aliases,
+    std::size_t token,
+    std::size_t source
+) noexcept {
+    if (token == source) {
+        return true;
+    }
+    for (auto step = std::size_t{}; step < Size; ++step) {
+        const auto next = aliases[source];
+        if (next == 0) {
+            return false;
+        }
+        source = static_cast<std::size_t>(next - 1);
+        if (source == token) {
+            return true;
+        }
+    }
+    return true;
+}
+
 template <typename Token, typename Value, typename Provenance, std::size_t Size>
 ThemeUpdateResult set_override(
     Token token,
     Value value,
     std::array<std::optional<Value>, Size>& overrides,
     std::array<Provenance, Size>& provenance,
+    std::array<std::uint8_t, Size>& aliases,
     ThemeLayer layer,
     std::uint32_t line,
     std::uint64_t& version
@@ -60,10 +96,60 @@ ThemeUpdateResult set_override(
     }
     provenance[index].layer = layer;
     provenance[index].line = line;
-    if (overrides[index] == value) {
+    auto changed = false;
+    if (aliases[index] != 0) {
+        aliases[index] = 0;
+        changed = true;
+    }
+    if (overrides[index] != value) {
+        overrides[index] = value;
+        changed = true;
+    }
+    if (!changed) {
         return ThemeUpdateResult::unchanged;
     }
-    overrides[index] = value;
+    ++version;
+    if (version == 0) {
+        version = 1;
+    }
+    return ThemeUpdateResult::changed;
+}
+
+template <typename Token, typename Value, typename Provenance, std::size_t Size>
+ThemeUpdateResult set_alias_impl(
+    Token token,
+    Token source,
+    std::array<std::optional<Value>, Size>& overrides,
+    std::array<Provenance, Size>& provenance,
+    std::array<std::uint8_t, Size>& aliases,
+    ThemeLayer layer,
+    std::uint32_t line,
+    std::uint64_t& version
+) noexcept {
+    const auto index = static_cast<std::size_t>(token);
+    const auto source_index = static_cast<std::size_t>(source);
+    if (index >= Size || source_index >= Size) {
+        return ThemeUpdateResult::invalid_token;
+    }
+    if (alias_would_cycle(aliases, index, source_index)) {
+        return ThemeUpdateResult::alias_cycle;
+    }
+
+    provenance[index].layer = layer;
+    provenance[index].line = line;
+    auto changed = false;
+    const auto encoded = static_cast<std::uint8_t>(source_index + 1);
+    if (aliases[index] != encoded) {
+        aliases[index] = encoded;
+        changed = true;
+    }
+    if (overrides[index]) {
+        overrides[index].reset();
+        changed = true;
+    }
+    if (!changed) {
+        return ThemeUpdateResult::unchanged;
+    }
     ++version;
     if (version == 0) {
         version = 1;
@@ -76,6 +162,7 @@ ThemeUpdateResult clear_override(
     Token token,
     std::array<std::optional<Value>, Size>& overrides,
     std::array<Provenance, Size>& provenance,
+    std::array<std::uint8_t, Size>& aliases,
     std::uint64_t& version
 ) noexcept {
     const auto index = static_cast<std::size_t>(token);
@@ -83,10 +170,18 @@ ThemeUpdateResult clear_override(
         return ThemeUpdateResult::invalid_token;
     }
     provenance[index] = {};
-    if (!overrides[index]) {
+    auto changed = false;
+    if (aliases[index] != 0) {
+        aliases[index] = 0;
+        changed = true;
+    }
+    if (overrides[index]) {
+        overrides[index].reset();
+        changed = true;
+    }
+    if (!changed) {
         return ThemeUpdateResult::unchanged;
     }
-    overrides[index].reset();
     ++version;
     if (version == 0) {
         version = 1;
@@ -113,64 +208,72 @@ template <typename Token, typename Value, std::size_t Size>
 Value resolve(
     Token token,
     const std::array<Value, Size>& defaults,
-    const std::array<std::optional<Value>, Size>& overrides
+    const std::array<std::optional<Value>, Size>& overrides,
+    const std::array<std::uint8_t, Size>& aliases
 ) noexcept {
     const auto index = static_cast<std::size_t>(token);
     if (index >= Size) {
         return defaults.front();
     }
-    return overrides[index].value_or(defaults[index]);
+    const auto resolved = follow_alias(index, aliases);
+    return overrides[resolved].value_or(defaults[resolved]);
+}
+
+template <typename Token, typename SourceToken, std::size_t Size>
+std::optional<SourceToken>
+alias_of(Token token, const std::array<std::uint8_t, Size>& aliases) noexcept {
+    const auto index = static_cast<std::size_t>(token);
+    if (index >= Size || aliases[index] == 0) {
+        return std::nullopt;
+    }
+    return static_cast<SourceToken>(aliases[index] - 1);
 }
 
 bool valid_dimension(LogicalPx value) noexcept {
     return std::isfinite(value.value) && value.value >= 0.0F;
 }
 
+template <typename Provenance, std::size_t Size>
+TokenProvenance resolve_provenance(
+    TokenKind kind,
+    std::uint8_t token,
+    const std::array<Provenance, Size>& provenance,
+    const std::array<std::uint8_t, Size>& aliases
+) noexcept {
+    const auto index = static_cast<std::size_t>(token);
+    if (index >= Size) {
+        return {.kind = kind, .token = token};
+    }
+    if (aliases[index] == 0) {
+        return {
+            .kind = kind,
+            .token = token,
+            .layer = provenance[index].layer,
+            .line = provenance[index].line,
+        };
+    }
+
+    const auto resolved = follow_alias(index, aliases);
+    return {
+        .kind = kind,
+        .token = static_cast<std::uint8_t>(resolved),
+        .layer = provenance[index].layer,
+        .line = provenance[index].line,
+    };
+}
+
 }
 
 TokenProvenance Theme::provenance(TokenKind kind, std::uint8_t token) const noexcept {
-    const auto index = static_cast<std::size_t>(token);
     switch (kind) {
     case TokenKind::color:
-        if (index < color_provenance_.size()) {
-            return {
-                .kind = kind,
-                .token = token,
-                .layer = color_provenance_[index].layer,
-                .line = color_provenance_[index].line,
-            };
-        }
-        break;
+        return resolve_provenance(kind, token, color_provenance_, color_aliases_);
     case TokenKind::space:
-        if (index < space_provenance_.size()) {
-            return {
-                .kind = kind,
-                .token = token,
-                .layer = space_provenance_[index].layer,
-                .line = space_provenance_[index].line,
-            };
-        }
-        break;
+        return resolve_provenance(kind, token, space_provenance_, space_aliases_);
     case TokenKind::radius:
-        if (index < radius_provenance_.size()) {
-            return {
-                .kind = kind,
-                .token = token,
-                .layer = radius_provenance_[index].layer,
-                .line = radius_provenance_[index].line,
-            };
-        }
-        break;
+        return resolve_provenance(kind, token, radius_provenance_, radius_aliases_);
     case TokenKind::motion:
-        if (index < motion_provenance_.size()) {
-            return {
-                .kind = kind,
-                .token = token,
-                .layer = motion_provenance_[index].layer,
-                .line = motion_provenance_[index].line,
-            };
-        }
-        break;
+        return resolve_provenance(kind, token, motion_provenance_, motion_aliases_);
     }
 
     return {.kind = kind, .token = token};
@@ -238,24 +341,33 @@ std::string_view token_name(TokenKind kind, std::uint8_t token) noexcept {
 }
 
 Srgba8 Theme::color(ColorToken token) const noexcept {
-    return resolve(token, default_colors, colors_);
+    return resolve(token, default_colors, colors_, color_aliases_);
 }
 
 LogicalPx Theme::space(SpaceToken token) const noexcept {
-    return resolve(token, default_spaces, spaces_);
+    return resolve(token, default_spaces, spaces_, space_aliases_);
 }
 
 LogicalPx Theme::radius(RadiusToken token) const noexcept {
-    return resolve(token, default_radii, radii_);
+    return resolve(token, default_radii, radii_, radius_aliases_);
 }
 
 Milliseconds Theme::motion(MotionToken token) const noexcept {
-    return resolve(token, default_motions, motions_);
+    return resolve(token, default_motions, motions_, motion_aliases_);
 }
 
 ThemeUpdateResult
 Theme::set(ColorToken token, Srgba8 value, ThemeLayer layer, std::uint32_t line) noexcept {
-    return set_override(token, value, colors_, color_provenance_, layer, line, version_);
+    return set_override(
+        token,
+        value,
+        colors_,
+        color_provenance_,
+        color_aliases_,
+        layer,
+        line,
+        version_
+    );
 }
 
 ThemeUpdateResult
@@ -266,7 +378,16 @@ Theme::set(SpaceToken token, LogicalPx value, ThemeLayer layer, std::uint32_t li
     if (!valid_dimension(value)) {
         return ThemeUpdateResult::invalid_value;
     }
-    return set_override(token, value, spaces_, space_provenance_, layer, line, version_);
+    return set_override(
+        token,
+        value,
+        spaces_,
+        space_provenance_,
+        space_aliases_,
+        layer,
+        line,
+        version_
+    );
 }
 
 ThemeUpdateResult
@@ -277,28 +398,134 @@ Theme::set(RadiusToken token, LogicalPx value, ThemeLayer layer, std::uint32_t l
     if (!valid_dimension(value)) {
         return ThemeUpdateResult::invalid_value;
     }
-    return set_override(token, value, radii_, radius_provenance_, layer, line, version_);
+    return set_override(
+        token,
+        value,
+        radii_,
+        radius_provenance_,
+        radius_aliases_,
+        layer,
+        line,
+        version_
+    );
 }
 
 ThemeUpdateResult
 Theme::set(MotionToken token, Milliseconds value, ThemeLayer layer, std::uint32_t line) noexcept {
-    return set_override(token, value, motions_, motion_provenance_, layer, line, version_);
+    return set_override(
+        token,
+        value,
+        motions_,
+        motion_provenance_,
+        motion_aliases_,
+        layer,
+        line,
+        version_
+    );
+}
+
+ThemeUpdateResult Theme::set_alias(
+    ColorToken token,
+    ColorToken source,
+    ThemeLayer layer,
+    std::uint32_t line
+) noexcept {
+    return set_alias_impl(
+        token,
+        source,
+        colors_,
+        color_provenance_,
+        color_aliases_,
+        layer,
+        line,
+        version_
+    );
+}
+
+ThemeUpdateResult Theme::set_alias(
+    SpaceToken token,
+    SpaceToken source,
+    ThemeLayer layer,
+    std::uint32_t line
+) noexcept {
+    return set_alias_impl(
+        token,
+        source,
+        spaces_,
+        space_provenance_,
+        space_aliases_,
+        layer,
+        line,
+        version_
+    );
+}
+
+ThemeUpdateResult Theme::set_alias(
+    RadiusToken token,
+    RadiusToken source,
+    ThemeLayer layer,
+    std::uint32_t line
+) noexcept {
+    return set_alias_impl(
+        token,
+        source,
+        radii_,
+        radius_provenance_,
+        radius_aliases_,
+        layer,
+        line,
+        version_
+    );
+}
+
+ThemeUpdateResult Theme::set_alias(
+    MotionToken token,
+    MotionToken source,
+    ThemeLayer layer,
+    std::uint32_t line
+) noexcept {
+    return set_alias_impl(
+        token,
+        source,
+        motions_,
+        motion_provenance_,
+        motion_aliases_,
+        layer,
+        line,
+        version_
+    );
+}
+
+std::optional<ColorToken> Theme::alias(ColorToken token) const noexcept {
+    return alias_of<ColorToken, ColorToken>(token, color_aliases_);
+}
+
+std::optional<SpaceToken> Theme::alias(SpaceToken token) const noexcept {
+    return alias_of<SpaceToken, SpaceToken>(token, space_aliases_);
+}
+
+std::optional<RadiusToken> Theme::alias(RadiusToken token) const noexcept {
+    return alias_of<RadiusToken, RadiusToken>(token, radius_aliases_);
+}
+
+std::optional<MotionToken> Theme::alias(MotionToken token) const noexcept {
+    return alias_of<MotionToken, MotionToken>(token, motion_aliases_);
 }
 
 ThemeUpdateResult Theme::clear(ColorToken token) noexcept {
-    return clear_override(token, colors_, color_provenance_, version_);
+    return clear_override(token, colors_, color_provenance_, color_aliases_, version_);
 }
 
 ThemeUpdateResult Theme::clear(SpaceToken token) noexcept {
-    return clear_override(token, spaces_, space_provenance_, version_);
+    return clear_override(token, spaces_, space_provenance_, space_aliases_, version_);
 }
 
 ThemeUpdateResult Theme::clear(RadiusToken token) noexcept {
-    return clear_override(token, radii_, radius_provenance_, version_);
+    return clear_override(token, radii_, radius_provenance_, radius_aliases_, version_);
 }
 
 ThemeUpdateResult Theme::clear(MotionToken token) noexcept {
-    return clear_override(token, motions_, motion_provenance_, version_);
+    return clear_override(token, motions_, motion_provenance_, motion_aliases_, version_);
 }
 
 std::uint64_t Theme::version() const noexcept {
@@ -349,10 +576,27 @@ ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
     auto changed = false;
 
     for (auto index = std::size_t{}; index < colors_.size(); ++index) {
+        if (overlay.color_aliases_[index] != 0) {
+            if (color_aliases_[index] != overlay.color_aliases_[index]) {
+                color_aliases_[index] = overlay.color_aliases_[index];
+                changed = true;
+            }
+            color_provenance_[index] = overlay.color_provenance_[index];
+            if (colors_[index]) {
+                colors_[index].reset();
+                changed = true;
+            }
+
+            continue;
+        }
         if (!overlay.colors_[index]) {
             continue;
         }
         color_provenance_[index] = overlay.color_provenance_[index];
+        if (color_aliases_[index] != 0) {
+            color_aliases_[index] = 0;
+            changed = true;
+        }
         if (colors_[index] != overlay.colors_[index]) {
             colors_[index] = overlay.colors_[index];
             changed = true;
@@ -360,10 +604,27 @@ ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
     }
 
     for (auto index = std::size_t{}; index < spaces_.size(); ++index) {
+        if (overlay.space_aliases_[index] != 0) {
+            if (space_aliases_[index] != overlay.space_aliases_[index]) {
+                space_aliases_[index] = overlay.space_aliases_[index];
+                changed = true;
+            }
+            space_provenance_[index] = overlay.space_provenance_[index];
+            if (spaces_[index]) {
+                spaces_[index].reset();
+                changed = true;
+            }
+
+            continue;
+        }
         if (!overlay.spaces_[index]) {
             continue;
         }
         space_provenance_[index] = overlay.space_provenance_[index];
+        if (space_aliases_[index] != 0) {
+            space_aliases_[index] = 0;
+            changed = true;
+        }
         if (spaces_[index] != overlay.spaces_[index]) {
             spaces_[index] = overlay.spaces_[index];
             changed = true;
@@ -371,10 +632,27 @@ ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
     }
 
     for (auto index = std::size_t{}; index < radii_.size(); ++index) {
+        if (overlay.radius_aliases_[index] != 0) {
+            if (radius_aliases_[index] != overlay.radius_aliases_[index]) {
+                radius_aliases_[index] = overlay.radius_aliases_[index];
+                changed = true;
+            }
+            radius_provenance_[index] = overlay.radius_provenance_[index];
+            if (radii_[index]) {
+                radii_[index].reset();
+                changed = true;
+            }
+
+            continue;
+        }
         if (!overlay.radii_[index]) {
             continue;
         }
         radius_provenance_[index] = overlay.radius_provenance_[index];
+        if (radius_aliases_[index] != 0) {
+            radius_aliases_[index] = 0;
+            changed = true;
+        }
         if (radii_[index] != overlay.radii_[index]) {
             radii_[index] = overlay.radii_[index];
             changed = true;
@@ -382,10 +660,27 @@ ThemeUpdateResult Theme::apply(const Theme& overlay) noexcept {
     }
 
     for (auto index = std::size_t{}; index < motions_.size(); ++index) {
+        if (overlay.motion_aliases_[index] != 0) {
+            if (motion_aliases_[index] != overlay.motion_aliases_[index]) {
+                motion_aliases_[index] = overlay.motion_aliases_[index];
+                changed = true;
+            }
+            motion_provenance_[index] = overlay.motion_provenance_[index];
+            if (motions_[index]) {
+                motions_[index].reset();
+                changed = true;
+            }
+
+            continue;
+        }
         if (!overlay.motions_[index]) {
             continue;
         }
         motion_provenance_[index] = overlay.motion_provenance_[index];
+        if (motion_aliases_[index] != 0) {
+            motion_aliases_[index] = 0;
+            changed = true;
+        }
         if (motions_[index] != overlay.motions_[index]) {
             motions_[index] = overlay.motions_[index];
             changed = true;

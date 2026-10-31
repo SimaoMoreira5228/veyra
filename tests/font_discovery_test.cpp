@@ -58,7 +58,7 @@ void touch(const std::filesystem::path& file) {
 }
 
 std::string native_of(const std::filesystem::path& path) {
-    return path.native();
+    return path.string();
 }
 
 void check_testdata_fonts_found() {
@@ -76,8 +76,8 @@ void check_testdata_fonts_found() {
     require(!found.truncated, "testdata scan fits the fixed capacity");
     require(found.count == 2, "testdata fonts directory yields both samples");
     require(
-        output[0].filename().native() == "cjk-sample.ttf" &&
-            output[1].filename().native() == "latin-arabic.ttf",
+        output[0].filename().string() == "cjk-sample.ttf" &&
+            output[1].filename().string() == "latin-arabic.ttf",
         "testdata hits sort by filename"
     );
     for (auto index = std::size_t{}; index < found.count; ++index) {
@@ -98,7 +98,7 @@ void check_wanted_families_filter() {
     const auto arabic_only = veyra::discover_fonts_in(directories, arabic, output);
     require(
         arabic_only.count == 1 && !arabic_only.truncated &&
-            output[0].filename().native() == "latin-arabic.ttf",
+            output[0].filename().string() == "latin-arabic.ttf",
         "family filter keeps the matching file"
     );
 
@@ -142,9 +142,9 @@ void check_fake_tree_scan() {
     require(!found.truncated, "fake tree scan fits the fixed capacity");
     require(found.count == 3, "scan keeps fonts, drops text, files-as-dirs and missing dirs");
     require(
-        output[0].filename().native() == "alpha.ttf" &&
-            output[1].filename().native() == "beta.ttf" &&
-            output[2].filename().native() == "upper.TTF",
+        output[0].filename().string() == "alpha.ttf" &&
+            output[1].filename().string() == "beta.ttf" &&
+            output[2].filename().string() == "upper.TTF",
         "scan sorts hits by filename and repeats a directory without duplicating"
     );
 }
@@ -166,7 +166,7 @@ void check_truncation_contract() {
     require(retried.count == 5 && !retried.truncated, "a bigger span retries without truncation");
     for (auto index = std::size_t{1}; index < retried.count; ++index) {
         require(
-            roomy[index - 1].filename().native() < roomy[index].filename().native(),
+            roomy[index - 1].filename().string() < roomy[index].filename().string(),
             "retry keeps filename order"
         );
     }
@@ -220,7 +220,7 @@ void check_default_table() {
 #elif defined(_WIN32)
     require(table.count <= 2, "Windows probes at most segoeui then arial");
     for (auto index = std::size_t{}; index < table.count; ++index) {
-        const std::string_view native{output[index].native()};
+        const std::string_view native{output[index].string()};
         require(
             native.ends_with("segoeui.ttf") || native.ends_with("arial.ttf"),
             "Windows rows stay inside Fonts"

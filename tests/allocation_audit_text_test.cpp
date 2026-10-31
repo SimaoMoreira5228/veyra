@@ -347,7 +347,7 @@ void check_harness_counts_every_form() {
         auto measure = Measure{};
         auto* scalar = new int(7);
         auto* items = new int[5];
-        auto* aligned = new (std::align_val_t{32}) unsigned char[64];
+        auto* aligned = static_cast<unsigned char*>(::operator new[](64, std::align_val_t{32}));
         auto* tolerated = new (std::nothrow) int(9);
         keep_allocation(scalar);
         keep_allocation(items);
@@ -364,7 +364,7 @@ void check_harness_counts_every_form() {
         delete scalar;
         delete[] items;
         ::operator delete[](aligned, std::align_val_t{32});
-        ::operator delete(tolerated, std::nothrow);
+        delete tolerated;
     }
     require(counted == 4, "every new form counts once while armed");
 }

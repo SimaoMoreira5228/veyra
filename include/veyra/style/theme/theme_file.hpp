@@ -15,6 +15,7 @@ enum class ThemeFileResult : std::uint8_t {
     unknown_token,
     bad_value,
     duplicate_token,
+    alias_cycle,
     truncated_output,
 };
 
@@ -33,16 +34,16 @@ write_theme_file(const Theme& theme, std::span<char> buffer_out, std::size_t& us
 }
 
 namespace veyra::style {
+using ::veyra::parse_theme_file;
 using ::veyra::ThemeFileError;
 using ::veyra::ThemeFileResult;
-using ::veyra::parse_theme_file;
 using ::veyra::write_theme_file;
 }
 
 namespace veyra::style::theme {
+using ::veyra::parse_theme_file;
 using ::veyra::ThemeFileError;
 using ::veyra::ThemeFileResult;
-using ::veyra::parse_theme_file;
 using ::veyra::write_theme_file;
 }
 

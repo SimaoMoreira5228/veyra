@@ -115,7 +115,13 @@ target_link_libraries(veyra_services PUBLIC veyra_foundation)
 target_include_directories(veyra_services PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(veyra_services PUBLIC cxx_std_23)
 
-add_library(veyra_style STATIC src/style/theme/theme.cpp src/style/theme/theme_file.cpp)
+add_library(
+ veyra_style
+ STATIC
+ src/style/theme/theme.cpp
+ src/style/theme/theme_file.cpp
+ src/style/theme/theme_scope.cpp
+)
 target_link_libraries(veyra_style PUBLIC veyra_foundation)
 target_link_libraries(veyra_app PUBLIC veyra_platform veyra_style)
 target_include_directories(veyra_style PUBLIC

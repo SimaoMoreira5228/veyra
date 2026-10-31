@@ -257,6 +257,107 @@ bool format_motion(std::span<char> line, std::size_t& length, Milliseconds value
     return true;
 }
 
+ThemeUpdateResult store_alias(
+    Theme& overlay,
+    const TokenEntry& entry,
+    const TokenEntry& source,
+    std::uint32_t line
+) noexcept {
+    switch (entry.kind) {
+    case TokenKind::color:
+        return overlay.set_alias(
+            static_cast<ColorToken>(entry.index),
+            static_cast<ColorToken>(source.index),
+            ThemeLayer::file,
+            line
+        );
+    case TokenKind::space:
+        return overlay.set_alias(
+            static_cast<SpaceToken>(entry.index),
+            static_cast<SpaceToken>(source.index),
+            ThemeLayer::file,
+            line
+        );
+    case TokenKind::radius:
+        return overlay.set_alias(
+            static_cast<RadiusToken>(entry.index),
+            static_cast<RadiusToken>(source.index),
+            ThemeLayer::file,
+            line
+        );
+    case TokenKind::motion:
+        return overlay.set_alias(
+            static_cast<MotionToken>(entry.index),
+            static_cast<MotionToken>(source.index),
+            ThemeLayer::file,
+            line
+        );
+    }
+
+    return ThemeUpdateResult::invalid_token;
+}
+
+std::string_view table_name(TokenKind kind, std::uint8_t token) noexcept {
+    for (const auto& entry : token_table) {
+        if (entry.kind == kind && entry.index == token) {
+            return entry.name;
+        }
+    }
+
+    return {};
+}
+
+bool format_alias(
+    const Theme& theme,
+    const TokenEntry& entry,
+    std::span<char> line,
+    std::size_t& length
+) noexcept {
+    std::string_view source;
+
+    switch (entry.kind) {
+    case TokenKind::color: {
+        const auto alias = theme.alias(static_cast<ColorToken>(entry.index));
+        if (!alias) {
+            return false;
+        }
+        source = table_name(entry.kind, static_cast<std::uint8_t>(*alias));
+
+        break;
+    }
+    case TokenKind::space: {
+        const auto alias = theme.alias(static_cast<SpaceToken>(entry.index));
+        if (!alias) {
+            return false;
+        }
+        source = table_name(entry.kind, static_cast<std::uint8_t>(*alias));
+
+        break;
+    }
+    case TokenKind::radius: {
+        const auto alias = theme.alias(static_cast<RadiusToken>(entry.index));
+        if (!alias) {
+            return false;
+        }
+        source = table_name(entry.kind, static_cast<std::uint8_t>(*alias));
+
+        break;
+    }
+    case TokenKind::motion: {
+        const auto alias = theme.alias(static_cast<MotionToken>(entry.index));
+        if (!alias) {
+            return false;
+        }
+        source = table_name(entry.kind, static_cast<std::uint8_t>(*alias));
+
+        break;
+    }
+    }
+
+    return !source.empty() && append_value(line, length, "@") &&
+        append_value(line, length, source) && append_value(line, length, "\n");
+}
+
 bool store_token(
     Theme& overlay,
     const TokenEntry& entry,
@@ -301,7 +402,25 @@ bool store_token(
         ThemeUpdateResult::invalid_token;
 }
 
+bool has_alias(const Theme& theme, const TokenEntry& entry) noexcept {
+    switch (entry.kind) {
+    case TokenKind::color:
+        return theme.alias(static_cast<ColorToken>(entry.index)).has_value();
+    case TokenKind::space:
+        return theme.alias(static_cast<SpaceToken>(entry.index)).has_value();
+    case TokenKind::radius:
+        return theme.alias(static_cast<RadiusToken>(entry.index)).has_value();
+    case TokenKind::motion:
+        return theme.alias(static_cast<MotionToken>(entry.index)).has_value();
+    }
+
+    return false;
+}
+
 bool line_differs(const Theme& theme, const Theme& defaults, const TokenEntry& entry) noexcept {
+    if (has_alias(theme, entry)) {
+        return true;
+    }
     if (entry.kind == TokenKind::color) {
         const auto token = static_cast<ColorToken>(entry.index);
         return theme.color(token) != defaults.color(token);
@@ -327,6 +446,9 @@ bool format_entry(
     length = 0;
     if (!append_value(line, length, entry.name) || !append_value(line, length, " = ")) {
         return false;
+    }
+    if (has_alias(theme, entry)) {
+        return format_alias(theme, entry, line, length);
     }
     if (entry.kind == TokenKind::color) {
         const auto token = static_cast<ColorToken>(entry.index);
@@ -420,7 +542,47 @@ parse_theme_file(std::span<const char> text, Theme& overlay_out, ThemeFileError&
                     };
                     return ThemeFileResult::duplicate_token;
                 }
-                if (!store_token(overlay, token_table[entry_index], value, line_number)) {
+                const auto& entry = token_table[entry_index];
+                auto stored = ThemeUpdateResult::changed;
+
+                if (!value.empty() && value.front() == '@') {
+                    const auto reference = trim(value.substr(1));
+                    auto source_index = token_table.size();
+
+                    for (std::size_t index = 0; index < token_table.size(); ++index) {
+                        if (token_table[index].name == reference) {
+                            source_index = index;
+                        }
+                    }
+                    if (source_index == token_table.size() ||
+                        token_table[source_index].kind != entry.kind) {
+                        error = ThemeFileError{
+                            .code = ThemeFileResult::unknown_token,
+                            .line = line_number,
+                            .column = column_of(body, value),
+                        };
+                        return ThemeFileResult::unknown_token;
+                    }
+                    stored = store_alias(overlay, entry, token_table[source_index], line_number);
+                } else if (!store_token(overlay, entry, value, line_number)) {
+                    error = ThemeFileError{
+                        .code = ThemeFileResult::bad_value,
+                        .line = line_number,
+                        .column = column_of(body, value),
+                    };
+                    return ThemeFileResult::bad_value;
+                }
+
+                if (stored == ThemeUpdateResult::alias_cycle) {
+                    error = ThemeFileError{
+                        .code = ThemeFileResult::alias_cycle,
+                        .line = line_number,
+                        .column = column_of(body, value),
+                    };
+                    return ThemeFileResult::alias_cycle;
+                }
+                if (stored == ThemeUpdateResult::invalid_token ||
+                    stored == ThemeUpdateResult::invalid_value) {
                     error = ThemeFileError{
                         .code = ThemeFileResult::bad_value,
                         .line = line_number,
