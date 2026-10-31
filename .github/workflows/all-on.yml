@@ -49,4 +49,4 @@ jobs:
         run: cmake --build build --config Release --parallel 4
 
       - name: Test
-        run: xvfb-run -a ctest --test-dir build --build-config Release --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --build-config Release --output-on-failure --timeout 120

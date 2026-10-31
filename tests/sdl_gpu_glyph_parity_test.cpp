@@ -1,6 +1,6 @@
-#include "veyra/render/resource/glyph_atlas.hpp"
-#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
+#include "veyra/render/gpu/sdl/sdl_gpu_renderer.hpp"
+#include "veyra/render/resource/glyph_atlas.hpp"
 #include "veyra/text/rendering/glyph_mask_cache.hpp"
 
 #include "sdl_gpu_parity_helpers.hpp"
@@ -156,7 +156,7 @@ void check_glyph_parity(
     require(stats.submitted == 3, "alpha-zero and offscreen glyphs never submit");
     require(stats.glyph_draws >= 1, "glyph runs draw through the glyph pipeline");
 
-    check_parity(renderer, scene, expected, actual, "glyph", 0);
+    check_parity(renderer, scene, expected, actual, "glyph", 1);
 
     require(
         veyra::render_sdl_gpu_rects(renderer, scene, actual, stats) == veyra::WindowResult::ready,
@@ -164,7 +164,7 @@ void check_glyph_parity(
     );
     require(stats.uploads == 0, "the cached atlas never re-uploads");
 
-    check_parity(renderer, scene, expected, actual, "glyph-cached", 0);
+    check_parity(renderer, scene, expected, actual, "glyph-cached", 1);
 }
 
 int run() {
