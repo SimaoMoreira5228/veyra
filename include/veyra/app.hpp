@@ -1,6 +1,7 @@
 #ifndef VEYRA_APP_HPP
 #define VEYRA_APP_HPP
 
+#include "veyra/app/accessibility.hpp"
 #include "veyra/app/window_semantics.hpp"
 #include "veyra/app/window_set.hpp"
 

@@ -21,7 +21,8 @@ constexpr std::uint16_t known_states = static_cast<std::uint16_t>(SemanticState:
     static_cast<std::uint16_t>(SemanticState::mixed) |
     static_cast<std::uint16_t>(SemanticState::modal) |
     static_cast<std::uint16_t>(SemanticState::sorted_ascending) |
-    static_cast<std::uint16_t>(SemanticState::sorted_descending);
+    static_cast<std::uint16_t>(SemanticState::sorted_descending) |
+    static_cast<std::uint16_t>(SemanticState::protected_value);
 
 constexpr std::uint16_t known_actions = static_cast<std::uint16_t>(SemanticAction::activate) |
     static_cast<std::uint16_t>(SemanticAction::increment) |
@@ -286,6 +287,5 @@ SemanticSnapshotResult build_semantic_snapshot(
         node_count
     );
 }
-
 
 }

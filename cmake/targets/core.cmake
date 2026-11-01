@@ -70,6 +70,7 @@ add_library(veyra_platform STATIC
  src/platform/core/window_router.cpp
  src/platform/headless/null_window.cpp
  src/platform/headless/fake_services.cpp
+ src/platform/headless/recording_accessibility_sink.cpp
 )
 target_link_libraries(veyra_platform PUBLIC veyra_foundation veyra_layout veyra_render veyra_text)
 target_compile_features(veyra_platform PUBLIC cxx_std_23)
@@ -86,7 +87,7 @@ target_link_libraries(veyra_chat PUBLIC veyra_foundation)
 add_library(veyra_inspector STATIC src/inspector/trace/trace_recorder.cpp)
 target_link_libraries(veyra_inspector PUBLIC veyra_foundation)
 
-add_library(veyra_app STATIC src/app/window_set.cpp src/app/window_semantics.cpp src/app/decode_tracker.cpp src/app/async_image_decode.cpp)
+add_library(veyra_app STATIC src/app/accessibility.cpp src/app/window_set.cpp src/app/window_semantics.cpp src/app/decode_tracker.cpp src/app/async_image_decode.cpp)
 target_compile_features(veyra_app PUBLIC cxx_std_23)
 
 add_library(veyra INTERFACE)
@@ -119,6 +120,7 @@ target_compile_features(veyra_services PUBLIC cxx_std_23)
 add_library(
  veyra_style
  STATIC
+ src/style/property/property_set.cpp
  src/style/theme/theme.cpp
  src/style/theme/theme_file.cpp
  src/style/theme/theme_scope.cpp

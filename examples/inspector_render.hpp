@@ -7,6 +7,7 @@
 #include "veyra/platform/core/window.hpp"
 #include "veyra/platform/core/window_router.hpp"
 #include "veyra/render/cpu/software_renderer.hpp"
+#include "veyra/style/property/property_set.hpp"
 #include "veyra/style/theme/theme.hpp"
 
 #include <algorithm>
@@ -23,6 +24,7 @@ struct InspectorView {
     std::span<const SemanticNode> nodes;
     std::span<const TraceEvent> trace{};
     std::span<const TokenProvenance> provenance{};
+    std::span<const ResolvedProperty> properties{};
     std::size_t event_scroll{};
     NodeId focused{};
     bool window_focused{};
@@ -95,6 +97,108 @@ inline Srgba8 token_fill(const Theme& theme, const TokenProvenance& provenance) 
     }
     }
     return theme.color(tokens::color_surface);
+}
+
+inline Srgba8 style_layer_color(const Theme& theme, StyleLayer layer) noexcept {
+    switch (layer) {
+    case StyleLayer::platform_default:
+        return theme.color(tokens::color_action_disabled);
+    case StyleLayer::theme:
+        return theme.color(tokens::color_action_primary);
+    case StyleLayer::recipe:
+        return theme.color(tokens::color_action_hovered);
+    case StyleLayer::variant:
+        return theme.color(tokens::color_text_disabled);
+    case StyleLayer::state:
+        return theme.color(tokens::color_toggle_checked);
+    case StyleLayer::local:
+        return theme.color(tokens::color_text_primary);
+    case StyleLayer::controller:
+        return theme.color(tokens::color_error);
+    case StyleLayer::accessibility:
+        return theme.color(tokens::color_action_on_primary);
+    case StyleLayer::count:
+        break;
+    }
+
+    return theme.color(tokens::color_text_disabled);
+}
+
+inline Srgba8 property_swatch(const Theme& theme, const ResolvedProperty& property) noexcept {
+    if (property.value.kind == PropertyValueKind::color) {
+        return property.value.color;
+    }
+
+    return style_layer_color(theme, property.provenance.layer);
+}
+
+inline void append_hex_color(std::span<char> output, std::size_t& length, Srgba8 color) noexcept {
+    constexpr char digits[] = "0123456789abcdef";
+    const auto put = [&](std::uint8_t value) noexcept {
+        if (length + 2 <= output.size()) {
+            output[length++] = digits[value >> 4U];
+            output[length++] = digits[value & 0x0FU];
+        }
+    };
+
+    if (length + 1 <= output.size()) {
+        output[length++] = '#';
+    }
+    put(color.red);
+    put(color.green);
+    put(color.blue);
+}
+
+inline void format_property_value(
+    const ResolvedProperty& property,
+    std::span<char> output,
+    std::size_t& length
+) noexcept {
+    length = 0;
+    switch (property.value.kind) {
+    case PropertyValueKind::color:
+        append_hex_color(output, length, property.value.color);
+        return;
+    case PropertyValueKind::length: {
+        const auto result = std::to_chars(
+            output.data(),
+            output.data() + output.size(),
+            property.value.length,
+            std::chars_format::fixed,
+            1
+        );
+        if (result.ec == std::errc{}) {
+            length = static_cast<std::size_t>(result.ptr - output.data());
+        }
+        return;
+    }
+    case PropertyValueKind::duration: {
+        const auto result =
+            std::to_chars(output.data(), output.data() + output.size(), property.value.duration_ms);
+        if (result.ec != std::errc{}) {
+            return;
+        }
+        length = static_cast<std::size_t>(result.ptr - output.data());
+        if (length + 2 <= output.size()) {
+            output[length++] = 'm';
+            output[length++] = 's';
+        }
+        return;
+    }
+    case PropertyValueKind::number: {
+        const auto result = std::to_chars(
+            output.data(),
+            output.data() + output.size(),
+            property.value.number,
+            std::chars_format::fixed,
+            2
+        );
+        if (result.ec == std::errc{}) {
+            length = static_cast<std::size_t>(result.ptr - output.data());
+        }
+        return;
+    }
+    }
 }
 
 inline std::size_t
@@ -279,6 +383,45 @@ inline InspectorDisplay build_inspector_display(
             static_cast<float>(width)) {
             text(name, text_x, y, theme.color(tokens::color_text_primary));
             text(layer, text_x + debug_text_width(name) + 4.0F, y, layer_color);
+        }
+    }
+
+    const auto property_rows = provenance_rows - shown_provenance;
+    const auto shown_properties = std::min(view.properties.size(), property_rows);
+    char value_storage[24]{};
+    const std::span<char> value_buffer(value_storage, sizeof(value_storage));
+
+    for (auto index = std::size_t{}; index < shown_properties; ++index) {
+        const auto y =
+            section_top + 2.0F + static_cast<float>(shown_provenance + index) * provenance_row;
+        const auto& entry = view.properties[index];
+        const auto layer = entry.set ? entry.provenance.layer : StyleLayer::platform_default;
+        const auto layer_color = style_layer_color(theme, layer);
+        fill(
+            {.x = 5.0F, .y = y + 1.0F, .width = 8.0F, .height = 8.0F},
+            property_swatch(theme, entry)
+        );
+        stroke({.x = 4.0F, .y = y, .width = 10.0F, .height = 10.0F}, 1.0F, layer_color);
+
+        const auto name = style_property_name(entry.property);
+        const auto layer_name = style_layer_name(layer).substr(0, 3);
+        auto value_length = std::size_t{};
+        format_property_value(entry, value_buffer, value_length);
+        const std::string_view value(value_storage, value_length);
+        const auto text_x = 18.0F;
+        auto cursor = text_x;
+
+        if (cursor + debug_text_width(name) > static_cast<float>(width)) {
+            continue;
+        }
+        text(name, cursor, y, theme.color(tokens::color_text_primary));
+        cursor += debug_text_width(name) + 4.0F;
+
+        if (cursor + debug_text_width(value) + 4.0F + debug_text_width(layer_name) <=
+            static_cast<float>(width)) {
+            text(value, cursor, y, theme.color(tokens::color_text_disabled));
+            cursor += debug_text_width(value) + 4.0F;
+            text(layer_name, cursor, y, layer_color);
         }
     }
 

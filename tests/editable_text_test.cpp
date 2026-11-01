@@ -237,10 +237,18 @@ void check_password_semantics_suppression() {
             semantics.value.empty(),
         "password semantics suppress the value by default"
     );
+    require(
+        veyra::has_state(semantics.states, veyra::SemanticState::protected_value),
+        "password semantics mark the value protected"
+    );
 
     require(fix.field.set_reveal_password(true), "reveal is an explicit opt-in");
     require(fix.field.write_semantics("PIN", "1234", semantics), "revealed semantics write");
     require(semantics.value == "1234", "reveal exposes the caller snapshot only when asked");
+    require(
+        !veyra::has_state(semantics.states, veyra::SemanticState::protected_value),
+        "revealing drops the protected state"
+    );
 
     require(fix.field.set_kind(veyra::EditableTextKind::text), "kind can switch back");
     require(!fix.field.reveal_password(), "leaving password kind drops the reveal opt-in");

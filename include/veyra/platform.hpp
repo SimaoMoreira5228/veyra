@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_HPP
 #define VEYRA_PLATFORM_HPP
 
+#include "veyra/platform/core/accessibility.hpp"
 #include "veyra/platform/core/notice.hpp"
 #include "veyra/platform/core/run_loop.hpp"
 #include "veyra/platform/core/seat.hpp"

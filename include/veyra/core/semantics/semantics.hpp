@@ -61,6 +61,7 @@ enum class SemanticState : std::uint16_t {
     modal = 1U << 11U,
     sorted_ascending = 1U << 12U,
     sorted_descending = 1U << 13U,
+    protected_value = 1U << 14U,
 };
 
 enum class SemanticAction : std::uint16_t {
@@ -155,30 +156,30 @@ SemanticSnapshotResult build_semantic_snapshot(
 }
 
 namespace veyra::core {
+using ::veyra::action_flag;
+using ::veyra::build_semantic_snapshot;
+using ::veyra::has_action;
+using ::veyra::has_state;
 using ::veyra::SemanticAction;
 using ::veyra::SemanticNode;
 using ::veyra::SemanticNodeData;
 using ::veyra::SemanticRole;
 using ::veyra::SemanticSnapshotResult;
 using ::veyra::SemanticState;
-using ::veyra::action_flag;
-using ::veyra::build_semantic_snapshot;
-using ::veyra::has_action;
-using ::veyra::has_state;
 using ::veyra::state_flag;
 }
 
 namespace veyra::core::semantics {
+using ::veyra::action_flag;
+using ::veyra::build_semantic_snapshot;
+using ::veyra::has_action;
+using ::veyra::has_state;
 using ::veyra::SemanticAction;
 using ::veyra::SemanticNode;
 using ::veyra::SemanticNodeData;
 using ::veyra::SemanticRole;
 using ::veyra::SemanticSnapshotResult;
 using ::veyra::SemanticState;
-using ::veyra::action_flag;
-using ::veyra::build_semantic_snapshot;
-using ::veyra::has_action;
-using ::veyra::has_state;
 using ::veyra::state_flag;
 }
 

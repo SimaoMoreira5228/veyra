@@ -379,6 +379,9 @@ bool EditableTextController::write_semantics(
     if (invalid_) {
         states = states | SemanticState::invalid;
     }
+    if (suppress_value) {
+        states = states | SemanticState::protected_value;
+    }
 
     std::uint16_t actions{};
     if (!disabled_ && !readonly_) {

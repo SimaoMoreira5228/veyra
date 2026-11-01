@@ -111,6 +111,27 @@ int main() {
             },
         };
 
+        auto properties = std::array<veyra::ResolvedProperty, 3>{
+            veyra::ResolvedProperty{
+                .property = veyra::StyleProperty::foreground,
+                .set = true,
+                .value = veyra::make_color_value({.red = 220, .green = 40, .blue = 60}),
+                .provenance = {.layer = veyra::StyleLayer::local},
+            },
+            veyra::ResolvedProperty{
+                .property = veyra::StyleProperty::padding,
+                .set = true,
+                .value = veyra::make_length_value(8.0F),
+                .provenance = {.layer = veyra::StyleLayer::theme},
+            },
+            veyra::ResolvedProperty{
+                .property = veyra::StyleProperty::transition_duration,
+                .set = true,
+                .value = veyra::make_duration_value(180),
+                .provenance = {.layer = veyra::StyleLayer::controller},
+            },
+        };
+
         auto view = veyra::InspectorView{
             .nodes = nodes,
             .trace = trace,
@@ -277,6 +298,27 @@ int main() {
             }
         }
         require(lit > 20, "the debug glyph paints coverage pixels");
+
+        view.trace = {};
+        view.provenance = {};
+        view.properties = properties;
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders resolved property provenance"
+        );
+        const auto with_properties = checksum(pixels);
+
+        view.properties = {};
+        require(
+            veyra::render_inspector(veyra::Theme::dark(), view, pixels, width, height) ==
+                veyra::SoftwareRenderResult::complete,
+            "inspector renders without property provenance"
+        );
+        require(
+            checksum(pixels) != with_properties,
+            "resolved property rows change the inspector frame"
+        );
 
         auto narrow = std::vector<veyra::SoftwarePixel>(width * height);
         require(

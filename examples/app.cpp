@@ -475,6 +475,22 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                 return {.failed = true};
             }
 
+            auto properties = veyra::PropertySet{};
+            properties.apply_theme(model.theme());
+            properties.set(
+                veyra::StyleProperty::padding,
+                veyra::StyleLayer::local,
+                veyra::make_length_value(6.0F)
+            );
+            auto property_records = std::array<veyra::ResolvedProperty, 6>{
+                properties.resolve(veyra::StyleProperty::foreground),
+                properties.resolve(veyra::StyleProperty::background),
+                properties.resolve(veyra::StyleProperty::corner_radius),
+                properties.resolve(veyra::StyleProperty::padding),
+                properties.resolve(veyra::StyleProperty::transition_duration),
+                properties.resolve(veyra::StyleProperty::opacity),
+            };
+
             const auto view = veyra::InspectorView{
                 .nodes = std::span<const veyra::SemanticNode>(nodes.data(), node_count),
                 .trace = trace.events(),
@@ -482,6 +498,7 @@ int run_sdl(const Options& options, const std::string& theme_text, const AppFont
                     provenance_storage.data(),
                     provenance_count
                 ),
+                .properties = property_records,
                 .focused = app.windows().focused_node(main_window),
                 .window_focused = app.windows().focused_node(inspector) == semantics.inspector_root,
             };
