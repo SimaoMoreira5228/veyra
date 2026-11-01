@@ -1,5 +1,8 @@
 #include "veyra/render/gpu/webgpu/webgpu_consumer.hpp"
 
+#include <algorithm>
+#include <variant>
+
 namespace veyra {
 
 WebGpuPipeline webgpu_pipeline(BatchPrimitive primitive) noexcept {
@@ -68,6 +71,64 @@ WebGpuPlanResult WebGpuConsumer::submit(
     plan = {};
     plan.command_count = commands.size();
 
+    struct ClipEntry {
+        std::uint64_t id{};
+        LayoutRect bounds{};
+    };
+
+    const auto intersect = [](LayoutRect left, LayoutRect right) noexcept {
+        const auto x0 = std::max(left.x, right.x);
+        const auto y0 = std::max(left.y, right.y);
+        const auto x1 = std::min(left.x + left.width, right.x + right.width);
+        const auto y1 = std::min(left.y + left.height, right.y + right.height);
+        if (x1 <= x0 || y1 <= y0) {
+            return LayoutRect{};
+        }
+
+        return LayoutRect{
+            .x = x0,
+            .y = y0,
+            .width = x1 - x0,
+            .height = y1 - y0,
+        };
+    };
+
+    auto clip_entries = std::array<ClipEntry, 64>{};
+    auto clip_stack = std::array<LayoutRect, 64>{};
+    auto clip_count = std::size_t{};
+    auto clip_depth = std::size_t{};
+    for (const auto& command : commands) {
+        if (const auto* clip = std::get_if<PushClip>(&command)) {
+            const auto parent = clip_depth == 0
+                ? LayoutRect{.width = static_cast<float>(width), .height = static_cast<float>(height)}
+                : clip_stack[clip_depth - 1];
+            const auto effective = intersect(parent, clip->bounds);
+            if (clip_depth < clip_stack.size()) {
+                clip_stack[clip_depth] = effective;
+                ++clip_depth;
+            }
+            if (clip_count < clip_entries.size()) {
+                clip_entries[clip_count++] = {.id = clip->clip_id, .bounds = effective};
+            }
+
+            continue;
+        }
+        if (std::holds_alternative<PopClip>(command) && clip_depth != 0) {
+            --clip_depth;
+        }
+    }
+
+    const auto find_clip = [&clip_entries,
+                            clip_count](std::uint64_t id) noexcept -> const ClipEntry* {
+        for (std::size_t index = clip_count; index > 0; --index) {
+            if (clip_entries[index - 1].id == id) {
+                return &clip_entries[index - 1];
+            }
+        }
+
+        return nullptr;
+    };
+
     auto runs = std::array<BatchRun, WebGpuFramePlan::kMaxBatches>{};
     auto clip_scopes = std::array<std::uint64_t, 64>{};
     auto run_count = std::size_t{};
@@ -81,12 +142,16 @@ WebGpuPlanResult WebGpuConsumer::submit(
     plan.batch_count = run_count;
     for (std::size_t index = 0; index < run_count; ++index) {
         const auto& run = runs[index];
+        const auto* clip =
+            run.key.clip_id == 0 && run.key.clip_depth == 0 ? nullptr : find_clip(run.key.clip_id);
         plan.batches[index] = {
             .pipeline = webgpu_pipeline(run.key.primitive),
             .resource = run.key.resource,
             .sampling = run.key.sampling,
             .clip_id = run.key.clip_id,
             .clip_depth = run.key.clip_depth,
+            .clip_bounds = clip == nullptr ? LayoutRect{} : clip->bounds,
+            .clipped = run.key.clip_depth != 0,
             .start = run.start,
             .count = run.count,
             .sequence = run.sequence,

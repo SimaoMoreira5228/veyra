@@ -43,7 +43,7 @@ class WebGpuBackend : public WebGpuSink {
 
   private:
     struct Device;
-    struct RectInstance {
+    struct GpuInstance {
         float x{};
         float y{};
         float width{};
@@ -52,14 +52,40 @@ class WebGpuBackend : public WebGpuSink {
         float green{};
         float blue{};
         float alpha{};
+        float u0{};
+        float v0{};
+        float u1{};
+        float v1{};
+        float radius{};
+        float mode{};
+        float padding[2]{};
+    };
+
+    enum class DrawTexture : std::uint8_t {
+        white,
+        mask,
+        glyph,
+        image,
+    };
+
+    struct DrawRange {
+        std::size_t first{};
+        std::size_t count{};
+        bool clipped{};
+        LayoutRect clip{};
+        DrawTexture texture{DrawTexture::white};
+        const void* resource{};
+        SoftwareImageSampling sampling{SoftwareImageSampling::nearest};
     };
 
     bool can_submit() const noexcept;
 
     std::unique_ptr<Device> device_;
     WebGpuConsumer consumer_;
-    std::array<RectInstance, kMaxInstances> instances_{};
+    std::array<GpuInstance, kMaxInstances> instances_{};
     std::size_t instance_count_{};
+    std::array<DrawRange, WebGpuFramePlan::kMaxBatches> ranges_{};
+    std::size_t range_count_{};
     std::uint32_t width_{};
     std::uint32_t height_{};
     bool unsupported_{};

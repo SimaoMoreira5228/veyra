@@ -33,6 +33,8 @@ struct WebGpuBatch {
     SoftwareImageSampling sampling{SoftwareImageSampling::nearest};
     std::uint64_t clip_id{};
     std::size_t clip_depth{};
+    LayoutRect clip_bounds{};
+    bool clipped{};
     std::size_t start{};
     std::size_t count{};
     std::size_t sequence{};

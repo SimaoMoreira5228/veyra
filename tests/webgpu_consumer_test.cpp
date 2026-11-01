@@ -148,6 +148,16 @@ void check_plan_matches_batch_analysis() {
         require(batch.sampling == run.key.sampling, "the sampling mode maps");
         require(batch.clip_id == run.key.clip_id, "the clip id maps");
         require(batch.clip_depth == run.key.clip_depth, "the clip depth maps");
+        require(
+            batch.clipped == (run.key.clip_depth != 0),
+            "the clipped flag follows the clip depth"
+        );
+        if (batch.clipped) {
+            require(
+                batch.clip_bounds.width == 20.0F && batch.clip_bounds.height == 10.0F,
+                "the effective clip bounds map"
+            );
+        }
         require(batch.start == run.start && batch.count == run.count, "the command span maps");
         require(batch.sequence == run.sequence, "the batch sequence maps");
         require(
