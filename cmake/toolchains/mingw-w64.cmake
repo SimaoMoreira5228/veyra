@@ -1,6 +1,11 @@
 set(CMAKE_SYSTEM_NAME Windows)
 set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
+if(NOT DEFINED VEYRA_DEPS_CACHE)
+ get_filename_component(_veyra_source_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+ set(VEYRA_DEPS_CACHE "${_veyra_source_root}/.deps/mingw-w64" CACHE PATH "MinGW-w64 dependency cache")
+endif()
+
 set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
 set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
 set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
@@ -14,7 +19,9 @@ if(NOT DEFINED VEYRA_MINGW_ROOT)
  set(VEYRA_MINGW_ROOT "${_veyra_mingw_sysroot}/mingw")
 endif()
 
-set(CMAKE_FIND_ROOT_PATH "${VEYRA_MINGW_ROOT}")
+if(NOT VEYRA_MINGW_ROOT IN_LIST CMAKE_FIND_ROOT_PATH)
+ list(INSERT CMAKE_FIND_ROOT_PATH 0 "${VEYRA_MINGW_ROOT}")
+endif()
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)

@@ -99,7 +99,8 @@ veyra::FileThumbnailKey thumbnail_key(const veyra::FileListEntry& entry) {
 std::filesystem::path thumbnail_path(std::u8string_view name) {
     const auto* bytes = reinterpret_cast<const char*>(name.data());
 
-    return std::filesystem::path("/thumbs") / std::string(bytes, name.size());
+    return std::filesystem::temp_directory_path() / "veyra-thumbs" /
+        std::string(bytes, name.size());
 }
 
 void seed_previous(RefreshContext& context) {

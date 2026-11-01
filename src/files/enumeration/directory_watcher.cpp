@@ -209,6 +209,14 @@ DirectoryWatcher::DirectoryWatcher(
         error = error_;
         return;
     }
+    auto information = BY_HANDLE_FILE_INFORMATION{};
+    if (!GetFileInformationByHandle(raw_directory, &information) ||
+        (information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+        CloseHandle(raw_directory);
+        error_ = std::make_error_code(std::errc::not_a_directory);
+        error = error_;
+        return;
+    }
     directory_handle_ = stored_handle(raw_directory);
 
     const auto completion = CreateEventW(nullptr, TRUE, FALSE, nullptr);

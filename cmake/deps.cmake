@@ -164,7 +164,7 @@ function(veyra_dependency_icu)
   return()
  endif()
  if(NOT VEYRA_HERMETIC OR NOT UNIX)
-  find_package(ICU 74 REQUIRED COMPONENTS i18n uc)
+  find_package(ICU 74 REQUIRED COMPONENTS i18n uc OPTIONAL_COMPONENTS data)
   return()
  endif()
  FetchContent_Declare(

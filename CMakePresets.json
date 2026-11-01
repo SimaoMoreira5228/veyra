@@ -1,0 +1,50 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-gcc",
+      "displayName": "Windows MinGW-w64 GCC (MSYS2)",
+      "description": "Release build with SDL3, GLFW, text, Unicode, FreeType, filesystem, and codecs.",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VEYRA_PROFILE": "desktop",
+        "VEYRA_GPU_SDL": "OFF",
+        "VEYRA_WITH_FILESYSTEM": "ON",
+        "VEYRA_WITH_SDL3": "ON",
+        "VEYRA_WITH_GLFW": "ON",
+        "VEYRA_WITH_TEXT": "ON",
+        "VEYRA_WITH_UNICODE": "ON",
+        "VEYRA_WITH_FREETYPE": "ON",
+        "VEYRA_WITH_CODECS": "ON",
+        "VEYRA_BUILD_BENCH": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-gcc",
+      "configurePreset": "windows-gcc"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-gcc",
+      "configurePreset": "windows-gcc",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 120
+      }
+    }
+  ]
+}
