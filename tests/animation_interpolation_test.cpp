@@ -141,23 +141,23 @@ void check_retarget_restarts_from_current() {
     require(animator.finished(), "completing the new leg finishes the animation");
 }
 
-void check_reduced_motion_freezes_progress() {
-    auto frozen = veyra::ScalarAnimator{};
-    frozen.set_reduced_motion(true);
-    frozen.start(0.0F, 1.0F, 0, 100, veyra::AnimationEasing::linear);
-    require(frozen.advance(1000) == 0.0F, "reduced motion holds the start value");
-    require(!frozen.finished(), "a frozen animation does not count as finished");
+void check_reduced_motion_snaps_to_target() {
+    auto snapped = veyra::ScalarAnimator{};
+    snapped.set_reduced_motion(true);
+    snapped.start(0.0F, 1.0F, 0, 100, veyra::AnimationEasing::linear);
+    require(snapped.value() == 1.0F, "reduced motion snaps a new animation");
+    require(snapped.finished(), "a snapped animation is finished");
 
-    frozen.set_reduced_motion(false);
-    require(frozen.advance(1100) == 1.0F, "clearing the flag resumes the animation");
+    snapped.set_reduced_motion(false);
+    snapped.start(0.0F, 1.0F, 1100, 100, veyra::AnimationEasing::linear);
+    require(snapped.advance(1150) == 0.5F, "clearing the flag restores animation");
 
     auto mid_flight = veyra::ScalarAnimator{};
     mid_flight.start(0.0F, 1.0F, 0, 100, veyra::AnimationEasing::linear);
     require(mid_flight.advance(40) == 0.4F, "the animation advances before the flag");
     mid_flight.set_reduced_motion(true);
-    require(mid_flight.advance(5000) == 0.4F, "engaging mid-flight holds the current value");
-    mid_flight.set_reduced_motion(false);
-    require(mid_flight.advance(5060) == 1.0F, "resuming finishes from the held value");
+    require(mid_flight.value() == 1.0F, "engaging mid-flight snaps to the target");
+    require(mid_flight.finished(), "engaging mid-flight finishes the animation");
 }
 
 void check_pause_and_throttle_share_one_gate() {
@@ -278,7 +278,7 @@ int main() {
         check_exponential_approach_converges();
         check_animator_runs_to_completion();
         check_retarget_restarts_from_current();
-        check_reduced_motion_freezes_progress();
+        check_reduced_motion_snaps_to_target();
         check_pause_and_throttle_share_one_gate();
         check_backward_clock_never_jumps();
         check_color_mixing();

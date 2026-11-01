@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_SDL3_WINDOW_HPP
 #define VEYRA_PLATFORM_SDL3_WINDOW_HPP
 
+#include "veyra/foundation/preferences.hpp"
 #include "veyra/platform/core/window.hpp"
 
 #include <array>
@@ -114,13 +115,17 @@ class Sdl3Window {
 static_assert(WindowBackend<Sdl3Window>);
 static_assert(SoftwareSurfacePresenter<Sdl3Window>);
 
+SystemPreferences query_system_preferences() noexcept;
+
 }
 
 namespace veyra::platform {
+using ::veyra::query_system_preferences;
 using ::veyra::Sdl3Window;
 }
 
 namespace veyra::platform::sdl3 {
+using ::veyra::query_system_preferences;
 using ::veyra::Sdl3Window;
 }
 

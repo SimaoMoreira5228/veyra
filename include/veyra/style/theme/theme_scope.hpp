@@ -1,6 +1,7 @@
 #ifndef VEYRA_STYLE_THEME_SCOPE_HPP
 #define VEYRA_STYLE_THEME_SCOPE_HPP
 
+#include "veyra/foundation/preferences.hpp"
 #include "veyra/style/theme/theme.hpp"
 
 #include <cstdint>
@@ -19,6 +20,12 @@ enum class ThemeVariant : std::uint8_t {
 std::string_view theme_variant_name(ThemeVariant variant) noexcept;
 
 const Theme& theme_for_variant(ThemeVariant variant) noexcept;
+
+ThemeVariant theme_variant_for_system(ColorScheme scheme, bool high_contrast) noexcept;
+
+inline ThemeVariant theme_variant_for_system(const SystemPreferences& preferences) noexcept {
+    return theme_variant_for_system(preferences.color_scheme, preferences.high_contrast);
+}
 
 class ThemeScope {
   public:
@@ -57,6 +64,16 @@ class ThemeScope {
     void set_variant(ThemeVariant variant) noexcept;
     ThemeVariant variant() const noexcept;
 
+    bool set_text_scale(float scale) noexcept;
+    bool clear_text_scale() noexcept;
+    float text_scale() const noexcept;
+
+    void apply_preferences(const SystemPreferences& preferences) noexcept;
+
+    bool set_reduced_motion(bool reduced) noexcept;
+    bool clear_reduced_motion() noexcept;
+    bool reduced_motion() const noexcept;
+
     TokenProvenance provenance(TokenKind kind, std::uint8_t token) const noexcept;
     std::uint64_t version() const noexcept;
 
@@ -74,6 +91,8 @@ class ThemeScope {
     const ThemeScope* parent_{};
     Theme local_{};
     ThemeVariant variant_{ThemeVariant::inherit};
+    std::optional<float> text_scale_{};
+    std::optional<bool> reduced_motion_{};
 };
 
 }

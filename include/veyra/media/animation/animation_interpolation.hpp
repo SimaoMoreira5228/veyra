@@ -3,6 +3,7 @@
 
 #include "veyra/core/tree/node_tree.hpp"
 #include "veyra/foundation/color.hpp"
+#include "veyra/foundation/preferences.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -166,7 +167,7 @@ class ScalarAnimator {
         last_tick_ms_ = now_ms;
         easing_ = easing;
 
-        if (duration_ms_ == 0 || from_ == target_) {
+        if (duration_ms_ == 0 || from_ == target_ || reduced_motion_) {
             current_ = target_;
             running_ = false;
             return;
@@ -182,7 +183,7 @@ class ScalarAnimator {
         target_ = target;
         elapsed_ms_ = 0;
 
-        if (duration_ms_ == 0 || from_ == target_) {
+        if (duration_ms_ == 0 || from_ == target_ || reduced_motion_) {
             current_ = target_;
             running_ = false;
             return;
@@ -201,6 +202,15 @@ class ScalarAnimator {
 
     void set_reduced_motion(bool reduced_motion) noexcept {
         reduced_motion_ = reduced_motion;
+        if (reduced_motion_ && running_) {
+            current_ = target_;
+            elapsed_ms_ = duration_ms_;
+            running_ = false;
+        }
+    }
+
+    void apply_preferences(const SystemPreferences& preferences) noexcept {
+        set_reduced_motion(preferences.reduced_motion);
     }
 
     float advance(std::uint64_t now_ms) noexcept {
@@ -214,7 +224,14 @@ class ScalarAnimator {
             return current_;
         }
 
-        if (paused_ || throttled_ || reduced_motion_) {
+        if (reduced_motion_) {
+            current_ = target_;
+            elapsed_ms_ = duration_ms_;
+            running_ = false;
+            return current_;
+        }
+
+        if (paused_ || throttled_) {
             return current_;
         }
 

@@ -242,6 +242,20 @@ bool FocusChain::focus_last() noexcept {
     return true;
 }
 
+FocusRestoreResult FocusChain::restore(std::uint64_t id) noexcept {
+    if (id != 0 && is_enabled(id)) {
+        focus(id);
+        return FocusRestoreResult::restored;
+    }
+
+    if (first_enabled() == kNotFound) {
+        return FocusRestoreResult::unavailable;
+    }
+
+    focus_first();
+    return FocusRestoreResult::fallback;
+}
+
 std::size_t FocusChain::index_of(std::uint64_t id) const noexcept {
     for (std::size_t i = 0; i < count_; ++i) {
         if (entries_[i].id == id) {

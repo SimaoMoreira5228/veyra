@@ -66,6 +66,7 @@ target_link_libraries(veyra_text PUBLIC veyra_foundation veyra_layout veyra_rend
 target_compile_features(veyra_text PUBLIC cxx_std_23)
 
 add_library(veyra_platform STATIC
+ src/platform/core/seat.cpp
  src/platform/core/window_router.cpp
  src/platform/headless/null_window.cpp
  src/platform/headless/fake_services.cpp

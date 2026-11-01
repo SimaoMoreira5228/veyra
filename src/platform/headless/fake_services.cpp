@@ -46,6 +46,9 @@ void FakeServices::reset() noexcept {
 
     on_battery_ = false;
     power_generation_ = 0;
+
+    system_preferences_ = {};
+    system_preferences_version_ = 0;
 }
 
 ServiceResult FakeServices::clipboard_set(const char* text) noexcept {
@@ -470,6 +473,26 @@ std::uint64_t FakeServices::power_generation() const noexcept {
 
 void FakeServices::simulate_suspend_resume() noexcept {
     ++power_generation_;
+}
+
+SystemPreferences FakeServices::system_preferences() const noexcept {
+    return system_preferences_;
+}
+
+std::uint64_t FakeServices::system_preferences_version() const noexcept {
+    return system_preferences_version_;
+}
+
+void FakeServices::set_system_preferences(SystemPreferences preferences) noexcept {
+    preferences = sanitize_system_preferences(preferences);
+    preferences.version = system_preferences_version_;
+
+    if (preferences == system_preferences_) {
+        return;
+    }
+
+    preferences.version = ++system_preferences_version_;
+    system_preferences_ = preferences;
 }
 
 bool FakeServices::is_valid_answer(DialogAnswer answer) noexcept {

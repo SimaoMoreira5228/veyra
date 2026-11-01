@@ -120,6 +120,10 @@ class Sdl3Application {
         host_.set_dialog_service(service);
     }
 
+    SystemPreferences system_preferences() const noexcept {
+        return query_system_preferences();
+    }
+
     ServiceResult open_dialog(WindowId owner, DialogKind kind) noexcept {
         const auto result = host_.open_dialog(owner, kind);
         if (result == ServiceResult::ok) {

@@ -210,4 +210,8 @@ void PressableTintAnimator::set_reduced_motion(bool reduced_motion) noexcept {
     press_.set_reduced_motion(reduced_motion);
 }
 
+void PressableTintAnimator::apply_preferences(const SystemPreferences& preferences) noexcept {
+    set_reduced_motion(preferences.reduced_motion);
+}
+
 }

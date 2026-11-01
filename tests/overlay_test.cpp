@@ -310,6 +310,67 @@ void check_modal_state_passes_snapshot_validation() {
 
 }
 
+void check_focus_restore_on_close() {
+    auto focus = veyra::FocusChain{};
+    focus.register_item(10);
+    focus.register_item(11);
+    focus.register_item(12);
+    focus.focus(10);
+
+    veyra::NodeTree tree;
+    tree.reserve(3);
+    const auto root = tree.create();
+    const auto dialog = tree.create();
+    const auto popover = tree.create();
+    tree.append_child(root, dialog);
+    tree.append_child(root, popover);
+
+    auto overlays = veyra::OverlayController{};
+    require(
+        overlays.open(
+            {.dialog = dialog, .kind = veyra::OverlayKind::popover, .restore_control = 10}
+        ) == veyra::OverlayResult::opened,
+        "a popover opens with a control restore target"
+    );
+    focus.focus(11);
+
+    const auto closed = overlays.close_top(focus);
+    require(
+        closed.result == veyra::OverlayResult::closed && closed.restore_control == 10,
+        "closing reports the control target"
+    );
+    require(focus.focused() == 10, "closing a popover restores its opener");
+
+    require(
+        overlays.open({.dialog = dialog, .restore_control = 10}) == veyra::OverlayResult::opened,
+        "a modal opens with a restore target"
+    );
+    require(
+        overlays.open(
+            {.dialog = popover, .kind = veyra::OverlayKind::popover, .restore_control = 11}
+        ) == veyra::OverlayResult::opened,
+        "a nested popover opens"
+    );
+    focus.focus(12);
+    overlays.close_top(focus);
+    require(focus.focused() == 11, "the nested close restores the inner opener");
+    overlays.close_top(focus);
+    require(focus.focused() == 10, "the outer close restores the modal opener");
+
+    overlays.open({.dialog = dialog, .restore_control = 10});
+    overlays.open({.dialog = popover, .kind = veyra::OverlayKind::popover, .restore_control = 11});
+    focus.focus(12);
+    overlays.close_all(focus);
+    require(focus.focused() == 10, "closing every overlay restores the outermost opener");
+
+    focus.unregister(10);
+    focus.focus(11);
+    overlays.open({.dialog = popover, .kind = veyra::OverlayKind::popover, .restore_control = 10});
+    focus.focus(12);
+    overlays.close_top(focus);
+    require(focus.focused() == 11, "a removed opener falls back to the first enabled item");
+}
+
 int main() {
     try {
         check_open_close_reports_restore_target();
@@ -319,6 +380,7 @@ int main() {
         check_overflow_at_capacity();
         check_dialog_semantics();
         check_modal_state_passes_snapshot_validation();
+        check_focus_restore_on_close();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

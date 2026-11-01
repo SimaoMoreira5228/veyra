@@ -249,7 +249,7 @@ void check_tint_respects_reduced_motion_and_throttle() {
     control.pointer_enter();
     tint_anim.tick(control.state(), 0);
     tint_anim.tick(control.state(), 5000);
-    require(tint_anim.tint().hover == 0.0F, "reduced motion holds the tint at its start value");
+    require(tint_anim.tint().hover == 1.0F, "reduced motion snaps the tint to its target");
 
     auto offscreen = veyra::PressableTintAnimator{};
     offscreen.set_throttled(true);

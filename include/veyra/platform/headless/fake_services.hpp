@@ -1,6 +1,7 @@
 #ifndef VEYRA_PLATFORM_FAKE_SERVICES_HPP
 #define VEYRA_PLATFORM_FAKE_SERVICES_HPP
 
+#include "veyra/foundation/preferences.hpp"
 #include "veyra/platform/core/dialog.hpp"
 #include "veyra/platform/core/notice.hpp"
 
@@ -99,6 +100,10 @@ class FakeServices : public DialogService {
     std::uint64_t power_generation() const noexcept;
     void simulate_suspend_resume() noexcept;
 
+    SystemPreferences system_preferences() const noexcept;
+    std::uint64_t system_preferences_version() const noexcept;
+    void set_system_preferences(SystemPreferences preferences) noexcept;
+
   private:
     struct DialogSlot {
         std::uint64_t handle{};
@@ -147,6 +152,8 @@ class FakeServices : public DialogService {
 
     bool on_battery_{};
     std::uint64_t power_generation_{};
+    SystemPreferences system_preferences_{};
+    std::uint64_t system_preferences_version_{};
 };
 
 static_assert(NoticeBackend<FakeServices>);

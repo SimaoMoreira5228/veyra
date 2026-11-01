@@ -1,5 +1,7 @@
 #include "veyra/style/theme/theme_scope.hpp"
 
+#include <bit>
+
 namespace veyra {
 namespace {
 
@@ -43,6 +45,14 @@ const Theme& theme_for_variant(ThemeVariant variant) noexcept {
     }
 
     return light;
+}
+
+ThemeVariant theme_variant_for_system(ColorScheme scheme, bool high_contrast) noexcept {
+    if (high_contrast) {
+        return ThemeVariant::high_contrast;
+    }
+
+    return scheme == ColorScheme::dark ? ThemeVariant::dark : ThemeVariant::light;
 }
 
 ThemeScope::ThemeScope(const Theme& base) noexcept : base_(&base) {
@@ -118,7 +128,7 @@ Milliseconds ThemeScope::resolve_motion(MotionToken token) const noexcept {
     }
 
     if (parent_ != nullptr) {
-        return parent_->motion(token);
+        return parent_->resolve_motion(token);
     }
 
     return base_->motion(token);
@@ -137,6 +147,10 @@ LogicalPx ThemeScope::radius(RadiusToken token) const noexcept {
 }
 
 Milliseconds ThemeScope::motion(MotionToken token) const noexcept {
+    if (reduced_motion()) {
+        return Milliseconds{0};
+    }
+
     return resolve_motion(token);
 }
 
@@ -216,6 +230,71 @@ ThemeVariant ThemeScope::variant() const noexcept {
     return variant_;
 }
 
+bool ThemeScope::set_text_scale(float scale) noexcept {
+    const auto sanitized = sanitize_text_scale(scale);
+    if (text_scale_ == sanitized) {
+        return false;
+    }
+
+    text_scale_ = sanitized;
+    return true;
+}
+
+bool ThemeScope::clear_text_scale() noexcept {
+    if (!text_scale_) {
+        return false;
+    }
+
+    text_scale_.reset();
+    return true;
+}
+
+float ThemeScope::text_scale() const noexcept {
+    if (text_scale_) {
+        return *text_scale_;
+    }
+    if (parent_ != nullptr) {
+        return parent_->text_scale();
+    }
+
+    return 1.0F;
+}
+
+void ThemeScope::apply_preferences(const SystemPreferences& preferences) noexcept {
+    set_variant(theme_variant_for_system(preferences));
+    set_text_scale(preferences.text_scale);
+    set_reduced_motion(preferences.reduced_motion);
+}
+
+bool ThemeScope::set_reduced_motion(bool reduced) noexcept {
+    if (reduced_motion_ == reduced) {
+        return false;
+    }
+
+    reduced_motion_ = reduced;
+    return true;
+}
+
+bool ThemeScope::clear_reduced_motion() noexcept {
+    if (!reduced_motion_) {
+        return false;
+    }
+
+    reduced_motion_.reset();
+    return true;
+}
+
+bool ThemeScope::reduced_motion() const noexcept {
+    if (reduced_motion_) {
+        return *reduced_motion_;
+    }
+    if (parent_ != nullptr) {
+        return parent_->reduced_motion();
+    }
+
+    return false;
+}
+
 TokenProvenance ThemeScope::provenance(TokenKind kind, std::uint8_t token) const noexcept {
     if (local_override(kind, token)) {
         return local_.provenance(kind, token);
@@ -238,6 +317,16 @@ std::uint64_t ThemeScope::version() const noexcept {
     hash = mix_version(hash, base_->version());
     hash = mix_version(hash, static_cast<std::uint64_t>(variant_) + 1);
     hash = mix_version(hash, local_.version());
+
+    if (text_scale_) {
+        hash = mix_version(
+            hash,
+            static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(*text_scale_)) + 1
+        );
+    }
+    if (reduced_motion_) {
+        hash = mix_version(hash, *reduced_motion_ ? 3 : 2);
+    }
 
     if (parent_ != nullptr) {
         hash = mix_version(hash, parent_->version());

@@ -71,6 +71,7 @@ class PressableTintAnimator {
     void set_paused(bool paused) noexcept;
     void set_throttled(bool throttled) noexcept;
     void set_reduced_motion(bool reduced_motion) noexcept;
+    void apply_preferences(const SystemPreferences& preferences) noexcept;
 
     static constexpr AnimatedProperty animated_property() noexcept {
         return AnimatedProperty::color;

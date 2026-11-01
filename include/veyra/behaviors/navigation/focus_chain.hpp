@@ -7,6 +7,12 @@
 
 namespace veyra {
 
+enum class FocusRestoreResult : std::uint8_t {
+    restored,
+    fallback,
+    unavailable,
+};
+
 class FocusChain {
   public:
     static constexpr std::size_t kCapacity = 64;
@@ -30,6 +36,8 @@ class FocusChain {
     bool focus_prev() noexcept;
     bool focus_first() noexcept;
     bool focus_last() noexcept;
+
+    FocusRestoreResult restore(std::uint64_t id) noexcept;
 
   private:
     static constexpr std::size_t kNotFound = static_cast<std::size_t>(-1);
@@ -56,10 +64,12 @@ class FocusChain {
 
 namespace veyra::behaviors {
 using ::veyra::FocusChain;
+using ::veyra::FocusRestoreResult;
 }
 
 namespace veyra::behaviors::navigation {
 using ::veyra::FocusChain;
+using ::veyra::FocusRestoreResult;
 }
 
 #endif

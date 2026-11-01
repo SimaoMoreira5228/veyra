@@ -1,8 +1,9 @@
 #ifndef VEYRA_BEHAVIORS_OVERLAY_HPP
 #define VEYRA_BEHAVIORS_OVERLAY_HPP
 
-#include "veyra/core/tree/node_tree.hpp"
+#include "veyra/behaviors/navigation/focus_chain.hpp"
 #include "veyra/core/semantics/semantics.hpp"
+#include "veyra/core/tree/node_tree.hpp"
 
 #include <array>
 #include <cstddef>
@@ -32,6 +33,7 @@ struct OverlayLayer {
     NodeId restore_focus;
     bool escape_cancels{true};
     OverlayKind kind{OverlayKind::modal};
+    std::uint64_t restore_control{};
 };
 
 struct OverlayClose {
@@ -39,6 +41,7 @@ struct OverlayClose {
     NodeId dialog;
     NodeId restore_focus;
     OverlayKind kind{OverlayKind::modal};
+    std::uint64_t restore_control{};
 };
 
 struct OverlayIntent {
@@ -62,7 +65,9 @@ class OverlayController {
 
     OverlayResult open(const OverlayLayer& layer) noexcept;
     OverlayClose close_top() noexcept;
+    OverlayClose close_top(FocusChain& focus) noexcept;
     OverlayReset close_all() noexcept;
+    OverlayReset close_all(FocusChain& focus) noexcept;
 
     OverlayIntent escape() const noexcept;
     OverlayIntent request_default() const noexcept;

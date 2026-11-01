@@ -56,7 +56,19 @@ OverlayClose OverlayController::close_top() noexcept {
         .dialog = layer.dialog,
         .restore_focus = layer.restore_focus,
         .kind = layer.kind,
+        .restore_control = layer.restore_control,
     };
+}
+
+OverlayClose OverlayController::close_top(FocusChain& focus) noexcept {
+    const auto restore = depth_ == 0 ? std::uint64_t{} : layers_[depth_ - 1].restore_control;
+    const auto close = close_top();
+
+    if (close.result == OverlayResult::closed && restore != 0) {
+        focus.restore(restore);
+    }
+
+    return close;
 }
 
 OverlayReset OverlayController::close_all() noexcept {
@@ -72,6 +84,17 @@ OverlayReset OverlayController::close_all() noexcept {
         .closed = closed,
         .restore_focus = restore,
     };
+}
+
+OverlayReset OverlayController::close_all(FocusChain& focus) noexcept {
+    const auto restore = depth_ == 0 ? std::uint64_t{} : layers_[0].restore_control;
+    const auto reset = close_all();
+
+    if (reset.closed != 0 && restore != 0) {
+        focus.restore(restore);
+    }
+
+    return reset;
 }
 
 OverlayIntent OverlayController::escape() const noexcept {

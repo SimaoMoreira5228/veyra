@@ -3,6 +3,7 @@
 
 #include "veyra/platform/core/notice.hpp"
 #include "veyra/platform/core/run_loop.hpp"
+#include "veyra/platform/core/seat.hpp"
 #include "veyra/platform/core/text_input.hpp"
 #include "veyra/platform/core/window.hpp"
 #include "veyra/platform/core/window_router.hpp"

@@ -541,6 +541,64 @@ void check_semantics() {
 
 }
 
+void check_keyboard_focus_recovery() {
+    auto focus = veyra::FocusChain{};
+    focus.register_item(101);
+    focus.register_item(102);
+    focus.register_item(103);
+    focus.register_item(201);
+    focus.focus(101);
+
+    auto menu = veyra::MenuController{};
+    const auto items = root_items();
+    std::array<veyra::MenuItem, 1> children{{
+        {.id = 61, .kind = veyra::MenuItemKind::command},
+    }};
+
+    require(
+        menu.open_root_at(40, items, 1, 102) == veyra::MenuResult::opened,
+        "a menu opens with a restore target"
+    );
+    require(menu.restore_focus() == 102, "the controller keeps the restore target");
+    menu.open_submenu(6, items, children);
+    focus.focus(201);
+
+    require(
+        menu.press_left(focus) == veyra::MenuResult::closed,
+        "left closes a submenu before dismissing the root"
+    );
+    require(focus.focused() == 201, "closing one level keeps the menu focused");
+
+    require(
+        menu.press_left(focus) == veyra::MenuResult::dismissed,
+        "left on the root dismisses the menu"
+    );
+    require(focus.focused() == 102, "dismissing restores the opener");
+    require(menu.restore_focus() == 0, "a dismissed menu clears its restore target");
+
+    menu.open_root_at(41, items, 1, 102);
+    menu.close_all(focus);
+    require(focus.focused() == 102, "closing every level restores the opener");
+
+    focus.unregister(102);
+    menu.open_root_at(42, items, 1, 102);
+    menu.close_all(focus);
+    require(focus.focused() == 101, "a removed opener falls back to the first item");
+
+    require(menu.open_root(43, items) == veyra::MenuResult::opened, "a plain open succeeds");
+    require(menu.restore_focus() == 0, "a plain open has no restore target");
+
+    menu.open_root_at(44, items, 1, 103);
+    focus.focus(201);
+    const auto action = menu.activate(items, children, focus);
+    require(
+        action.result == veyra::MenuResult::command && action.id == 1,
+        "enter activates the active command"
+    );
+    require(menu.empty(), "activation closes every menu level");
+    require(focus.focused() == 103, "activation restores the opener");
+}
+
 int main() {
     try {
         check_open_resets_and_arms_first();
@@ -551,6 +609,7 @@ int main() {
         check_activation_intents();
         check_press_right_drills_active();
         check_escape_level_vs_root_dismiss();
+        check_keyboard_focus_recovery();
         check_outside_and_close_all();
         check_context_invocation_anchor();
         check_overflow_at_capacity();

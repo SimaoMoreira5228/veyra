@@ -13,6 +13,8 @@ veyra_add_test(NAME pressable_behavior TARGET veyra_pressable_test SOURCES tests
 veyra_add_test(NAME theme_tokens_behavior TARGET veyra_theme_test SOURCES tests/theme_test.cpp LIBS veyra_style)
 veyra_add_test(NAME theme_scope_behavior TARGET veyra_theme_scope_test SOURCES tests/theme_scope_test.cpp LIBS veyra_style)
 veyra_add_test(NAME theme_alias_behavior TARGET veyra_theme_alias_test SOURCES tests/theme_alias_test.cpp LIBS veyra_style)
+veyra_add_test(NAME system_preferences_behavior TARGET veyra_system_preferences_test SOURCES tests/preferences_test.cpp LIBS veyra)
+veyra_add_test(NAME seat_input_behavior TARGET veyra_seat_input_test SOURCES tests/seat_input_test.cpp LIBS veyra_platform)
 veyra_add_test(NAME theme_file_behavior TARGET veyra_theme_file_test SOURCES tests/theme_file_test.cpp LIBS veyra_style veyra_widgets_basic)
 veyra_add_test(NAME button_appearance_behavior TARGET veyra_button_appearance_test SOURCES tests/button_appearance_test.cpp LIBS veyra_widgets_basic)
 veyra_add_test(NAME data_grid_widget_behavior TARGET veyra_data_grid_widget_test SOURCES tests/data_grid_widget_test.cpp LIBS veyra_widgets_basic)

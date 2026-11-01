@@ -1,6 +1,7 @@
 #ifndef VEYRA_BEHAVIORS_MENU_HPP
 #define VEYRA_BEHAVIORS_MENU_HPP
 
+#include "veyra/behaviors/navigation/focus_chain.hpp"
 #include "veyra/core/semantics/semantics.hpp"
 
 #include <array>
@@ -83,6 +84,12 @@ class MenuController {
         std::span<const MenuItem> items,
         std::uint64_t anchor
     ) noexcept;
+    MenuResult open_root_at(
+        std::uint64_t menu,
+        std::span<const MenuItem> items,
+        std::uint64_t anchor,
+        std::uint64_t restore_focus
+    ) noexcept;
     MenuResult open_submenu(
         std::uint64_t id,
         std::span<const MenuItem> current,
@@ -90,7 +97,11 @@ class MenuController {
     ) noexcept;
 
     MenuClose close_level() noexcept;
+    MenuClose close_level(FocusChain& focus) noexcept;
+    MenuResult press_left(FocusChain& focus) noexcept;
     MenuReset close_all() noexcept;
+    MenuReset close_all(FocusChain& focus) noexcept;
+    std::uint64_t restore_focus() const noexcept;
 
     MenuResult move(MenuMove direction, std::span<const MenuItem> current) noexcept;
     MenuResult hover(std::uint64_t id, std::span<const MenuItem> current) noexcept;
@@ -99,6 +110,11 @@ class MenuController {
     press_right(std::span<const MenuItem> current, std::span<const MenuItem> children) noexcept;
     MenuAction
     activate(std::span<const MenuItem> current, std::span<const MenuItem> children) noexcept;
+    MenuAction activate(
+        std::span<const MenuItem> current,
+        std::span<const MenuItem> children,
+        FocusChain& focus
+    ) noexcept;
     MenuAction outside_press() const noexcept;
 
     bool
@@ -133,6 +149,7 @@ class MenuController {
 
     std::array<MenuLevel, kCapacity> levels_{};
     std::size_t depth_{};
+    std::uint64_t restore_focus_{};
 };
 
 }

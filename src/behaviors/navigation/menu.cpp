@@ -45,6 +45,7 @@ MenuResult MenuController::open_root(std::uint64_t menu, std::span<const MenuIte
     }
 
     depth_ = 1;
+    restore_focus_ = 0;
     levels_[0].menu = menu;
     levels_[0].has_active = false;
     levels_[0].active = 0;
@@ -63,11 +64,21 @@ MenuResult MenuController::open_root_at(
     std::span<const MenuItem> items,
     std::uint64_t anchor
 ) noexcept {
+    return open_root_at(menu, items, anchor, 0);
+}
+
+MenuResult MenuController::open_root_at(
+    std::uint64_t menu,
+    std::span<const MenuItem> items,
+    std::uint64_t anchor,
+    std::uint64_t restore_focus
+) noexcept {
     if (menu == 0) {
         return MenuResult::ignored;
     }
 
     depth_ = 1;
+    restore_focus_ = restore_focus;
     levels_[0].menu = menu;
     levels_[0].has_active = false;
     levels_[0].active = 0;
@@ -114,6 +125,7 @@ MenuClose MenuController::close_level() noexcept {
     levels_[depth_] = {};
 
     if (depth_ == 0) {
+        restore_focus_ = 0;
         return {
             .result = MenuResult::dismissed,
             .closed = closed,
@@ -126,14 +138,45 @@ MenuClose MenuController::close_level() noexcept {
     };
 }
 
+MenuClose MenuController::close_level(FocusChain& focus) noexcept {
+    const auto restore = restore_focus_;
+    const auto close = close_level();
+
+    if (close.result == MenuResult::dismissed && restore != 0) {
+        focus.restore(restore);
+    }
+
+    return close;
+}
+
+MenuResult MenuController::press_left(FocusChain& focus) noexcept {
+    return close_level(focus).result;
+}
+
 MenuReset MenuController::close_all() noexcept {
     MenuReset outcome{};
 
     outcome.closed = depth_;
     depth_ = 0;
     levels_ = {};
+    restore_focus_ = 0;
 
     return outcome;
+}
+
+MenuReset MenuController::close_all(FocusChain& focus) noexcept {
+    const auto restore = restore_focus_;
+    const auto reset = close_all();
+
+    if (reset.closed != 0 && restore != 0) {
+        focus.restore(restore);
+    }
+
+    return reset;
+}
+
+std::uint64_t MenuController::restore_focus() const noexcept {
+    return restore_focus_;
 }
 
 MenuResult MenuController::move(MenuMove direction, std::span<const MenuItem> current) noexcept {
@@ -309,6 +352,21 @@ MenuAction MenuController::activate(
     }
 
     return {};
+}
+
+MenuAction MenuController::activate(
+    std::span<const MenuItem> current,
+    std::span<const MenuItem> children,
+    FocusChain& focus
+) noexcept {
+    const auto action = activate(current, children);
+
+    if (action.result == MenuResult::command || action.result == MenuResult::toggle ||
+        action.result == MenuResult::radio) {
+        close_all(focus);
+    }
+
+    return action;
 }
 
 MenuAction MenuController::outside_press() const noexcept {

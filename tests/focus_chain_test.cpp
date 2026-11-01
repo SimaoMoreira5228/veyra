@@ -226,6 +226,51 @@ void check_generation_gating() {
 
 }
 
+void check_restore_prefers_the_target_then_falls_back() {
+    auto chain = veyra::FocusChain{};
+    require(
+        chain.restore(101) == veyra::FocusRestoreResult::unavailable,
+        "an empty chain cannot restore"
+    );
+
+    chain.register_item(101);
+    chain.register_item(102);
+    chain.register_item(103);
+
+    require(
+        chain.restore(102) == veyra::FocusRestoreResult::restored && chain.focused() == 102,
+        "a registered target is restored"
+    );
+    require(
+        chain.restore(102) == veyra::FocusRestoreResult::restored,
+        "restoring the already focused target still succeeds"
+    );
+
+    chain.unregister(102);
+    require(
+        chain.restore(102) == veyra::FocusRestoreResult::fallback && chain.focused() == 101,
+        "a removed target falls back to the first enabled item"
+    );
+
+    chain.set_enabled(101, false);
+    require(
+        chain.restore(102) == veyra::FocusRestoreResult::fallback && chain.focused() == 103,
+        "the fallback skips disabled items"
+    );
+
+    chain.set_enabled(103, false);
+    require(
+        chain.restore(102) == veyra::FocusRestoreResult::unavailable && !chain.has_focus(),
+        "a chain with no enabled items cannot restore"
+    );
+
+    chain.set_enabled(103, true);
+    require(
+        chain.restore(0) == veyra::FocusRestoreResult::fallback && chain.focused() == 103,
+        "a zero target falls back"
+    );
+}
+
 int main() {
     try {
         check_empty_chain_reports_no_focus();
@@ -238,6 +283,7 @@ int main() {
         check_unregister_fallback();
         check_unregister_skips_disabled_fallback();
         check_generation_gating();
+        check_restore_prefers_the_target_then_falls_back();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -561,4 +561,14 @@ void Sdl3Window::TextureDeleter::operator()(SDL_Texture* texture) const noexcept
     SDL_DestroyTexture(texture);
 }
 
+SystemPreferences query_system_preferences() noexcept {
+    auto preferences = SystemPreferences{};
+
+    if (SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK) {
+        preferences.color_scheme = ColorScheme::dark;
+    }
+
+    return sanitize_system_preferences(preferences);
+}
+
 }
