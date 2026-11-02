@@ -193,6 +193,104 @@ void check_activation_restores_focus() {
     require(host.activate(veyra::kInvalidWindowId).is_null(), "unknown windows cannot activate");
 }
 
+void check_seat_routing() {
+    auto tree = veyra::NodeTree{};
+    tree.reserve(5);
+    const auto first_root = tree.create();
+    const auto first_focus = tree.create();
+    const auto second_root = tree.create();
+    const auto second_focus = tree.create();
+    tree.append_child(first_root, first_focus);
+    tree.append_child(second_root, second_focus);
+
+    auto host = veyra::app::sdl3::Sdl3WindowHost{};
+    auto first = veyra::WindowId{};
+    auto second = veyra::WindowId{};
+    require(
+        host.create("seat first", 160, 120, {}, first) == veyra::WindowSetResult::ok,
+        "first seat window creates"
+    );
+    require(
+        host.create("seat second", 120, 90, {}, second) == veyra::WindowSetResult::ok,
+        "second seat window creates"
+    );
+    require(host.bind_semantics(first, tree, first_root), "first seat root binds");
+    require(host.bind_semantics(second, tree, second_root), "second seat root binds");
+    require(host.set_focused_node(first, first_focus), "first seat focus is stored");
+    require(host.set_focused_node(second, second_focus), "second seat focus is stored");
+
+    const auto default_seat = host.default_seat();
+    require(default_seat != veyra::kInvalidSeatId, "the host creates a default seat");
+    require(host.active_seat() == default_seat, "the default seat starts active");
+    require(host.seat_count() == 1, "the host starts with one seat");
+
+    const auto second_seat = host.create_seat();
+    require(second_seat != veyra::kInvalidSeatId, "a second seat is created");
+    require(second_seat != default_seat, "seat ids are distinct");
+    require(host.seat_count() == 2, "both seats are live");
+
+    require(host.activate(default_seat, first) == first_focus, "seat one activates its window");
+    require(host.activate(second_seat, second) == second_focus, "seat two activates its window");
+    require(host.seat_focused_node(default_seat) == first_focus, "seat one keeps its focus");
+    require(host.seat_focused_node(second_seat) == second_focus, "seat two keeps its focus");
+
+    require(
+        host.capture_pointer(default_seat, first, 0, first_focus),
+        "seat one captures the pointer"
+    );
+    require(
+        host.capture_pointer(second_seat, second, 0, second_focus),
+        "seat two captures the same pointer id"
+    );
+    require(
+        host.seat_pointer_captured(default_seat, 0) && host.seat_pointer_captured(second_seat, 0),
+        "both seats report their own capture"
+    );
+    require(host.release_pointer(default_seat, first, 0), "seat one releases its capture");
+    require(
+        !host.seat_pointer_captured(default_seat, 0) && host.seat_pointer_captured(second_seat, 0),
+        "releasing one seat leaves the other capture alone"
+    );
+
+    require(host.set_hover(default_seat, first, first_focus), "seat one hovers");
+    require(host.set_hover(second_seat, second, second_focus), "seat two hovers");
+    require(
+        host.seat_hovered_node(default_seat) == first_focus &&
+            host.seat_hovered_node(second_seat) == second_focus,
+        "each seat keeps its own hover"
+    );
+
+    require(host.set_active_seat(second_seat), "seat two becomes active");
+    require(host.set_hover(second_seat, second, second_root), "the active seat updates its hover");
+    require(
+        host.router().find(second)->hovered_node() == second_root,
+        "the router follows the active seat"
+    );
+    require(host.set_hover(default_seat, first, first_root), "the idle seat updates its hover");
+    require(
+        host.router().find(second)->hovered_node() == second_root,
+        "an idle seat does not rewrite the router"
+    );
+
+    require(host.seat_set_modifiers(default_seat, 0x5), "seat one stores modifiers");
+    require(host.seat_set_modifiers(second_seat, 0x2), "seat two stores modifiers");
+    require(
+        host.seat_modifiers(default_seat) == 0x5 && host.seat_modifiers(second_seat) == 0x2,
+        "modifiers stay per seat"
+    );
+
+    require(!host.release_seat(default_seat), "the default seat cannot be released");
+    require(host.release_seat(second_seat), "the extra seat releases");
+    require(host.seat_count() == 1, "one seat remains");
+    require(host.active_seat() == default_seat, "the active seat falls back to default");
+    require(!host.seat_pointer_captured(second_seat, 0), "a released seat has no state");
+    require(!host.set_active_seat(second_seat), "a released seat cannot become active");
+    require(
+        !host.capture_pointer(second_seat, first, 1, first_focus),
+        "a released seat rejects input"
+    );
+}
+
 void check_pipelined_present() {
     auto host = veyra::app::sdl3::Sdl3WindowHost{};
     auto wake_scheduler = veyra::FrameScheduler{};
@@ -729,6 +827,7 @@ int main() {
 #endif
         check_decode_completion_discard();
         check_activation_restores_focus();
+        check_seat_routing();
         check_pipelined_present();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

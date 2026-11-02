@@ -1,0 +1,9 @@
+[package]
+name = "veyra"
+version = "0.0.1"
+edition = "2024"
+publish = false
+description = "Minimal safe Rust binding over the Veyra C ABI"
+
+[lib]
+path = "src/lib.rs"

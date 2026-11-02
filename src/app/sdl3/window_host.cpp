@@ -584,6 +584,7 @@ bool Sdl3WindowHost::poll_event(WindowEvent& event, WindowId& logical_window) no
                 (windows_.blocks_interaction(logical) || has_pending_dialog_locked(logical))) {
                 continue;
             }
+            track_input_locked(event);
             router_.route(event);
             router_.mark_damaged(logical);
             if (event.kind == WindowEventKind::state_change) {

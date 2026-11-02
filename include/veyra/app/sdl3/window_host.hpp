@@ -5,6 +5,7 @@
 #include "veyra/app/decode_tracker.hpp"
 #include "veyra/app/window_set.hpp"
 #include "veyra/platform/core/dialog.hpp"
+#include "veyra/platform/core/seat.hpp"
 #include "veyra/platform/core/window_router.hpp"
 #include "veyra/platform/sdl3/sdl3_window.hpp"
 #include "veyra/render/present/frame_commit.hpp"
@@ -40,6 +41,8 @@ class Sdl3WindowHost {
 
     explicit Sdl3WindowHost(ShutdownMode shutdown = ShutdownMode::on_last_window_close) noexcept :
         windows_{slots_, shutdown} {
+        create_seat();
+        active_seat_ = default_seat_;
         render_worker_.start();
     }
     ~Sdl3WindowHost();
@@ -48,6 +51,19 @@ class Sdl3WindowHost {
     Sdl3WindowHost& operator=(const Sdl3WindowHost&) = delete;
     Sdl3WindowHost(Sdl3WindowHost&&) = delete;
     Sdl3WindowHost& operator=(Sdl3WindowHost&&) = delete;
+
+    SeatId default_seat() const noexcept;
+    SeatId active_seat() const noexcept;
+    bool set_active_seat(SeatId seat) noexcept;
+    SeatId create_seat() noexcept;
+    bool release_seat(SeatId seat) noexcept;
+    std::size_t seat_count() const noexcept;
+    bool seat_focus(SeatId seat, WindowId window, NodeId node) noexcept;
+    NodeId seat_focused_node(SeatId seat) const noexcept;
+    bool seat_set_modifiers(SeatId seat, std::uint32_t modifiers) noexcept;
+    std::uint32_t seat_modifiers(SeatId seat) const noexcept;
+    bool seat_pointer_captured(SeatId seat, std::uint32_t pointer) const noexcept;
+    NodeId seat_hovered_node(SeatId seat) const noexcept;
 
     WindowSetResult create(
         const char* title,
@@ -86,13 +102,29 @@ class Sdl3WindowHost {
     bool gpu_active(WindowId window) const noexcept;
     bool gpu_fallback() const noexcept;
     NodeId activate(WindowId window) noexcept;
+    NodeId activate(SeatId seat, WindowId window) noexcept;
     HitTestResult hit_test_and_hover(
         WindowId window,
         LayoutPoint logical_point,
         std::span<const LayoutRect> bounds_by_node_index,
         NodeId& target
     ) noexcept;
+    HitTestResult hit_test_and_hover(
+        SeatId seat,
+        WindowId window,
+        LayoutPoint logical_point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept;
     HitTestResult press_pointer(
+        WindowId window,
+        std::uint32_t pointer,
+        LayoutPoint logical_point,
+        std::span<const LayoutRect> bounds_by_node_index,
+        NodeId& target
+    ) noexcept;
+    HitTestResult press_pointer(
+        SeatId seat,
         WindowId window,
         std::uint32_t pointer,
         LayoutPoint logical_point,
@@ -115,9 +147,14 @@ class Sdl3WindowHost {
     bool take_decode(std::uint64_t request) noexcept;
     bool decode_discarded(std::uint64_t request) noexcept;
     bool capture_pointer(WindowId window, std::uint32_t pointer, NodeId target) noexcept;
+    bool
+    capture_pointer(SeatId seat, WindowId window, std::uint32_t pointer, NodeId target) noexcept;
     bool release_pointer(WindowId window, std::uint32_t pointer) noexcept;
+    bool release_pointer(SeatId seat, WindowId window, std::uint32_t pointer) noexcept;
     bool set_hover(WindowId window, NodeId node) noexcept;
+    bool set_hover(SeatId seat, WindowId window, NodeId node) noexcept;
     bool clear_hover(WindowId window) noexcept;
+    bool clear_hover(SeatId seat, WindowId window) noexcept;
     bool surface_size(WindowId window, std::uint32_t& width, std::uint32_t& height) noexcept;
     bool take_device_lost(WindowId window) noexcept;
     bool render_thread_active() const noexcept;
@@ -196,11 +233,13 @@ class Sdl3WindowHost {
     bool has_pending_dialog_locked(WindowId owner) const noexcept;
     void discard_dialogs(WindowId owner) noexcept;
     HitTestResult hit_test_hover_locked(
+        SeatId seat,
         WindowId window,
         LayoutPoint logical_point,
         std::span<const LayoutRect> bounds_by_node_index,
         NodeId& target
     ) noexcept;
+    void track_input_locked(const WindowEvent& event) noexcept;
     static void run_present_task(void* context) noexcept;
     std::size_t slot_for(WindowId window) const noexcept;
     WindowId logical_for_sdl(WindowId sdl_window) const noexcept;
@@ -220,6 +259,10 @@ class Sdl3WindowHost {
     DecodeTracker decodes_{};
     std::array<WindowRouteState, kCapacity> route_storage_{};
     WindowRouter router_{route_storage_};
+    std::array<SeatInputState, kSeatCapacity> seat_storage_{};
+    SeatInputSet seats_{seat_storage_};
+    SeatId active_seat_{kInvalidSeatId};
+    SeatId default_seat_{kInvalidSeatId};
     WindowSet windows_{slots_};
     mutable std::mutex state_mutex_;
     PresentObserver present_observer_{};

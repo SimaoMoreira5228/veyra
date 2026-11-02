@@ -8,3 +8,5 @@ build/
 *.prn
 build-vk/
 .deps/
+
+bindings/rust/target/
