@@ -102,6 +102,29 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4f {
 }
 )";
 
+constexpr char kPathShader[] = R"(
+struct VertexOutput {
+    @builtin(position) position: vec4f,
+    @location(0) color: vec4f,
+};
+
+@vertex
+fn vs_path(
+    @location(0) position: vec2f,
+    @location(1) color: vec4f
+) -> VertexOutput {
+    var output: VertexOutput;
+    output.position = vec4f(position, 0.0, 1.0);
+    output.color = color;
+    return output;
+}
+
+@fragment
+fn fs_path(input: VertexOutput) -> @location(0) vec4f {
+    return input.color;
+}
+)";
+
 void on_adapter(
     WGPURequestAdapterStatus status,
     WGPUAdapter adapter,
@@ -156,11 +179,16 @@ struct WebGpuBackend::Device {
     WGPUBindGroupLayout bind_group_layout{};
     WGPUPipelineLayout pipeline_layout{};
     WGPURenderPipeline pipeline{};
+    WGPUShaderModule path_shader{};
+    WGPURenderPipeline path_stencil_even{};
+    WGPURenderPipeline path_stencil_nonzero{};
+    WGPURenderPipeline path_cover{};
     WGPUSampler nearest_sampler{};
     WGPUSampler linear_sampler{};
     WGPUTexture white_texture{};
     WGPUTextureView white_view{};
     bool valid{};
+    bool path_ready_{};
 
     ~Device() {
         if (white_view != nullptr) {
@@ -174,6 +202,18 @@ struct WebGpuBackend::Device {
         }
         if (linear_sampler != nullptr) {
             wgpuSamplerRelease(linear_sampler);
+        }
+        if (path_cover != nullptr) {
+            wgpuRenderPipelineRelease(path_cover);
+        }
+        if (path_stencil_nonzero != nullptr) {
+            wgpuRenderPipelineRelease(path_stencil_nonzero);
+        }
+        if (path_stencil_even != nullptr) {
+            wgpuRenderPipelineRelease(path_stencil_even);
+        }
+        if (path_shader != nullptr) {
+            wgpuShaderModuleRelease(path_shader);
         }
         if (pipeline != nullptr) {
             wgpuRenderPipelineRelease(pipeline);
@@ -395,6 +435,195 @@ struct WebGpuBackend::Device {
         return nearest_sampler != nullptr && linear_sampler != nullptr && create_white_texture();
     }
 
+    bool ensure_path_pipelines() noexcept {
+        if (path_ready_) {
+            return true;
+        }
+        auto path_source = WGPUShaderSourceWGSL{
+            .chain = {.sType = WGPUSType_ShaderSourceWGSL},
+            .code = {kPathShader, WGPU_STRLEN},
+        };
+        const WGPUShaderModuleDescriptor path_shader_descriptor{
+            .nextInChain = &path_source.chain,
+        };
+        path_shader = wgpuDeviceCreateShaderModule(device, &path_shader_descriptor);
+        if (path_shader == nullptr) {
+            return false;
+        }
+        const WGPUPipelineLayoutDescriptor path_layout_descriptor{};
+        WGPUPipelineLayout path_layout =
+            wgpuDeviceCreatePipelineLayout(device, &path_layout_descriptor);
+        if (path_layout == nullptr) {
+            return false;
+        }
+        const std::array<WGPUVertexAttribute, 2> path_attributes{
+            WGPUVertexAttribute{
+                .format = WGPUVertexFormat_Float32x2,
+                .offset = 0,
+                .shaderLocation = 0,
+            },
+            WGPUVertexAttribute{
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 8,
+                .shaderLocation = 1,
+            },
+        };
+        const WGPUVertexBufferLayout path_vertex_buffer{
+            .stepMode = WGPUVertexStepMode_Vertex,
+            .arrayStride = 24,
+            .attributeCount = path_attributes.size(),
+            .attributes = path_attributes.data(),
+        };
+        const WGPUVertexState path_vertex{
+            .module = path_shader,
+            .entryPoint = {"vs_path", WGPU_STRLEN},
+            .bufferCount = 1,
+            .buffers = &path_vertex_buffer,
+        };
+        const WGPUBlendState path_blend{
+            .color =
+                {
+                    .operation = WGPUBlendOperation_Add,
+                    .srcFactor = WGPUBlendFactor_SrcAlpha,
+                    .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+                },
+            .alpha = {
+                .operation = WGPUBlendOperation_Add,
+                .srcFactor = WGPUBlendFactor_One,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
+            },
+        };
+        const WGPUColorTargetState path_target{
+            .format = WGPUTextureFormat_RGBA8Unorm,
+            .blend = &path_blend,
+            .writeMask = WGPUColorWriteMask_All,
+        };
+        const WGPUFragmentState path_fragment{
+            .module = path_shader,
+            .entryPoint = {"fs_path", WGPU_STRLEN},
+            .targetCount = 1,
+            .targets = &path_target,
+        };
+        const WGPUStencilFaceState cover_face{
+            .compare = WGPUCompareFunction_NotEqual,
+            .failOp = WGPUStencilOperation_Keep,
+            .depthFailOp = WGPUStencilOperation_Keep,
+            .passOp = WGPUStencilOperation_Zero,
+        };
+        const WGPUDepthStencilState cover_depth{
+            .format = WGPUTextureFormat_Depth24PlusStencil8,
+            .depthWriteEnabled = WGPUOptionalBool_False,
+            .depthCompare = WGPUCompareFunction_Always,
+            .stencilFront = cover_face,
+            .stencilBack = cover_face,
+            .stencilReadMask = 0xFF,
+            .stencilWriteMask = 0xFF,
+        };
+        const WGPURenderPipelineDescriptor cover_descriptor{
+            .layout = path_layout,
+            .vertex = path_vertex,
+            .primitive =
+                {
+                    .topology = WGPUPrimitiveTopology_TriangleList,
+                },
+            .depthStencil = &cover_depth,
+            .multisample =
+                {
+                    .count = 1,
+                    .mask = 0xFFFFFFFF,
+                },
+            .fragment = &path_fragment,
+        };
+        path_cover = wgpuDeviceCreateRenderPipeline(device, &cover_descriptor);
+
+        const WGPUStencilFaceState even_face{
+            .compare = WGPUCompareFunction_Always,
+            .failOp = WGPUStencilOperation_Keep,
+            .depthFailOp = WGPUStencilOperation_Keep,
+            .passOp = WGPUStencilOperation_Invert,
+        };
+        const WGPUDepthStencilState even_depth{
+            .format = WGPUTextureFormat_Depth24PlusStencil8,
+            .depthWriteEnabled = WGPUOptionalBool_False,
+            .depthCompare = WGPUCompareFunction_Always,
+            .stencilFront = even_face,
+            .stencilBack = even_face,
+            .stencilReadMask = 0xFF,
+            .stencilWriteMask = 0xFF,
+        };
+        const WGPUColorTargetState no_color_target{
+            .format = WGPUTextureFormat_RGBA8Unorm,
+            .writeMask = WGPUColorWriteMask_None,
+        };
+        const WGPUFragmentState no_color_fragment{
+            .module = path_shader,
+            .entryPoint = {"fs_path", WGPU_STRLEN},
+            .targetCount = 1,
+            .targets = &no_color_target,
+        };
+        const WGPURenderPipelineDescriptor even_descriptor{
+            .layout = path_layout,
+            .vertex = path_vertex,
+            .primitive =
+                {
+                    .topology = WGPUPrimitiveTopology_TriangleList,
+                },
+            .depthStencil = &even_depth,
+            .multisample =
+                {
+                    .count = 1,
+                    .mask = 0xFFFFFFFF,
+                },
+            .fragment = &no_color_fragment,
+        };
+        path_stencil_even = wgpuDeviceCreateRenderPipeline(device, &even_descriptor);
+
+        const WGPUStencilFaceState nonzero_front{
+            .compare = WGPUCompareFunction_Always,
+            .failOp = WGPUStencilOperation_Keep,
+            .depthFailOp = WGPUStencilOperation_Keep,
+            .passOp = WGPUStencilOperation_IncrementWrap,
+        };
+        const WGPUStencilFaceState nonzero_back{
+            .compare = WGPUCompareFunction_Always,
+            .failOp = WGPUStencilOperation_Keep,
+            .depthFailOp = WGPUStencilOperation_Keep,
+            .passOp = WGPUStencilOperation_DecrementWrap,
+        };
+        const WGPUDepthStencilState nonzero_depth{
+            .format = WGPUTextureFormat_Depth24PlusStencil8,
+            .depthWriteEnabled = WGPUOptionalBool_False,
+            .depthCompare = WGPUCompareFunction_Always,
+            .stencilFront = nonzero_front,
+            .stencilBack = nonzero_back,
+            .stencilReadMask = 0xFF,
+            .stencilWriteMask = 0xFF,
+        };
+        const WGPURenderPipelineDescriptor nonzero_descriptor{
+            .layout = path_layout,
+            .vertex = path_vertex,
+            .primitive =
+                {
+                    .topology = WGPUPrimitiveTopology_TriangleList,
+                },
+            .depthStencil = &nonzero_depth,
+            .multisample =
+                {
+                    .count = 1,
+                    .mask = 0xFFFFFFFF,
+                },
+            .fragment = &no_color_fragment,
+        };
+        path_stencil_nonzero = wgpuDeviceCreateRenderPipeline(device, &nonzero_descriptor);
+        wgpuPipelineLayoutRelease(path_layout);
+        if (path_cover == nullptr || path_stencil_even == nullptr ||
+            path_stencil_nonzero == nullptr) {
+            return false;
+        }
+        path_ready_ = true;
+        return true;
+    }
+
     bool create() noexcept {
         instance = wgpuCreateInstance(nullptr);
         if (instance == nullptr) {
@@ -534,11 +763,13 @@ struct WebGpuBackend::Device {
         std::uint32_t width,
         std::uint32_t height,
         std::span<const GpuInstance> instances,
+        std::span<const PathVertex> path_vertices,
+        std::span<const std::uint32_t> path_indices,
         std::span<const DrawRange> ranges,
         std::span<SoftwarePixel> output
     ) noexcept {
-        if (!valid || width == 0 || height == 0 || instances.empty() || ranges.empty() ||
-            output.size() < static_cast<std::size_t>(width) * height) {
+        if (!valid || width == 0 || height == 0 || (instances.empty() && path_indices.empty()) ||
+            ranges.empty() || output.size() < static_cast<std::size_t>(width) * height) {
             return false;
         }
 
@@ -571,13 +802,37 @@ struct WebGpuBackend::Device {
             .size = 16,
         };
         WGPUBuffer uniform_buffer = wgpuDeviceCreateBuffer(device, &uniform_descriptor);
+        WGPUBuffer path_vertex_buffer = nullptr;
+        WGPUBuffer path_index_buffer = nullptr;
+        if (!path_vertices.empty()) {
+            const WGPUBufferDescriptor vertex_descriptor{
+                .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                .size = static_cast<std::uint64_t>(path_vertices.size()) * 24U,
+            };
+            path_vertex_buffer = wgpuDeviceCreateBuffer(device, &vertex_descriptor);
+        }
+        if (!path_indices.empty()) {
+            const WGPUBufferDescriptor index_descriptor{
+                .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst,
+                .size = static_cast<std::uint64_t>(path_indices.size()) * 4U,
+            };
+            path_index_buffer = wgpuDeviceCreateBuffer(device, &index_descriptor);
+        }
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, nullptr);
-        if (instance_buffer == nullptr || uniform_buffer == nullptr || encoder == nullptr) {
+        if (instance_buffer == nullptr || uniform_buffer == nullptr || encoder == nullptr ||
+            (!path_indices.empty() &&
+             (path_vertex_buffer == nullptr || path_index_buffer == nullptr))) {
             if (instance_buffer != nullptr) {
                 wgpuBufferRelease(instance_buffer);
             }
             if (uniform_buffer != nullptr) {
                 wgpuBufferRelease(uniform_buffer);
+            }
+            if (path_vertex_buffer != nullptr) {
+                wgpuBufferRelease(path_vertex_buffer);
+            }
+            if (path_index_buffer != nullptr) {
+                wgpuBufferRelease(path_index_buffer);
             }
             if (encoder != nullptr) {
                 wgpuCommandEncoderRelease(encoder);
@@ -601,6 +856,24 @@ struct WebGpuBackend::Device {
             0.0F,
         };
         wgpuQueueWriteBuffer(queue, uniform_buffer, 0, uniform_data.data(), sizeof(uniform_data));
+        if (path_vertex_buffer != nullptr) {
+            wgpuQueueWriteBuffer(
+                queue,
+                path_vertex_buffer,
+                0,
+                path_vertices.data(),
+                path_vertices.size() * sizeof(PathVertex)
+            );
+        }
+        if (path_index_buffer != nullptr) {
+            wgpuQueueWriteBuffer(
+                queue,
+                path_index_buffer,
+                0,
+                path_indices.data(),
+                path_indices.size() * sizeof(std::uint32_t)
+            );
+        }
 
         auto textures = std::array<WGPUTexture, WebGpuFramePlan::kMaxBatches>{};
         auto views = std::array<WGPUTextureView, WebGpuFramePlan::kMaxBatches>{};
@@ -792,30 +1065,54 @@ struct WebGpuBackend::Device {
             ++bind_count;
         }
 
-        const WGPURenderPassColorAttachment color_attachment{
-            .view = view,
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Store,
-            .clearValue = {.r = 0.0F, .g = 0.0F, .b = 0.0F, .a = 0.0F},
-        };
-        const WGPURenderPassDescriptor pass_descriptor{
-            .colorAttachmentCount = 1,
-            .colorAttachments = &color_attachment,
-        };
-        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &pass_descriptor);
-        if (pass == nullptr) {
-            release_uploads();
-            wgpuCommandEncoderRelease(encoder);
-            wgpuBufferRelease(uniform_buffer);
-            wgpuBufferRelease(instance_buffer);
-            wgpuTextureViewRelease(view);
-            wgpuTextureRelease(texture);
-            return false;
+        auto has_path = false;
+        for (const auto& range : ranges) {
+            has_path = has_path || range.path;
         }
 
-        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-        wgpuRenderPassEncoderSetVertexBuffer(pass, 0, instance_buffer, 0, instance_bytes);
+        WGPUTexture depth_texture = nullptr;
+        WGPUTextureView depth_view = nullptr;
+        auto depth_attachment = WGPURenderPassDepthStencilAttachment{};
+        if (has_path) {
+            const WGPUTextureDescriptor depth_descriptor{
+                .usage = WGPUTextureUsage_RenderAttachment,
+                .dimension = WGPUTextureDimension_2D,
+                .size = {width, height, 1},
+                .format = WGPUTextureFormat_Depth24PlusStencil8,
+                .mipLevelCount = 1,
+                .sampleCount = 1,
+            };
+            depth_texture = wgpuDeviceCreateTexture(device, &depth_descriptor);
+            depth_view =
+                depth_texture == nullptr ? nullptr : wgpuTextureCreateView(depth_texture, nullptr);
+            if (depth_texture == nullptr || depth_view == nullptr) {
+                if (depth_view != nullptr) {
+                    wgpuTextureViewRelease(depth_view);
+                }
+                if (depth_texture != nullptr) {
+                    wgpuTextureRelease(depth_texture);
+                }
+                release_uploads();
+                wgpuCommandEncoderRelease(encoder);
+                wgpuBufferRelease(uniform_buffer);
+                wgpuBufferRelease(instance_buffer);
+                wgpuTextureViewRelease(view);
+                wgpuTextureRelease(texture);
+                return false;
+            }
+
+            depth_attachment = WGPURenderPassDepthStencilAttachment{
+                .view = depth_view,
+                .depthLoadOp = WGPULoadOp_Clear,
+                .depthStoreOp = WGPUStoreOp_Discard,
+                .depthClearValue = 1.0F,
+                .stencilLoadOp = WGPULoadOp_Clear,
+                .stencilStoreOp = WGPUStoreOp_Discard,
+                .stencilClearValue = 0,
+            };
+        }
+
+        auto first_pass = true;
         for (std::size_t index = 0; index < ranges.size() && index < bind_count; ++index) {
             const auto& range = ranges[index];
             auto left = std::uint32_t{};
@@ -846,19 +1143,92 @@ struct WebGpuBackend::Device {
                 bottom = static_cast<std::uint32_t>(std::ceil(y1));
             }
 
+            const WGPURenderPassColorAttachment color_attachment{
+                .view = view,
+                .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                .loadOp = first_pass ? WGPULoadOp_Clear : WGPULoadOp_Load,
+                .storeOp = WGPUStoreOp_Store,
+                .clearValue = {.r = 0.0F, .g = 0.0F, .b = 0.0F, .a = 0.0F},
+            };
+            const WGPURenderPassDescriptor pass_descriptor{
+                .colorAttachmentCount = 1,
+                .colorAttachments = &color_attachment,
+                .depthStencilAttachment =
+                    range.path && depth_view != nullptr ? &depth_attachment : nullptr,
+            };
+            WGPURenderPassEncoder pass =
+                wgpuCommandEncoderBeginRenderPass(encoder, &pass_descriptor);
+            if (pass == nullptr) {
+                if (depth_view != nullptr) {
+                    wgpuTextureViewRelease(depth_view);
+                }
+                if (depth_texture != nullptr) {
+                    wgpuTextureRelease(depth_texture);
+                }
+                release_uploads();
+                wgpuCommandEncoderRelease(encoder);
+                wgpuBufferRelease(uniform_buffer);
+                wgpuBufferRelease(instance_buffer);
+                wgpuTextureViewRelease(view);
+                wgpuTextureRelease(texture);
+                return false;
+            }
+            first_pass = false;
+
             wgpuRenderPassEncoderSetScissorRect(pass, left, top, right - left, bottom - top);
-            wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_groups[index], 0, nullptr);
-            wgpuRenderPassEncoderDraw(
-                pass,
-                6,
-                static_cast<std::uint32_t>(range.count),
-                0,
-                static_cast<std::uint32_t>(range.first)
-            );
+            if (range.path) {
+                const auto path_bytes =
+                    static_cast<std::uint64_t>(path_vertices.size()) * sizeof(PathVertex);
+                wgpuRenderPassEncoderSetPipeline(
+                    pass,
+                    range.path_fill_rule == SoftwarePathFillRule::even_odd ? path_stencil_even
+                                                                           : path_stencil_nonzero
+                );
+                wgpuRenderPassEncoderSetVertexBuffer(pass, 0, path_vertex_buffer, 0, path_bytes);
+                wgpuRenderPassEncoderSetIndexBuffer(
+                    pass,
+                    path_index_buffer,
+                    WGPUIndexFormat_Uint32,
+                    0,
+                    WGPU_WHOLE_SIZE
+                );
+                wgpuRenderPassEncoderDrawIndexed(
+                    pass,
+                    range.path_index_count,
+                    1,
+                    range.path_index_first,
+                    0,
+                    0
+                );
+
+                wgpuRenderPassEncoderSetStencilReference(pass, 0);
+                wgpuRenderPassEncoderSetPipeline(pass, path_cover);
+                wgpuRenderPassEncoderSetVertexBuffer(pass, 0, path_vertex_buffer, 0, path_bytes);
+                wgpuRenderPassEncoderDraw(pass, 3, 1, range.path_cover_first, 0);
+            } else {
+                wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+                wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_groups[index], 0, nullptr);
+                wgpuRenderPassEncoderSetVertexBuffer(pass, 0, instance_buffer, 0, instance_bytes);
+                wgpuRenderPassEncoderDraw(
+                    pass,
+                    6,
+                    static_cast<std::uint32_t>(range.count),
+                    0,
+                    static_cast<std::uint32_t>(range.first)
+                );
+            }
+            wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
         }
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
         release_uploads();
+        if (path_index_buffer != nullptr) {
+            wgpuBufferRelease(path_index_buffer);
+            path_index_buffer = nullptr;
+        }
+        if (path_vertex_buffer != nullptr) {
+            wgpuBufferRelease(path_vertex_buffer);
+            path_vertex_buffer = nullptr;
+        }
 
         const auto pixels_per_row = width * 4U;
         const auto bytes_per_row = (pixels_per_row + 255U) & ~255U;
@@ -870,6 +1240,12 @@ struct WebGpuBackend::Device {
         WGPUBuffer readback = wgpuDeviceCreateBuffer(device, &readback_descriptor);
         if (readback == nullptr) {
             wgpuCommandEncoderRelease(encoder);
+            if (depth_view != nullptr) {
+                wgpuTextureViewRelease(depth_view);
+            }
+            if (depth_texture != nullptr) {
+                wgpuTextureRelease(depth_texture);
+            }
             wgpuTextureViewRelease(view);
             wgpuTextureRelease(texture);
             return false;
@@ -897,6 +1273,12 @@ struct WebGpuBackend::Device {
         if (command == nullptr) {
             wgpuBufferRelease(readback);
             wgpuCommandEncoderRelease(encoder);
+            if (depth_view != nullptr) {
+                wgpuTextureViewRelease(depth_view);
+            }
+            if (depth_texture != nullptr) {
+                wgpuTextureRelease(depth_texture);
+            }
             wgpuTextureViewRelease(view);
             wgpuTextureRelease(texture);
             return false;
@@ -920,6 +1302,12 @@ struct WebGpuBackend::Device {
         wgpuDevicePoll(device, 1, nullptr);
         if (!map_state.mapped) {
             wgpuBufferRelease(readback);
+            if (depth_view != nullptr) {
+                wgpuTextureViewRelease(depth_view);
+            }
+            if (depth_texture != nullptr) {
+                wgpuTextureRelease(depth_texture);
+            }
             wgpuTextureViewRelease(view);
             wgpuTextureRelease(texture);
             return false;
@@ -956,6 +1344,12 @@ struct WebGpuBackend::Device {
         }
         wgpuBufferUnmap(readback);
         wgpuBufferRelease(readback);
+        if (depth_view != nullptr) {
+            wgpuTextureViewRelease(depth_view);
+        }
+        if (depth_texture != nullptr) {
+            wgpuTextureRelease(depth_texture);
+        }
         wgpuTextureViewRelease(view);
         wgpuTextureRelease(texture);
 
@@ -985,7 +1379,7 @@ bool WebGpuBackend::valid() const noexcept {
 }
 
 bool WebGpuBackend::can_submit() const noexcept {
-    return !unsupported_ && instance_count_ != 0 && range_count_ != 0;
+    return !unsupported_ && (instance_count_ != 0 || path_index_count_ != 0) && range_count_ != 0;
 }
 
 void WebGpuBackend::begin_frame(std::uint32_t width, std::uint32_t height) noexcept {
@@ -993,6 +1387,8 @@ void WebGpuBackend::begin_frame(std::uint32_t width, std::uint32_t height) noexc
     height_ = height;
     instance_count_ = 0;
     range_count_ = 0;
+    path_vertex_count_ = 0;
+    path_index_count_ = 0;
     unsupported_ = false;
 }
 
@@ -1006,6 +1402,170 @@ void WebGpuBackend::draw(
     }
     if (range_count_ == ranges_.size()) {
         unsupported_ = true;
+        return;
+    }
+
+    if (batch.pipeline == WebGpuPipeline::fill_path) {
+        if (batch.clipped &&
+            (batch.clip_bounds.width <= 0.0F || batch.clip_bounds.height <= 0.0F)) {
+            return;
+        }
+
+        if (!device_->ensure_path_pipelines()) {
+            unsupported_ = true;
+            return;
+        }
+
+        for (std::size_t command_index = batch.start; command_index < batch.start + batch.count;
+             ++command_index) {
+            const auto* path = std::get_if<FillPath>(&commands[command_index]);
+            if (path == nullptr) {
+                unsupported_ = true;
+                return;
+            }
+            if (path->color.alpha == 0) {
+                continue;
+            }
+            if (range_count_ == ranges_.size()) {
+                unsupported_ = true;
+                return;
+            }
+
+            const auto red = static_cast<float>(path->color.red) / 255.0F;
+            const auto green = static_cast<float>(path->color.green) / 255.0F;
+            const auto blue = static_cast<float>(path->color.blue) / 255.0F;
+            const auto alpha = static_cast<float>(path->color.alpha) / 255.0F;
+            const auto index_first = static_cast<std::uint32_t>(path_index_count_);
+            const auto append_vertex = [&](float x, float y) noexcept {
+                if (path_vertex_count_ == path_vertices_.size()) {
+                    return false;
+                }
+                path_vertices_[path_vertex_count_++] = {
+                    .x = x,
+                    .y = y,
+                    .red = red,
+                    .green = green,
+                    .blue = blue,
+                    .alpha = alpha,
+                };
+                return true;
+            };
+
+            for (const auto& contour : path->contours) {
+                const auto contour_start = path_vertex_count_;
+                auto point_count = std::size_t{};
+                if (!append_vertex(
+                        contour.start.x / static_cast<float>(width_) * 2.0F - 1.0F,
+                        1.0F - contour.start.y / static_cast<float>(height_) * 2.0F
+                    )) {
+                    unsupported_ = true;
+                    return;
+                }
+                ++point_count;
+                auto current = contour.start;
+                for (const auto& segment : contour.segments) {
+                    if (const auto* line = std::get_if<SoftwareLineTo>(&segment)) {
+                        if (!append_vertex(
+                                line->end.x / static_cast<float>(width_) * 2.0F - 1.0F,
+                                1.0F - line->end.y / static_cast<float>(height_) * 2.0F
+                            )) {
+                            unsupported_ = true;
+                            return;
+                        }
+                        current = line->end;
+                        ++point_count;
+                        continue;
+                    }
+                    if (const auto* quadratic = std::get_if<SoftwareQuadraticTo>(&segment)) {
+                        for (std::uint32_t step = 1; step <= 16; ++step) {
+                            const auto t = static_cast<float>(step) / 16.0F;
+                            const auto inverse = 1.0F - t;
+                            const auto point = LayoutPoint{
+                                .x = inverse * inverse * current.x +
+                                    2.0F * inverse * t * quadratic->control.x +
+                                    t * t * quadratic->end.x,
+                                .y = inverse * inverse * current.y +
+                                    2.0F * inverse * t * quadratic->control.y +
+                                    t * t * quadratic->end.y,
+                            };
+                            if (!append_vertex(
+                                    point.x / static_cast<float>(width_) * 2.0F - 1.0F,
+                                    1.0F - point.y / static_cast<float>(height_) * 2.0F
+                                )) {
+                                unsupported_ = true;
+                                return;
+                            }
+                            ++point_count;
+                        }
+                        current = quadratic->end;
+                        continue;
+                    }
+                    const auto* cubic = std::get_if<SoftwareCubicTo>(&segment);
+                    if (cubic == nullptr) {
+                        unsupported_ = true;
+                        return;
+                    }
+                    for (std::uint32_t step = 1; step <= 24; ++step) {
+                        const auto t = static_cast<float>(step) / 24.0F;
+                        const auto inverse = 1.0F - t;
+                        const auto point = LayoutPoint{
+                            .x = inverse * inverse * inverse * current.x +
+                                3.0F * inverse * inverse * t * cubic->control_1.x +
+                                3.0F * inverse * t * t * cubic->control_2.x +
+                                t * t * t * cubic->end.x,
+                            .y = inverse * inverse * inverse * current.y +
+                                3.0F * inverse * inverse * t * cubic->control_1.y +
+                                3.0F * inverse * t * t * cubic->control_2.y +
+                                t * t * t * cubic->end.y,
+                        };
+                        if (!append_vertex(
+                                point.x / static_cast<float>(width_) * 2.0F - 1.0F,
+                                1.0F - point.y / static_cast<float>(height_) * 2.0F
+                            )) {
+                            unsupported_ = true;
+                            return;
+                        }
+                        ++point_count;
+                    }
+                    current = cubic->end;
+                }
+
+                for (std::size_t point = 1; point + 1 < point_count; ++point) {
+                    if (path_index_count_ + 3 > path_indices_.size()) {
+                        unsupported_ = true;
+                        return;
+                    }
+                    path_indices_[path_index_count_++] = static_cast<std::uint32_t>(contour_start);
+                    path_indices_[path_index_count_++] =
+                        static_cast<std::uint32_t>(contour_start + point);
+                    path_indices_[path_index_count_++] =
+                        static_cast<std::uint32_t>(contour_start + point + 1);
+                }
+            }
+
+            if (path_index_count_ == index_first) {
+                continue;
+            }
+
+            const auto cover_first = static_cast<std::uint32_t>(path_vertex_count_);
+            if (!append_vertex(-1.0F, -1.0F) || !append_vertex(3.0F, -1.0F) ||
+                !append_vertex(-1.0F, 3.0F)) {
+                unsupported_ = true;
+                return;
+            }
+
+            ranges_[range_count_++] = {
+                .first = 0,
+                .count = 0,
+                .clipped = batch.clipped,
+                .clip = batch.clip_bounds,
+                .path = true,
+                .path_index_first = index_first,
+                .path_index_count = static_cast<std::uint32_t>(path_index_count_ - index_first),
+                .path_cover_first = cover_first,
+                .path_fill_rule = path->fill_rule,
+            };
+        }
         return;
     }
 
@@ -1186,6 +1746,8 @@ WebGpuFrameResult WebGpuBackend::render(
             width,
             height,
             std::span<const GpuInstance>(instances_.data(), instance_count_),
+            std::span<const PathVertex>(path_vertices_.data(), path_vertex_count_),
+            std::span<const std::uint32_t>(path_indices_.data(), path_index_count_),
             std::span<const DrawRange>(ranges_.data(), range_count_),
             output
         )) {

@@ -20,6 +20,8 @@ enum class WebGpuFrameResult : std::uint8_t {
 class WebGpuBackend : public WebGpuSink {
   public:
     static constexpr std::size_t kMaxInstances = 1024;
+    static constexpr std::size_t kMaxPathVertices = 4096;
+    static constexpr std::size_t kMaxPathIndices = 8192;
 
     WebGpuBackend() noexcept;
     ~WebGpuBackend() override;
@@ -68,6 +70,15 @@ class WebGpuBackend : public WebGpuSink {
         image,
     };
 
+    struct PathVertex {
+        float x{};
+        float y{};
+        float red{};
+        float green{};
+        float blue{};
+        float alpha{};
+    };
+
     struct DrawRange {
         std::size_t first{};
         std::size_t count{};
@@ -76,6 +87,11 @@ class WebGpuBackend : public WebGpuSink {
         DrawTexture texture{DrawTexture::white};
         const void* resource{};
         SoftwareImageSampling sampling{SoftwareImageSampling::nearest};
+        bool path{};
+        std::uint32_t path_index_first{};
+        std::uint32_t path_index_count{};
+        std::uint32_t path_cover_first{};
+        SoftwarePathFillRule path_fill_rule{SoftwarePathFillRule::even_odd};
     };
 
     bool can_submit() const noexcept;
@@ -86,6 +102,10 @@ class WebGpuBackend : public WebGpuSink {
     std::size_t instance_count_{};
     std::array<DrawRange, WebGpuFramePlan::kMaxBatches> ranges_{};
     std::size_t range_count_{};
+    std::array<PathVertex, kMaxPathVertices> path_vertices_{};
+    std::size_t path_vertex_count_{};
+    std::array<std::uint32_t, kMaxPathIndices> path_indices_{};
+    std::size_t path_index_count_{};
     std::uint32_t width_{};
     std::uint32_t height_{};
     bool unsupported_{};

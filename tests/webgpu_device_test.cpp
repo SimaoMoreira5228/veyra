@@ -12,6 +12,10 @@
 #include <string>
 #include <string_view>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
 
 void require(bool condition, std::string_view message) {
@@ -465,6 +469,192 @@ void check_image_parity() {
     check_parity(actual, expected, "image parity");
 }
 
+bool wine_runtime() noexcept {
+    if (std::getenv("WINEDEBUG") != nullptr || std::getenv("WINEPREFIX") != nullptr) {
+        return true;
+    }
+#ifdef _WIN32
+    auto* ntdll = GetModuleHandleA("ntdll.dll");
+    return ntdll != nullptr && GetProcAddress(ntdll, "wine_get_version") != nullptr;
+#else
+    return false;
+#endif
+}
+
+void check_path_parity() {
+    if (wine_runtime()) {
+        std::cout << "Wine D3D12 lacks the stencil path, skipping\n";
+        return;
+    }
+
+    auto backend = veyra::WebGpuBackend{};
+    if (!backend.create()) {
+        std::exit(77);
+    }
+
+    constexpr auto width = std::uint32_t{24};
+    constexpr auto height = std::uint32_t{20};
+    const auto outer_segments = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 24.0F, .y = 0.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 24.0F, .y = 20.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 0.0F, .y = 20.0F}},
+    };
+    const auto inner_segments = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 12.0F, .y = 4.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 12.0F, .y = 12.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 4.0F, .y = 12.0F}},
+    };
+    const auto paths = std::array<veyra::FillPath, 2>{
+        veyra::FillPath{
+            .contours =
+                std::array<veyra::SoftwarePathContour, 1>{
+                    veyra::SoftwarePathContour{
+                        .start = {.x = 0.0F, .y = 0.0F},
+                        .segments = outer_segments,
+                    },
+                },
+            .color = {.red = 30, .green = 90, .blue = 200, .alpha = 255},
+        },
+        veyra::FillPath{
+            .contours =
+                std::array<veyra::SoftwarePathContour, 1>{
+                    veyra::SoftwarePathContour{
+                        .start = {.x = 4.0F, .y = 4.0F},
+                        .segments = inner_segments,
+                    },
+                },
+            .color = {.red = 220, .green = 50, .blue = 20, .alpha = 255},
+        },
+    };
+    const auto commands = std::array<veyra::DisplayCommand, 2>{
+        paths[0],
+        paths[1],
+    };
+
+    auto expected = std::array<veyra::SoftwarePixel, static_cast<std::size_t>(width) * height>{};
+    expected.fill({.alpha = 0});
+    const veyra::SoftwareSurface surface{
+        .width = width,
+        .height = height,
+        .stride = width,
+        .pixels = expected,
+    };
+    auto intersections = std::array<double, 64>{};
+    auto windings = std::array<std::int8_t, 64>{};
+    const veyra::SoftwareRenderWorkspace workspace{
+        .path_intersections = intersections,
+        .path_windings = windings,
+    };
+    require(
+        veyra::render_software(commands, surface, workspace) ==
+            veyra::SoftwareRenderResult::complete,
+        "the software reference renders paths"
+    );
+
+    auto actual = std::array<veyra::SoftwarePixel, static_cast<std::size_t>(width) * height>{};
+    require(
+        backend.render(commands, width, height, actual) == veyra::WebGpuFrameResult::complete,
+        "the WebGPU path scene completes"
+    );
+    check_parity(actual, expected, "path parity");
+}
+
+void check_path_winding_parity() {
+    if (wine_runtime()) {
+        std::cout << "Wine D3D12 lacks the stencil path, skipping\n";
+        return;
+    }
+
+    auto backend = veyra::WebGpuBackend{};
+    if (!backend.create()) {
+        std::exit(77);
+    }
+
+    constexpr auto width = std::uint32_t{32};
+    constexpr auto height = std::uint32_t{20};
+    const auto outer = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 14.0F, .y = 0.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 14.0F, .y = 20.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 0.0F, .y = 20.0F}},
+    };
+    const auto hole = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 4.0F, .y = 4.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 10.0F, .y = 4.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 10.0F, .y = 16.0F}},
+    };
+    const auto outer_right = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 30.0F, .y = 0.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 30.0F, .y = 20.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 16.0F, .y = 20.0F}},
+    };
+    const auto hole_reversed = std::array<veyra::SoftwarePathSegment, 3>{
+        veyra::SoftwareLineTo{.end = {.x = 26.0F, .y = 4.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 20.0F, .y = 4.0F}},
+        veyra::SoftwareLineTo{.end = {.x = 20.0F, .y = 16.0F}},
+    };
+
+    const auto contours_even = std::array<veyra::SoftwarePathContour, 2>{
+        veyra::SoftwarePathContour{
+            .start = {.x = 0.0F, .y = 0.0F},
+            .segments = outer,
+        },
+        veyra::SoftwarePathContour{
+            .start = {.x = 4.0F, .y = 16.0F},
+            .segments = hole,
+        },
+    };
+    const auto contours_nonzero = std::array<veyra::SoftwarePathContour, 2>{
+        veyra::SoftwarePathContour{
+            .start = {.x = 16.0F, .y = 0.0F},
+            .segments = outer_right,
+        },
+        veyra::SoftwarePathContour{
+            .start = {.x = 20.0F, .y = 16.0F},
+            .segments = hole_reversed,
+        },
+    };
+
+    const auto commands = std::array<veyra::DisplayCommand, 2>{
+        veyra::FillPath{
+            .contours = contours_even,
+            .color = {.red = 40, .green = 120, .blue = 210, .alpha = 255},
+            .fill_rule = veyra::SoftwarePathFillRule::even_odd,
+        },
+        veyra::FillPath{
+            .contours = contours_nonzero,
+            .color = {.red = 220, .green = 70, .blue = 30, .alpha = 255},
+            .fill_rule = veyra::SoftwarePathFillRule::non_zero,
+        },
+    };
+
+    auto expected = std::array<veyra::SoftwarePixel, static_cast<std::size_t>(width) * height>{};
+    expected.fill({.alpha = 0});
+    const veyra::SoftwareSurface surface{
+        .width = width,
+        .height = height,
+        .stride = width,
+        .pixels = expected,
+    };
+    auto intersections = std::array<double, 64>{};
+    auto windings = std::array<std::int8_t, 64>{};
+    const veyra::SoftwareRenderWorkspace workspace{
+        .path_intersections = intersections,
+        .path_windings = windings,
+    };
+    require(
+        veyra::render_software(commands, surface, workspace) ==
+            veyra::SoftwareRenderResult::complete,
+        "the software reference renders winding paths"
+    );
+
+    auto actual = std::array<veyra::SoftwarePixel, static_cast<std::size_t>(width) * height>{};
+    require(
+        backend.render(commands, width, height, actual) == veyra::WebGpuFrameResult::complete,
+        "the WebGPU winding scene completes"
+    );
+    check_parity(actual, expected, "path winding parity");
+}
+
 void check_unsupported_plans() {
     auto backend = veyra::WebGpuBackend{};
     if (!backend.create()) {
@@ -502,6 +692,8 @@ int main() {
         check_mask_parity();
         check_glyph_parity();
         check_image_parity();
+        check_path_parity();
+        check_path_winding_parity();
         check_unsupported_plans();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
