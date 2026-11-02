@@ -16,6 +16,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -201,7 +202,7 @@ class Sdl3WindowHost {
     };
 
     struct PresentSlot {
-        FrameCommit commit{};
+        std::unique_ptr<FrameCommit> commit{};
         std::array<SoftwareClipRect, 64> clips{};
         std::array<LayoutPoint, 64> translations{};
         std::array<double, 128> path_intersections{};

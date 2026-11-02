@@ -4,7 +4,7 @@
 #include "veyra/render/resource/glyph_atlas.hpp"
 #include "veyra/text/rendering/glyph_image_cache.hpp"
 #include "veyra/text/rendering/glyph_mask_cache.hpp"
-#include "veyra/text/shaping/shaper.hpp"
+#include "veyra/text/shaping/shaped_glyph.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -82,21 +82,21 @@ GlyphRunResult build_mixed_glyph_draw_commands(
 }
 
 namespace veyra::text {
-using ::veyra::GlyphDrawKind;
-using ::veyra::GlyphRunResult;
 using ::veyra::build_color_glyph_draw_commands;
 using ::veyra::build_glyph_atlas_draws;
 using ::veyra::build_glyph_draw_commands;
 using ::veyra::build_mixed_glyph_draw_commands;
+using ::veyra::GlyphDrawKind;
+using ::veyra::GlyphRunResult;
 }
 
 namespace veyra::text::shaping {
-using ::veyra::GlyphDrawKind;
-using ::veyra::GlyphRunResult;
 using ::veyra::build_color_glyph_draw_commands;
 using ::veyra::build_glyph_atlas_draws;
 using ::veyra::build_glyph_draw_commands;
 using ::veyra::build_mixed_glyph_draw_commands;
+using ::veyra::GlyphDrawKind;
+using ::veyra::GlyphRunResult;
 }
 
 #endif

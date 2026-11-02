@@ -1,5 +1,7 @@
 #include "veyra/app/sdl3/window_host.hpp"
 
+#include <new>
+
 namespace veyra::app::sdl3 {
 namespace {
 
@@ -44,6 +46,12 @@ WindowSetResult Sdl3WindowHost::create(
 
     auto& backend = backends_[index];
     present_[index] = {};
+    present_[index].commit = std::unique_ptr<FrameCommit>(new (std::nothrow) FrameCommit{});
+    if (!present_[index].commit) {
+        backend.reset();
+        windows_.destroy(logical);
+        return WindowSetResult::creation_failed;
+    }
     backend.emplace(title, width, height, false);
     if (backend->creation_result() != WindowResult::ready) {
         backend.reset();
@@ -191,7 +199,7 @@ WindowSetResult Sdl3WindowHost::commit(
     }
 
     const auto result =
-        commit_frame(commands, width, height, present.commit.sequence + 1, present.commit);
+        commit_frame(commands, width, height, present.commit->sequence + 1, *present.commit);
     if (result == FrameCommitResult::insufficient_capacity) {
         return WindowSetResult::capacity;
     }
@@ -416,8 +424,8 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
     if (!present.has_commit) {
         return finish(WindowSetResult::stale_frame);
     }
-    if (present.commit.width != backend->pixel_width() ||
-        present.commit.height != backend->pixel_height()) {
+    if (present.commit == nullptr || present.commit->width != backend->pixel_width() ||
+        present.commit->height != backend->pixel_height()) {
         return finish(WindowSetResult::stale_frame);
     }
 
@@ -440,11 +448,11 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
             index,
             backing,
             std::span<const DisplayCommand>(
-                present.commit.commands.data(),
-                present.commit.command_count
+                present.commit->commands.data(),
+                present.commit->command_count
             ),
-            present.commit.width,
-            present.commit.height
+            present.commit->width,
+            present.commit->height
         )) {
         return present_done();
     }
@@ -454,7 +462,8 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
     if (backend->acquire_surface(surface, backing) != WindowResult::ready) {
         return finish(WindowSetResult::presentation_failed);
     }
-    if (surface.width != present.commit.width || surface.height != present.commit.height) {
+    if (present.commit == nullptr || surface.width != present.commit->width ||
+        surface.height != present.commit->height) {
         backend->discard_frame();
         return finish(WindowSetResult::stale_frame);
     }
@@ -467,8 +476,8 @@ Sdl3WindowHost::present_now(WindowId window, std::span<SoftwarePixel> backing) n
     };
     if (render_software(
             std::span<const DisplayCommand>(
-                present.commit.commands.data(),
-                present.commit.command_count
+                present.commit->commands.data(),
+                present.commit->command_count
             ),
             surface,
             workspace

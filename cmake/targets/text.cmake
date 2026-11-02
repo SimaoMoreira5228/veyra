@@ -1,7 +1,6 @@
 if(VEYRA_WITH_TEXT)
  veyra_dependency_harfbuzz()
  add_library(veyra_shaping STATIC
-  src/text/shaping/glyph_run.cpp
   src/text/shaping/shaped_run_cache.cpp
   src/text/shaping/shaper.cpp
  )

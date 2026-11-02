@@ -54,6 +54,7 @@ target_compile_features(veyra_render PUBLIC cxx_std_23)
 add_library(veyra_text STATIC
  src/text/editing/editor_viewport.cpp
  src/text/shaping/font_discovery.cpp
+ src/text/shaping/glyph_run.cpp
  src/text/rendering/glyph_mask_cache.cpp
  src/text/rendering/glyph_image_cache.cpp
  src/text/annotation/syntax_spans.cpp

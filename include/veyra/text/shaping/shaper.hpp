@@ -2,6 +2,7 @@
 #define VEYRA_TEXT_SHAPER_HPP
 
 #include "veyra/text/shaping/direction.hpp"
+#include "veyra/text/shaping/shaped_glyph.hpp"
 
 #include <hb.h>
 
@@ -21,15 +22,6 @@ struct TextRunProperties {
     TextDirection direction{TextDirection::left_to_right};
     std::string_view script;
     std::string_view language;
-};
-
-struct ShapedGlyph {
-    std::uint32_t id{};
-    std::uint32_t cluster{};
-    std::int32_t x_advance{};
-    std::int32_t y_advance{};
-    std::int32_t x_offset{};
-    std::int32_t y_offset{};
 };
 
 enum class ShapeResult : std::uint8_t {
@@ -71,14 +63,12 @@ class TextShaper {
 
 namespace veyra::text {
 using ::veyra::ShapeResult;
-using ::veyra::ShapedGlyph;
 using ::veyra::TextRunProperties;
 using ::veyra::TextShaper;
 }
 
 namespace veyra::text::shaping {
 using ::veyra::ShapeResult;
-using ::veyra::ShapedGlyph;
 using ::veyra::TextRunProperties;
 using ::veyra::TextShaper;
 }
