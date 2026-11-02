@@ -21,6 +21,11 @@ enum class FlexWrap : std::uint8_t {
     wrap,
 };
 
+enum class FlexLayoutDirection : std::uint8_t {
+    left_to_right,
+    right_to_left,
+};
+
 enum class FlexAlignContent : std::uint8_t {
     start,
     center,
@@ -59,6 +64,7 @@ struct FlexContainer {
     LayoutInsets padding;
     float gap{};
     FlexDirection direction{FlexDirection::row};
+    FlexLayoutDirection layout_direction{FlexLayoutDirection::left_to_right};
     FlexWrap wrap{FlexWrap::no_wrap};
     FlexAlignContent align_content{FlexAlignContent::start};
     FlexAlign align_items{FlexAlign::stretch};
@@ -110,6 +116,7 @@ FlexLayoutResult layout_flex_measured(
 }
 
 namespace veyra::layout {
+using ::veyra::flex_item_constraints;
 using ::veyra::FlexAlign;
 using ::veyra::FlexAlignContent;
 using ::veyra::FlexContainer;
@@ -117,14 +124,15 @@ using ::veyra::FlexDirection;
 using ::veyra::FlexItem;
 using ::veyra::FlexItemStyle;
 using ::veyra::FlexJustify;
+using ::veyra::FlexLayoutDirection;
 using ::veyra::FlexLayoutResult;
 using ::veyra::FlexWrap;
-using ::veyra::flex_item_constraints;
 using ::veyra::layout_flex;
 using ::veyra::layout_flex_measured;
 }
 
 namespace veyra::layout::flex {
+using ::veyra::flex_item_constraints;
 using ::veyra::FlexAlign;
 using ::veyra::FlexAlignContent;
 using ::veyra::FlexContainer;
@@ -132,9 +140,9 @@ using ::veyra::FlexDirection;
 using ::veyra::FlexItem;
 using ::veyra::FlexItemStyle;
 using ::veyra::FlexJustify;
+using ::veyra::FlexLayoutDirection;
 using ::veyra::FlexLayoutResult;
 using ::veyra::FlexWrap;
-using ::veyra::flex_item_constraints;
 using ::veyra::layout_flex;
 using ::veyra::layout_flex_measured;
 }

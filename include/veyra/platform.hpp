@@ -11,6 +11,11 @@
 #include "veyra/platform/headless/fake_services.hpp"
 #include "veyra/platform/headless/null_window.hpp"
 
+#if defined(__linux__)
+#include "veyra/platform/linux/atspi_protocol.hpp"
+#include "veyra/platform/linux/atspi_sink.hpp"
+#endif
+
 namespace veyra::platform {}
 namespace veyra::platform::core {}
 namespace veyra::platform::glfw {}

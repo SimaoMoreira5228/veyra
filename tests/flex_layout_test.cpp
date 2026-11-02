@@ -656,6 +656,76 @@ void check_measured_flex_wrap() {
     );
 }
 
+void check_rtl_mirrors_rows_columns_and_wrap() {
+    const auto row = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 40.0F,
+        .padding = {.right = 5.0F, .left = 10.0F},
+        .gap = 10.0F,
+        .layout_direction = veyra::FlexLayoutDirection::right_to_left,
+    };
+    const std::array row_items{
+        veyra::FlexItem{.basis = 20.0F, .cross_size = 10.0F},
+        veyra::FlexItem{.basis = 20.0F, .cross_size = 10.0F},
+    };
+    std::array<veyra::LayoutRect, 2> row_output{};
+    require(
+        veyra::layout_flex(row, row_items, row_output) == veyra::FlexLayoutResult::complete,
+        "rtl row completes"
+    );
+    require(near(row_output[0].x, 70.0F), "rtl row starts at the right padding");
+    require(near(row_output[1].x, 40.0F), "rtl row keeps logical item order");
+
+    const auto column = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 40.0F,
+        .padding = {.left = 10.0F},
+        .direction = veyra::FlexDirection::column,
+        .layout_direction = veyra::FlexLayoutDirection::right_to_left,
+        .align_items = veyra::FlexAlign::start,
+    };
+    const std::array column_items{
+        veyra::FlexItem{.basis = 10.0F, .cross_size = 20.0F},
+    };
+    std::array<veyra::LayoutRect, 1> column_output{};
+    require(
+        veyra::layout_flex(column, column_items, column_output) ==
+            veyra::FlexLayoutResult::complete,
+        "rtl column completes"
+    );
+    require(near(column_output[0].x, 70.0F), "rtl column mirrors its cross axis");
+    require(near(column_output[0].y, 0.0F), "rtl column keeps its main axis");
+
+    const auto wrapped = veyra::FlexContainer{
+        .width = 100.0F,
+        .height = 60.0F,
+        .layout_direction = veyra::FlexLayoutDirection::right_to_left,
+        .wrap = veyra::FlexWrap::wrap,
+    };
+    const std::array wrapped_items{
+        veyra::FlexItem{.basis = 60.0F, .cross_size = 10.0F},
+        veyra::FlexItem{.basis = 60.0F, .cross_size = 10.0F},
+    };
+    std::array<veyra::LayoutRect, 2> wrapped_output{};
+    require(
+        veyra::layout_flex(wrapped, wrapped_items, wrapped_output) ==
+            veyra::FlexLayoutResult::complete,
+        "rtl wrap completes"
+    );
+    require(near(wrapped_output[0].y, 0.0F), "the first rtl line stays first");
+    require(near(wrapped_output[1].y, 10.0F), "the second rtl line wraps below");
+    require(near(wrapped_output[0].x, 40.0F), "the first rtl line mirrors");
+    require(near(wrapped_output[1].x, 40.0F), "the wrapped line mirrors");
+
+    auto invalid = row;
+    invalid.layout_direction = static_cast<veyra::FlexLayoutDirection>(9);
+    require(
+        veyra::layout_flex(invalid, row_items, row_output) ==
+            veyra::FlexLayoutResult::invalid_input,
+        "an unknown layout direction is rejected"
+    );
+}
+
 }
 
 int main() {
@@ -671,6 +741,7 @@ int main() {
         check_baseline_alignment();
         check_wrapped_flex_lines();
         check_measured_flex_wrap();
+        check_rtl_mirrors_rows_columns_and_wrap();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

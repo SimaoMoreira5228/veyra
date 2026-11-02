@@ -37,6 +37,14 @@ bool valid_container(const FlexContainer& container) noexcept {
         return false;
     }
 
+    switch (container.layout_direction) {
+    case FlexLayoutDirection::left_to_right:
+    case FlexLayoutDirection::right_to_left:
+        break;
+    default:
+        return false;
+    }
+
     switch (container.align_content) {
     case FlexAlignContent::start:
     case FlexAlignContent::center:
@@ -72,6 +80,16 @@ bool valid_container(const FlexContainer& container) noexcept {
         return true;
     }
     return false;
+}
+
+void mirror_layout(const FlexContainer& container, std::span<LayoutRect> output) noexcept {
+    if (container.layout_direction != FlexLayoutDirection::right_to_left) {
+        return;
+    }
+
+    for (auto& rect : output) {
+        rect.x = container.width - rect.x - rect.width;
+    }
 }
 
 bool valid_baseline(const FlexItem& item) noexcept {
@@ -434,7 +452,11 @@ FlexLayoutResult layout_flex_impl(
     }
 
     if (container.wrap == FlexWrap::no_wrap || items.empty()) {
-        return layout_flex_line(container, items, output);
+        const auto result = layout_flex_line(container, items, output);
+        if (result == FlexLayoutResult::complete || result == FlexLayoutResult::overflow) {
+            mirror_layout(container, output.first(items.size()));
+        }
+        return result;
     }
 
     const bool row = container.direction == FlexDirection::row;
@@ -539,6 +561,8 @@ FlexLayoutResult layout_flex_impl(
         line_cross_position = line_cross_end + line_cross_gap;
         line_begin = line.end;
     }
+
+    mirror_layout(container, output.first(items.size()));
 
     return overflow ? FlexLayoutResult::overflow : FlexLayoutResult::complete;
 }
